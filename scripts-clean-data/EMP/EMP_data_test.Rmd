@@ -1,0 +1,42 @@
+```{r}
+library(tidyverse)
+```
+
+```{r}
+# read in data
+df_phyto <- read_csv('data/cleaned/EMP_Phyto_Data_2008-2021.csv')
+```
+
+
+```{r}
+ggplot(df_phyto, aes(SampleDate, Organisms_per_mL)) +
+  geom_point()
+```
+```{r}
+ggplot(df_phyto, aes(SampleDate, AverageBiovolume)) +
+  geom_point()
+```
+```{r}
+ggplot(df_phyto, aes(SampleDate, AverageBiovolume_per_mL)) +
+  geom_point()
+```
+
+
+```{r}
+df_dates <- df_phyto %>% subset(select = c(SampleDate, StationCode))
+df_dates$Date <- paste(month(df_dates$SampleDate),'-',year(df_dates$SampleDate))
+df_dates$Month <- month.abb[month(df_dates$SampleDate)]
+df_dates$Year <- year(df_dates$SampleDate)
+df_dates <- df_dates %>% subset(select = -SampleDate) %>% distinct()
+df_dates$Month = factor(df_dates$Month, levels = month.abb)
+
+df_dates <- df_dates %>%
+  group_by(Date,Month,Year) %>%
+  summarize(StatCount = n_distinct(StationCode))
+
+plt <- ggplot(df_dates, aes(x=Month, y=StatCount)) +
+  geom_bar(stat = 'identity') +
+  theme(axis.text.x= element_text(angle = 45)) +
+  facet_wrap(~Year, ncol = 2)
+```
+
