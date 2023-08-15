@@ -70,9 +70,9 @@ phyto_format <- phyto_stn %>%
          ,longitude
          ,collection_type
          ,date
-         ,time
+         ,time_pst = time
          ,tidal_stage
-         ,depth
+         ,depth_m = depth
          ,lab
          ,taxon_original
          ,taxon
@@ -81,8 +81,8 @@ phyto_format <- phyto_stn %>%
          ,species
          ,organisms_per_ml
          ,cells_per_ml
-         ,biovolume_cubic_micron_per_ml
-         ,gald_micron = gald
+         ,biovolume_cubic_um_per_ml = biovolume_cubic_micron_per_ml
+         ,gald_um = gald
          ,quality_check
          ,debris
          ) %>% 

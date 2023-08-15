@@ -1,4 +1,4 @@
-survey,station,latitude,longitude,collection_type,date,time,tidal_stage,depth,lab,taxon_original,taxon,kingdom,phylum,class,algal_group,genus,species,organisms_per_ml,cells_per_ml,biovolume_cubic_micron_per_ml,gald_micron,quality_check,debris
+survey,station,latitude,longitude,collection_type,date,time_pst,tidal_stage,depth_m,lab,taxon_original,taxon,kingdom,phylum,class,algal_group,genus,species,organisms_per_ml,cells_per_ml,biovolume_cubic_um_per_ml,gald_um,quality_check,debris
 AWCA,FI_SAV_1,38.268811,-121.696786,grab_surface,2017-05-23,14:29:00,high_slack,0,BSA,Cyclotella sp.,Cyclotella sp.,Chromista,Ochrophyta,Coscinodiscophyceae,Centric Diatoms,Cyclotella,sp.,450.4,450.4,64878.9,6.5,good,high
 AWCA,FI_SAV_1,38.268811,-121.696786,grab_surface,2017-05-23,14:29:00,high_slack,0,BSA,Nitzschia palea,Nitzschia palea,Chromista,Ochrophyta,Bacillariophyceae,Pennate Diatoms,Nitzschia,palea,450.4,450.4,64878.9,24.1,good,high
 AWCA,FI_SAV_1,38.268811,-121.696786,grab_surface,2017-05-23,14:29:00,high_slack,0,BSA,Chlorella sp.,Chlorella sp.,Plantae,Chlorophyta,Chlorophyceae,Green Algae,Chlorella,sp.,1801.7,1801.7,259515.8,1.9,good,high
