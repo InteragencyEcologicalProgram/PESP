@@ -9,9 +9,6 @@
 #add some columns with metadata for the PESP project
 #so this dataset can be combined with other phyto data sets
 
-#To do list
-#add GALD to SMSCG phyto dataset
-
 #load packages---------
 library(tidyverse)
 library(lubridate)
@@ -19,11 +16,15 @@ library(lubridate)
 #read in data----------
 
 #phytoplankton abundance data
-phyto <- read_csv("https://portal.edirepository.org/nis/dataviewer?packageid=edi.876.6&entityid=8c283ea7d1823824ccfa2f05d8056027") %>% 
+phyto <- read_csv("https://portal.edirepository.org/nis/dataviewer?packageid=edi.876.7&entityid=8c283ea7d1823824ccfa2f05d8056027") %>% 
   glimpse()
 
 #station metadata
-stations <-read_csv("https://portal.edirepository.org/nis/dataviewer?packageid=edi.876.6&entityid=08de2a97cf2a3743af06e3ff6e0e9b39") %>% 
+stations <-read_csv("https://portal.edirepository.org/nis/dataviewer?packageid=edi.876.7&entityid=08de2a97cf2a3743af06e3ff6e0e9b39") %>% 
+  glimpse()
+
+#phytoplankton taxonomy
+taxonomy <- read_csv("https://portal.edirepository.org/nis/dataviewer?packageid=edi.876.7&entityid=4c514654c71a7b8b930bdd031701c359") %>% 
   glimpse()
 
 #format data for PESP---------
@@ -42,9 +43,12 @@ phyto_stn <- left_join(phyto,stn)
 phyto_stn_na <- phyto_stn %>% 
   filter(is.na(latitude)) %>% 
   distinct(station)
-#three stations
-#MONT vs STN_MONT; need to fix that
-#the two EZ stations which are floating stations
+#looks like it 
+
+#add taxonomy info 
+#phyto_stn_tax <- left_join(phyto_stn,taxonomy) 
+#matching doesn't work that well; should have retained taxon and taxon_original in abundance data set
+#don't stress about it for now because Tiffany is reworking the master taxonomy anyway
 
 #final formatting
 phyto_format <- phyto_stn %>% 
@@ -69,18 +73,19 @@ phyto_format <- phyto_stn %>%
          ,lab
          ,taxon_original = taxon
          #,taxon
-         ,kingdom:class
+         #,kingdom:class
          #,algal_group
-         ,genus
+         #,genus
          #,species
-         ,organisms_per_ml
+         ,units_per_ml 
          ,cells_per_ml
          ,biovolume_cubic_um_per_ml = biovolume_per_ml
-         #,gald_um = gald
-         #,quality_check
-         #,debris
+         ,gald_um 
+         ,quality_check
+         ,debris
   ) %>% 
   glimpse()
+#need to add taxonomy info to this at some point
 
 #write formatted data file
 #write_csv(phyto_format, "./programs/SMSCG/SMSCG_phyto.csv")
