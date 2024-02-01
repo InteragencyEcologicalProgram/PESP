@@ -1,6 +1,8 @@
 ﻿QualityCheck,Explanation
 Good,Sample passed QC
-BadData,"Sample either broken, did not meet natural unit tally, or marked for deletion"
+BadData,Sample was marked for deletion
+TallyNotMet,Sample did not meet minimum tally count
 Degraded,Sample was degraded
 PoorlyPreserved,Sample was poorly preserved
 Fragment,Sample was fragmented
+BrokenDiatom,Sample contains broken diatoms
