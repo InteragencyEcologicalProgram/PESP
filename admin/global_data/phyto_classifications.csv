@@ -1,4 +1,4 @@
-﻿Kingdom,Phylum,Class,AlgalGroup,Genus,Name,Authority,Authority Source,CurrentName,Synonym Authority,Synonym Authority Source,Taxonomic Classification Source,Growth Habit,Habitat Type,Salinity Range
+﻿Kingdom,Phylum,Class,AlgalGroup,Genus,Taxon,Authority,Authority Source,CurrentTaxon,Synonym Authority,Synonym Authority Source,Taxonomic Classification Source,Growth Habit,Habitat Type,Salinity Range
 Bacteria,Cyanobacteria,Cyanophyceae,Cyanobacteria,Agmenellum,Agmenellum elegans,Brébisson,www.itis.gov,None,N/A,N/A,Cavalier-Smith 1998,colonial,planktonic,freshwater
 Bacteria,Cyanobacteria,Cyanophyceae,Cyanobacteria,Agmenellum,Agmenellum sp.,Brébisson,www.algaebase.org,Merismopedia sp.,F.J.F. Meyen,www.algaebase.org,Cavalier-Smith 1998,colonial,planktonic,freshwater to marine
 Bacteria,Cyanobacteria,Cyanophyceae,Cyanobacteria,Agmenellum,Agmenellum tenuissima,Unknown,Unknown,Unknown,Unknown,N/A,Cavalier-Smith 1998,colonial,planktonic,freshwater
