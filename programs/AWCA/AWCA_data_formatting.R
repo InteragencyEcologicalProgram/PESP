@@ -10,6 +10,9 @@
 #add some columns with metadata for the PESP project
 #so this dataset can be combined with other phyto data sets
 
+#notes
+#consider dropping samples from sites treated with herbicides
+
 #load packages---------
 library(tidyverse)
 library(lubridate)
@@ -79,7 +82,7 @@ phyto_format <- phyto_stn %>%
          ,kingdom:algal_group
          ,genus
          ,species
-         ,organisms_per_ml
+         ,units_per_ml = organisms_per_ml
          ,cells_per_ml
          ,biovolume_cubic_um_per_ml = biovolume_cubic_micron_per_ml
          ,gald_um = gald
@@ -87,6 +90,10 @@ phyto_format <- phyto_stn %>%
          ,debris
          ) %>% 
   glimpse()
+
+#look at QA codes
+#unique(phyto_format$quality_check)
+#"good"       "fragmented" "degraded" 
 
 #write formatted data file
 #write_csv(phyto_format, "./programs/AWCA/AWCA_phyto.csv")
