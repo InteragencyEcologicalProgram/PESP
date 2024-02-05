@@ -30,19 +30,44 @@ abs_data_path <- function(fp_rel = NULL) {
 #'
 #'@param df A data frame
 #'@param comment_col the name (as a string) of the comment column
-#' @return A data frame with a comment column added
+#'@return A data frame with a comment column added
 #' 
-func_qc_col <- function(df, comment_col){
+add_qc_col <- function(df, comment_col){
   df <- df %>%
-  mutate(
-    QC_1 = case_when(grepl('broken\\.|cannot meet|did not reach|delete', comment_col, ignore.case = TRUE) ~ 'BadData'),
-    QC_2 = case_when(grepl('degraded', comment_col, ignore.case = TRUE) ~ 'Degraded'),
-    QC_3 = case_when(grepl('poorly preserved', comment_col, ignore.case = TRUE) ~ 'PoorlyPreserved'),
-    QC_4 = case_when(grepl('fragment\\.', comment_col, ignore.case = TRUE) ~ 'Fragmented')
-  ) %>%
-  unite(QualityCheck, starts_with('QC'), remove = TRUE, na.rm = TRUE, sep = ' ')
+    mutate(
+      QC_1 = case_when(grepl('delete|cross contamination', comment_col, ignore.case = TRUE) ~ 'BadData'),
+      QC_2 = case_when(grepl('did not reach|cannot meet tally|cannot meet natural unit', comment_col, ignore.case = TRUE) ~ 'TallyNotMet'),
+      QC_3 = case_when(grepl('degraded', comment_col, ignore.case = TRUE) ~ 'Degraded'),
+      QC_4 = case_when(grepl('poor preservation|poorly preserved|weak preservation|weakly preserved|fungus', comment_col, ignore.case = TRUE) ~ 'PoorlyPreserved'),
+      QC_5 = case_when(grepl('obscured', comment_col, ignore.case = TRUE) ~ 'Obscured'),
+      QC_6 = case_when(grepl('fragment\\.|diatom fragment', comment_col, ignore.case = TRUE) ~ 'Fragmented'),
+      QC_7 = case_when(grepl('broken diatom', comment_col, ignore.case = TRUE) & !grepl('broken diatom fragment', comment_col, ignore.case = TRUE) ~ 'BrokenDiatoms'),
+    ) %>%
+    unite(QualityCheck, starts_with('QC'), remove = TRUE, na.rm = TRUE, sep = ' ')
   
   df$QualityCheck[df$QualityCheck == ''] <- 'Good'
+  
+  return(df)
+}
+
+#' Creates a "debris" column based on a comment column
+#'
+#'@param df A data frame
+#'@param comment_col the name (as a string) of the comment column
+#'@return A data frame with a comment column added
+#'@details
+#'R assigns sequentially, so column priority will always be the "highest" level of debris (for Db_1)
+#'
+add_debris_col <- function(df, comment_col){
+  df <- df %>%
+    mutate(
+      Db_1 = case_when(
+        grepl('high detritus|high sediment|heavy detritus|heavy sediment', comment_col, ignore.case = TRUE) ~ 'High',
+        grepl('moderate detritus|moderate sediment', comment_col, ignore.case = TRUE) ~ 'Moderate',
+        grepl('low detritus|low sediment', comment_col, ignore.case = TRUE) ~ 'Low'),
+      Db_2 = case_when(grepl('mucilaginous', comment_col, ignore.case = TRUE) ~ 'Mucilaginous')
+    ) %>%
+    unite(Debris, starts_with('Db'), remove = TRUE, na.rm = TRUE, sep = ' ')
   
   return(df)
 }
