@@ -29,16 +29,6 @@ clean_unknowns <- function(df){
   return(df)
 }
 
-#' TODO: WRITE
-#' standardize spp. to sp.
-clean_sp <- function(df){
-  df$Taxon <- stringr::str_replace_all(df$Taxon, 'spp.', 'sp.')
-  df$Species <- stringr::str_replace_all(df$Taxon, 'spp.', 'sp.')
-  
-  return(df)
-}
-
-
 # Standardize Column Names ------------------------------------------------
 #' TODO: WRITE
 #' remove blank rows caused by measurement cols
@@ -126,6 +116,7 @@ add_qc_col <- function(df){
       QC_5 = case_when(grepl('obscured', Comments, ignore.case = TRUE) ~ 'Obscured'),
       QC_6 = case_when(grepl('fragment\\.|diatom fragment', Comments, ignore.case = TRUE) ~ 'Fragmented'),
       QC_7 = case_when(grepl('broken diatom', Comments, ignore.case = TRUE) & !grepl('broken diatom fragment', Comments, ignore.case = TRUE) ~ 'BrokenDiatoms'),
+      QC_8 = case_when(grepl('mucilaginous detritus', Comments, ignore.case = TRUE) ~ 'MucilaginousDetritus')
     ) %>%
     unite(QualityCheck, starts_with('QC'), remove = TRUE, na.rm = TRUE, sep = ' ')
 

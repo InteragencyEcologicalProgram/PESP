@@ -12,8 +12,7 @@ read_quiet_csv <- function(fp){
   return(df)
 }
 
-# abs path
-
+#' abs path
 abs_data_path <- function(fp_rel = NULL) {
   fp_full <- 'California Department of Water Resources/Phytoplankton synthesis - Documents/'
   
@@ -24,6 +23,32 @@ abs_data_path <- function(fp_rel = NULL) {
   }
   
   return(fp_abs)
+}
+
+#' read metadata
+read_meta_file <- function(program_name){
+  df <-
+    readxl::read_xlsx(abs_data_path('Metadata/Phytoplankton Metadata.xlsx'), skip = 3)
+  
+  df <- df %>%
+    subset(Program == program_name) 
+  
+  df$`Ending Date`[is.na(df$`Ending Date`)] <- Sys.Date()
+  
+  return(df)
+}
+
+#' pull values from meta
+from_meta <- function(df, meta_df, column) {
+  meta_df <- meta_df %>%
+    mutate(start = `Starting Date`, end = `Ending Date`) %>%
+    mutate(Date = map2(start, end, ~ seq(from = .x, to = .y, by = 'day'))) %>%
+    unnest(cols = Date) %>%
+    select(Date, all_of(column))
+  
+  df_export <- left_join(df, meta_df, by = 'Date')
+  
+  return(df_export)
 }
 
 #' Creates a "quality check" column based on a comment column
@@ -118,11 +143,18 @@ get_edi_file = function(pkg_id, fnames, verbose = TRUE){
   dfs
 }
 
-
+#' TODO: WRITE
+#' standardize spp. to sp.
+clean_sp <- function(df){
+  df$Taxon <- stringr::str_replace_all(df$Taxon, 'spp.', 'sp.')
+  df$Species <- stringr::str_replace_all(df$Species, 'spp.', 'sp.')
+  
+  return(df)
+}
 
 # add in higher level taxa ------------------------------------------------
 
-higher_lvl_taxa <- function(df){
+higher_lvl_taxa <- function(df, after_col){
   # subset synonym/taxon columns from synonym df
   df_syn <- df_syn %>%
     select(c('Kingdom':'AlgalGroup','Taxon','CurrentTaxon')) %>%
@@ -133,6 +165,9 @@ higher_lvl_taxa <- function(df){
   
   # standardize unknown names in data df before joining
   # # TODO: base this on a csv (for easier editing)
+  df <- df %>%
+    mutate(PureTaxon = Taxon)
+  
   df <- df %>%
     mutate(
       Taxon = case_when(
@@ -147,20 +182,21 @@ higher_lvl_taxa <- function(df){
         Taxon == 'Unknown Genus' ~ 'Unknown genus',
         Taxon == 'Unknown Algae' ~ 'Unknown',
         TRUE ~ Taxon),
-      PureTaxon = gsub('cf\\. ', '', Taxon)
+      PureTaxon = gsub('cf\\. ', '', PureTaxon),
+      PureTaxon = gsub(' var\\..*', '', PureTaxon)
     )
   
   # add higher level taxa to data df (joined df)
   df_joined <- df %>%
     left_join(df_syn, by = 'PureTaxon') %>%
     select(-c(ends_with('.y'), ends_with('.x'), 'PureTaxon')) %>%
-    relocate(c(Taxon, Kingdom, Phylum, Class, AlgalGroup), .after = Station) %>%
+    relocate(c(Taxon, Kingdom, Phylum, Class, AlgalGroup), .after = all_of(after_col)) %>%
     relocate(c(Genus, Species), .after = AlgalGroup)
   
   return(df_joined)
 }
 
-# Update Syonyms
+# Update Synonyms
 update_synonyms <- function(df){
   # update taxon names with current synonymous taxon
   df <- df %>%
@@ -175,7 +211,7 @@ update_synonyms <- function(df){
                         TRUE ~ CurrentTaxon
       )) %>%
     select(-CurrentTaxon) %>%
-    relocate(OrigTaxon, .after = Station)
+    relocate(OrigTaxon, .before = Taxon)
   
   # standardize specific unknown Taxon cases
   df <- df %>%
@@ -193,3 +229,84 @@ update_synonyms <- function(df){
   
   return(df)
 }
+
+# NMDS functions ----------------------------------------------------------
+
+format_nmds <- function(df, plt_vari, fact_vari){
+  df_output <- df %>%
+    select(all_of(fact_vari), Date, Taxon, all_of(plt_vari)) %>%
+    group_by(across(fact_vari), Date, Taxon) %>%
+    reframe(variable = mean(!!rlang::sym(plt_vari), na.rm = TRUE)
+    ) %>%
+    pivot_wider(names_from = Taxon,
+                values_from = variable)  
+  
+  return(df_output)
+}
+
+create_nmds_df <- function(df, fact_vari){
+  # make community matrix - extract columns with abundance information
+  com = df %>% select(Date:last_col(), -Date)
+  
+  com[is.na(com)] <- 0
+  
+  m_com <- as.matrix(com)
+  
+  nmds <- metaMDS(m_com, distance = 'bray')
+  
+  df_output <- as.data.frame(scores(nmds)$sites)
+  
+  df_output$factor <- pull(df, fact_vari)
+  
+  df_output$Year <- as.factor(df_output$factor)
+  
+  return(df_output)
+}
+
+plot_nmds <- function(df, fact_vari){
+  plt <- ggplot(df, aes(x = NMDS1, y = NMDS2, group = fact_vari)) + 
+    geom_point(size = 4, shape = 21, color = '#000000', aes(fill = fact_vari)) +
+    scale_fill_brewer(palette ='Set1') +
+    theme_bw()
+  
+  return(plt)
+}
+
+create_nmds <- function(df, plt_vari, fact_vari){
+  df_vari <- format_nmds(df, plt_vari, fact_vari)
+  
+  df_nmds <- create_nmds_df(df_vari, fact_vari)
+  
+  plt <- plot_nmds(df_nmds, fact_vari)
+  
+  return(plt)
+}
+
+new_col <- function(df, new_name){
+  df[, new_name] <- NA
+  
+  return(df)
+}
+
+nmds_qc_cols <- function(df){
+  qc_list <- paste0(unique(df$QualityCheck), collapse = ' ')
+  qc_cols <- str_split(qc_list, ' ') %>% unlist %>% unique
+  
+  for(x in qc_cols){
+    df_phyto <- new_col(df_phyto, x)
+    
+    df_phyto[[x]] <- with(df_phyto, grepl(x, QualityCheck))
+  }
+  
+  return(df_phyto)
+}
+
+# for QC cols
+# df_phyto <- nmds_qc_cols(df_phyto)
+# 
+# qc_list <- paste0(unique(df_phyto$QualityCheck), collapse = ' ')
+# qc_cols <- str_split(qc_list, ' ') %>% unlist %>% unique
+# 
+# test <- format_nmds(df_phyto, 'Cells_per_mL', qc_cols)
+# 
+# create_nmds_df(test, qc_cols)

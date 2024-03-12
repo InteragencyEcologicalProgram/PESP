@@ -49,7 +49,8 @@ check_higher_taxa <- function(df){
   df_error_check <- df %>% select(c('Taxon':'Species'))
   
   check <- df_error_check %>% subset(is.na(AlgalGroup) | is.na(Class) | is.na(Phylum) | is.na(Kingdom) | is.na(Genus) | is.na(Species))
-  check <- check %>% mutate(Taxon = gsub('cf\\. ', '', Taxon))
+  check <- check %>% mutate(Taxon = gsub('cf\\. ', '', Taxon),
+                            Taxon = gsub(' var\\..*', '', Taxon))
   check <- check[!duplicated(check),]
   check <- check %>% arrange(Taxon)  
   
@@ -94,4 +95,10 @@ check_synonyms <- function(df){
   df_output <- full_join(df_output, syn_check, by = 'Type')
   
   return(df_output)
+}
+
+check_methods <- function(df){
+  ls_methods <- unique(df$SamplingMethod)
+  
+  message(message(glue::glue('Currect sampling methods: {toString(ls_methods)}')))
 }
