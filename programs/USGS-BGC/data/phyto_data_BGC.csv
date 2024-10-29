@@ -2251,7 +2251,6 @@ Date,Time,Station,Latitude,Longitude,SamplingMethod,SamplingDepth,OrigTaxon,Taxo
 2022-06-14T00:00:00Z,22:09:30,RL WEST BOTTOM,37.8303,-122.53355,Van Dorn sampler,1 meter,NA,Craticula sp.,Chromista,Ochrophyta,Bacillariophyceae,Pennate Diatoms,Craticula,sp.,BSA,54,24645.47,Degraded
 2016-08-03T00:00:00Z,16:15:30,TOEN,38.36513889,-121.6377417,Submersible centrifugal pump,1 meter,NA,Gomphonema sp.,Chromista,Ochrophyta,Bacillariophyceae,Pennate Diatoms,Gomphonema,sp.,BSA,2,479.81,Good
 2022-08-09T00:00:00Z,22:11:45,FT25,38.02888889,-121.6102778,Van Dorn sampler,1 meter,NA,Aulacoseira sp.,Chromista,Ochrophyta,Coscinodiscophyceae,Centric Diatoms,Aulacoseira,sp.,BSA,29,57985.32,Degraded
-2022-10-18T00:00:00Z,22:12:08,SS1,38.33215556,-121.5829306,Submersible centrifugal pump,1 meter,NA,Chlamydomonas sp.,Plantae,Chlorophyta,Chlorophyceae,Green Algae,Chlamydomonas,sp.,BSA,0,0,Degraded
 2021-08-18T00:00:00Z,21:16:35,SJT,38.0757,-121.5708889,Submersible centrifugal pump,1 meter,NA,Pseudanabaena sp.,Bacteria,Cyanobacteria,Cyanophyceae,Cyanobacteria,Pseudanabaena,sp.,BSA,349933,1855148.72,Good
 2020-05-19T00:00:00Z,20:15:00,LPS,38.09638889,-121.4961111,Submersible centrifugal pump,1 meter,NA,Nitzschia sp.,Chromista,Ochrophyta,Bacillariophyceae,Pennate Diatoms,Nitzschia,sp.,BSA,21,2447.46,Good
 2021-07-29T00:00:00Z,21:09:10,C10A,37.679167,-121.264444,Van Dorn sampler,1 meter,NA,Nitzschia sp.,Chromista,Ochrophyta,Bacillariophyceae,Pennate Diatoms,Nitzschia,sp.,BSA,1069,197318.82,Good
@@ -2970,7 +2969,6 @@ Date,Time,Station,Latitude,Longitude,SamplingMethod,SamplingDepth,OrigTaxon,Taxo
 2022-08-17T00:00:00Z,22:07:14,SLM,37.6742,-122.2178,Submersible centrifugal pump,1 meter,NA,Tabellaria sp.,Chromista,Ochrophyta,Fragilariophyceae,Pennate Diatoms,Tabellaria,sp.,BSA,356,322546.91,Degraded
 2021-06-09T00:00:00Z,21:12:00,TOL,38.07780833,-121.7672861,Submersible centrifugal pump,1 meter,NA,Bacillaria paxillifera,Chromista,Ochrophyta,Bacillariophyceae,Pennate Diatoms,Bacillaria,paxillifera,BSA,102,130170.84,Good
 2018-10-19T00:00:00Z,18:11:11,OBI,37.96992306,-121.572174,Submersible centrifugal pump,1 meter,NA,Achnanthidium sp.,Chromista,Ochrophyta,Bacillariophyceae,Pennate Diatoms,Achnanthidium,sp.,BSA,2,54.74,Good
-2022-05-19T00:00:00Z,22:09:57,HOOD,38.36796663,-121.5213432,Submersible centrifugal pump,1 meter,NA,Achnanthidium sp.,Chromista,Ochrophyta,Bacillariophyceae,Pennate Diatoms,Achnanthidium,sp.,BSA,0,0,Degraded
 2020-09-24T00:00:00Z,20:10:30,LPS,38.09638889,-121.4961111,Submersible centrifugal pump,1 meter,NA,Cocconeis placentula,Chromista,Ochrophyta,Bacillariophyceae,Pennate Diatoms,Cocconeis,placentula,BSA,31,15047.39,Good
 2021-12-09T00:00:00Z,21:10:30,CCH41,38.19395556,-121.6580028,Submersible centrifugal pump,1 meter,NA,Nitzschia sp.,Chromista,Ochrophyta,Bacillariophyceae,Pennate Diatoms,Nitzschia,sp.,BSA,61,9946.15,Good
 2020-09-03T00:00:00Z,20:13:50,DECN,38.1025,-121.7111,Submersible centrifugal pump,1 meter,NA,Cryptomonas sp.,Chromista,Cryptophyta,Cryptophyceae,Cryptophytes,Cryptomonas,sp.,BSA,7,5545.23,Good
@@ -9071,8 +9069,6 @@ Date,Time,Station,Latitude,Longitude,SamplingMethod,SamplingDepth,OrigTaxon,Taxo
 2022-10-26T00:00:00Z,22:07:43,SLM,37.6742,-122.2178,Phytoplankton net,1 meter,NA,Nitzschia sp.,Chromista,Ochrophyta,Bacillariophyceae,Pennate Diatoms,Nitzschia,sp.,BSA,3565,401054.52,Degraded
 2022-07-08T00:00:00Z,22:09:58,PTRI,37.90603056,-122.3999778,Submersible centrifugal pump,1 meter,NA,Paralia sulcata,Chromista,Ochrophyta,Coscinodiscophyceae,Centric Diatoms,Paralia,sulcata,BSA,1112,634207.86,Degraded
 2022-08-02T00:00:00Z,22:09:45,DWS62,38.34166667,-121.6438889,Submersible centrifugal pump,1 meter,NA,Surirella sp.,Chromista,Ochrophyta,Bacillariophyceae,Pennate Diatoms,Surirella,sp.,BSA,7,61100.24,Degraded
-2016-07-19T00:00:00Z,16:14:00,SSB,38.30791944,-121.6928306,Submersible centrifugal pump,1 meter,NA,No organisms observed,None,None,None,None,No organisms observed,observed,BSA,0,0,Good
-2019-08-13T00:00:00Z,19:10:45,JPT,38.05214242,-121.6888428,Van Dorn sampler,1 meter,NA,Planktolyngbya sp.,Bacteria,Cyanobacteria,Cyanophyceae,Cyanobacteria,Planktolyngbya,sp.,BSA,0,0,Degraded
 2020-02-18T00:00:00Z,20:09:30,CCH41,38.19395556,-121.6580028,Submersible centrifugal pump,1 meter,NA,Cocconeis placentula,Chromista,Ochrophyta,Bacillariophyceae,Pennate Diatoms,Cocconeis,placentula,BSA,1155,734802.18,Good
 2022-10-04T00:00:00Z,22:14:30,JPT,38.05214242,-121.6888428,Submersible centrifugal pump,1 meter,NA,cf. Thalassiosira sp.,Chromista,Ochrophyta,Coscinodiscophyceae,Centric Diatoms,Thalassiosira,sp.,BSA,599,35278.57,Degraded
 2022-10-20T00:00:00Z,22:09:30,TOL,38.07780833,-121.7672861,Diaphragm pump,1 meter,NA,Plagioselmis sp.,Chromista,Cryptophyta,Cryptophyceae,Cryptophytes,Plagioselmis,sp.,BSA,998,84668.56,Degraded
@@ -9182,7 +9178,6 @@ Date,Time,Station,Latitude,Longitude,SamplingMethod,SamplingDepth,OrigTaxon,Taxo
 2022-08-10T00:00:00Z,22:14:05,SFEI657,38.15166667,-121.6883306,Phytoplankton net,1 meter,NA,Ulnaria ulna,Chromista,Ochrophyta,Fragilariophyceae,Pennate Diatoms,Ulnaria,ulna,BSA,1283,3048068.31,Degraded
 2019-10-24T00:00:00Z,19:13:50,WGA,38.25769218,-121.5182865,Submersible centrifugal pump,1 meter,NA,Ulnaria sp.,Chromista,Ochrophyta,Fragilariophyceae,Pennate Diatoms,Ulnaria,sp.,BSA,581,123115,Good
 2021-10-13T00:00:00Z,21:12:30,SLM,37.6742,-122.2178,Submersible centrifugal pump,1 meter,NA,Actinoptychus senarius,Chromista,Ochrophyta,Coscinodiscophyceae,Centric Diatoms,Actinoptychus,senarius,BSA,257,727746.47,Degraded
-2019-07-19T00:00:00Z,19:08:15,MAL,38.19489444,-122.0328139,Van Dorn sampler,1 meter,NA,Epithemia sp.,Chromista,Ochrophyta,Bacillariophyceae,Pennate Diatoms,Epithemia,sp.,BSA,0,0,Good
 2021-09-24T00:00:00Z,21:09:20,C10A,37.679167,-121.264444,Van Dorn sampler,1 meter,NA,Microcystis sp.,Bacteria,Cyanobacteria,Cyanophyceae,Cyanobacteria,Microcystis,sp.,BSA,471,15768.96,Good
 2022-06-21T00:00:00Z,22:11:40,FT02,38.05416667,-121.5980556,Submersible centrifugal pump,1 meter,NA,Plagioselmis sp.,Chromista,Cryptophyta,Cryptophyceae,Cryptophytes,Plagioselmis,sp.,BSA,770,65315.75,Degraded
 2022-09-26T00:00:00Z,22:09:20,RRI,37.963,-121.365,Van Dorn sampler,1 meter,NA,Pseudokephyrion pseudospirale,Chromista,Ochrophyta,Chrysophyceae,Chrysophytes,Pseudokephyrion,pseudospirale,BSA,107,3086.87,Degraded
@@ -13421,7 +13416,6 @@ Date,Time,Station,Latitude,Longitude,SamplingMethod,SamplingDepth,OrigTaxon,Taxo
 2016-05-20T00:00:00Z,16:14:10,MLD,38.04269787,-121.9202374,Submersible centrifugal pump,1 meter,NA,Achnanthidium sp.,Chromista,Ochrophyta,Bacillariophyceae,Pennate Diatoms,Achnanthidium,sp.,BSA,6,131.38,Good
 2018-07-26T00:00:00Z,18:14:05,JPT,38.05214242,-121.6888428,Submersible centrifugal pump,1 meter,NA,Cyclotella sp.,Chromista,Ochrophyta,Coscinodiscophyceae,Centric Diatoms,Cyclotella,sp.,BSA,38,10087.58,Good
 2018-05-17T00:00:00Z,18:13:35,DEC,38.09325203,-121.7371772,Submersible centrifugal pump,1 meter,NA,Cocconeis sp.,Chromista,Ochrophyta,Bacillariophyceae,Pennate Diatoms,Cocconeis,sp.,BSA,26,9679.54,Good
-2022-05-16T00:00:00Z,22:12:28,SXS,38.19153889,-121.63905,Submersible centrifugal pump,1 meter,NA,Surirella sp.,Chromista,Ochrophyta,Bacillariophyceae,Pennate Diatoms,Surirella,sp.,BSA,0,0,Good
 2019-10-01T00:00:00Z,19:08:45,CFL,38.04953056,-121.88755,Van Dorn sampler,1 meter,NA,Tryblionella sp.,Chromista,Ochrophyta,Bacillariophyceae,Pennate Diatoms,Tryblionella,sp.,BSA,7,10166.26,Good
 2022-08-09T00:00:00Z,22:10:00,FTMI21,37.9972222,-121.5213889,Submersible centrifugal pump,1 meter,NA,Rhodomonas sp.,Chromista,Cryptophyta,Cryptophyceae,Cryptophytes,Rhodomonas,sp.,BSA,71,38395.78,Degraded
 2022-05-05T00:00:00Z,22:10:00,C10A,37.679167,-121.264444,Van Dorn sampler,1 meter,NA,Kephyrion sp.,Chromista,Ochrophyta,Chrysophyceae,Chrysophytes,Kephyrion,sp.,BSA,31,1279.95,Degraded

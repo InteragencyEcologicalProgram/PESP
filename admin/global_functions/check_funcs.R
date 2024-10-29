@@ -106,6 +106,22 @@ check_synonyms <- function(df){
   return(df_output)
 }
 
+
+# Check No Organisms Observed ---------------------------------------------
+
+check_nodata <- function(df) {
+  df_nodat <- df %>% filter(Taxon == 'No organisms observed')
+  if (nrow(df_nodat) == 0) {
+    print('No data observed for: None')
+  } else {
+    message <- paste0(
+      'No data observed for: ',
+      paste(df_nodat$Station, df_nodat$Date, sep = ' ', collapse = '; ')
+    )
+    print(message)
+  }
+}
+
 # Check Plots -------------------------------------------------------------
 
 # # Plot NMDS

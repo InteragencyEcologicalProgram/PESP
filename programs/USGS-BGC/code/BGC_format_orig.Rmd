@@ -53,13 +53,40 @@ df_fillsyn <- check_synonyms(df_joined)
 ```
 
 ```{r}
-# # Check Collection Type Variables -----------------------------------------------
+# Data Checks ---------------------------------------------------------------------
+# check collection type variables
 check_methods(df_joined)
+```
 
-# # Subset Columns ----------------------------------------------------------------
-# Check
+```{r}
+# check for duplicates
 df_dupes <- check_distinct(df_joined)
 ```
+
+```{r}
+# check if no data observed
+check_nodata(df_joined)
+```
+
+```{r}
+# remove other rows with no data
+
+remove_nodata <- function(df) {
+  df_nodat <- df %>% filter(Cells_per_mL == 0 & Biovolume_per_mL == 0)
+
+  count_rm <- nrow(df_nodat)
+  
+  print(paste('Removed', count_rm, 'rows with no data on:',
+              paste(df_nodat$Station, df_nodat$Date, sep = ' ', collapse = '; ')))
+
+  df_filtered <- df %>% filter(!(Cells_per_mL == 0 & Biovolume_per_mL == 0))
+    
+  return(df_filtered)
+}
+
+df_joined <- remove_nodata(df_joined)
+```
+
 
 ## Export
 
