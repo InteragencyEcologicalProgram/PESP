@@ -1,0 +1,88 @@
+```{r}
+library(lubridate)
+library(tidyverse)
+library(scales)
+```
+
+```{r}
+# read in data
+df_phyto <- read_csv('03_Phyto/PESP/data/EMP/EMP_Phyto_Data_2008-2022.csv')
+
+df_phyto$SampleDate <- as.Date(df_phyto$SampleDate, '%m/%d/%Y')
+df_phyto$Year <- factor(year(df_phyto$SampleDate))
+```
+
+
+```{r}
+plt <- ggplot(df_phyto, aes(SampleDate, Organisms_per_mL, color = Year)) +
+  geom_point() +
+  scale_x_date(labels = date_format('%Y')) +
+  ggtitle('Organisms/mL - all Years')
+
+print(plt)
+```
+
+```{r}
+ggplot(df_phyto[df_phyto$Year == '2022',], aes(SampleDate, Organisms_per_mL, color = StationCode)) +
+  geom_point() +
+  scale_x_date(labels = date_format('%Y')) +
+    ggtitle('Organisms/mL - 2022')
+```
+
+```{r}
+ggplot(df_phyto, aes(SampleDate, AverageBiovolume_per_mL, color = Year)) +
+  geom_point() +
+  scale_x_date(labels = date_format('%Y')) +
+  ggtitle('Biovolume/mL - all Years')
+```
+
+```{r}
+ggplot(df_phyto[df_phyto$Year == '2022',], aes(SampleDate, AverageBiovolume_per_mL, color = StationCode)) +
+  geom_point() +
+  scale_x_date(labels = date_format('%Y')) +
+    ggtitle('Biovolume/mL - 2022')
+```
+
+```{r}
+ggplot(df_phyto, aes(SampleDate, Cells_per_mL, color = Year)) +
+  geom_point() +
+  scale_x_date(labels = date_format('%Y')) +
+  ggtitle('Cells/mL - all Years')
+```
+```{r}
+ggplot(df_phyto, aes(SampleDate, Cells_per_mL, color = Year)) +
+  geom_point() +
+  scale_x_date(labels = date_format('%Y')) +
+  ggtitle('Cells/mL - all Years (Zoomed)') +
+  ylim(0, 5e+06)
+```
+
+
+```{r}
+ggplot(df_phyto[df_phyto$Year == '2022',], aes(SampleDate, Cells_per_mL, color = StationCode)) +
+  geom_point() +
+  scale_x_date(labels = date_format('%Y')) +
+    ggtitle('Cells/mL - 2022')
+```
+
+
+
+
+```{r}
+df_dates <- df_phyto %>% subset(select = c(SampleDate, StationCode))
+df_dates$Date <- paste(month(df_dates$SampleDate),'-',year(df_dates$SampleDate))
+df_dates$Month <- month.abb[month(df_dates$SampleDate)]
+df_dates$Year <- year(df_dates$SampleDate)
+df_dates <- df_dates %>% subset(select = -SampleDate) %>% distinct()
+df_dates$Month = factor(df_dates$Month, levels = month.abb)
+
+df_dates <- df_dates %>%
+  group_by(Date,Month,Year) %>%
+  summarize(StatCount = n_distinct(StationCode))
+
+plt <- ggplot(df_dates, aes(x=Month, y=StatCount)) +
+  geom_bar(stat = 'identity') +
+  theme(axis.text.x= element_text(angle = 45)) +
+  facet_wrap(~Year, ncol = 2)
+```
+

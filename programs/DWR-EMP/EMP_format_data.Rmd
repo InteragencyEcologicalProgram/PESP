@@ -1,0 +1,185 @@
+# Format EMP Phytoplankton Data
+
+**Purpose:** Code to format and append new EMP phytoplankton data to the current EDI data set.
+
+**Author:** Perry ([sarah.perry\@water.ca.gov](mailto:sarah.perry@water.ca.gov){.email})
+
+**Date Edited:** 07/20/2023
+
+THIS DOCUMENT IS STILL IN PROGRESS (will be an html file at the end)
+
+## Variables to Edit
+
+```{r}
+# specify the file path of the new data (as a csv)
+data_path <- 'programs/DWR-EMP/ref_data/emp_2023.xlsx'
+```
+
+## Formatting Code (Don't Edit)
+
+Hit the green arrow on the right side of the code to run.
+
+**Output:** a .csv containing the formatted data (ready for EDI publication)
+
+If errors occur, contact Sarah Perry.
+
+```{r}
+# Import Packages ---------------------------------------------------------
+library(tidyverse)
+library(fuzzyjoin)
+library(glue)
+library(hms)
+library(lubridate)
+source('admin/global_functions/global_funcs.R') # TODO: suppress messages
+source('admin/global_functions/bsa_funcs.R')
+source('admin/global_functions/check_funcs.R')
+source('programs/DWR-EMP/code/EMP_funcs.R')
+
+# Read in Data ------------------------------------------------------------
+
+# data frame containing Tiffany Browns's standardized phyto taxa csv
+df_syn <- read_quiet_csv('admin/global_data/phyto_classifications.csv')
+
+# new data to format and append
+df_data <- read_bsa_xlsx(data_path)
+
+# read in station names
+df_stations <- read_quiet_csv('programs/DWR-EMP/ref_data/EMP_phyto_stations.csv')
+
+# read in WQ data to merge datetimes
+df_wq <- get_edi_file(458, glue::glue('EMP_DWQ_1975_2023'))
+df_wq <- df_wq[[1]]
+
+# Standardize Current Columns ---------------------------------------------
+# # functions found in 'bsa_funcs.R'
+
+# standardize column names
+# # removes unnecessary cols
+# # dds reporting unit cols
+df_data <- standardize_cols(df_data)
+
+# correctly identify NA values in PhytoForm
+df_data <- clean_phytoform(df_data)
+
+# format time
+df_data$Time <- sapply(df_data$Time, function(x) format(x, format='%H:%M'))
+
+df_data <- df_data %>%
+  mutate(Time = paste0(Time,':00'))
+
+df_data$Time <- parse_hms(df_data$Time)
+
+# filter wq by correct year (not rly needed)
+df_wqyear <- df_wq %>% filter(year(Date) == 2023)
+```
+
+```{r}
+# check dates/times match up; manually fix
+# Error in (function (..., row.names = NULL, check.rows = FALSE, check.names = TRUE,  :
+# means that they're the same
+dplyr::anti_join(df_data, df_wqyear, by = c('Station', 'Date','Time')) %>%
+  select(Lab:Station) %>%
+  unique()
+```
+
+```{r}
+# add in lat/lon
+df_data <- left_join(df_data, df_wqyear[c('Station','Date','Time','Latitude','Longitude')], by = c('Station','Date','Time')) %>%
+  relocate(c('Latitude','Longitude'), .after = 'Station')
+```
+
+```{r}
+# Standardize Data Set ------------------------------------------------------------
+
+# # Clean Station Names -----------------------------------------------------------
+df_data$Station <- fix_station_typos(df_data$Station)
+
+# check for typos
+# # add in EZs for logical check
+ls_extras <- c('EZ2','EZ6','EZ6-SJR','EZ2-SJR')
+ls_all_stats <- c(unique(df_stations$Station), ls_extras)
+
+# # check
+check_stations(df_data$Station, ls_all_stats)
+
+# # Clean Unknown Identifiers -----------------------------------------------------
+df_data <- clean_unknowns(df_data)
+
+# # Add in Higher Level Taxa ------------------------------------------------------
+df_joined <- higher_lvl_taxa(df_data, 'Longitude')
+
+df_newtaxa <- check_higher_taxa(df_joined)
+
+# write_csv(df_newtaxa, 'programs/DWR-EMP/generated_data/new_taxa.csv')
+
+# # Update Names ------------------------------------------------------------------
+df_joined <- update_synonyms(df_joined)
+
+check_synonyms(df_joined)
+```
+
+## Clean Data
+
+### Change Comments to QA, Add Debris Column
+```{r}
+# FIX THIS
+df_joined <- df_joined %>%
+  mutate(
+    QC_1 = case_when(grepl('delete|cross contamination', Comments, ignore.case = TRUE) ~ 'BadData'),
+    QC_2 = case_when(grepl('did not reach|cannot meet tally|cannot meet natural unit', Comments, ignore.case = TRUE) ~ 'TallyNotMet'),
+    QC_3 = case_when(grepl('degraded', Comments, ignore.case = TRUE) ~ 'Degraded'),
+    QC_4 = case_when(grepl('poor preservation|poorly preserved|weak preservation|weakly preserved|fungus', Comments, ignore.case = TRUE) ~ 'PoorlyPreserved'),
+    QC_5 = case_when(grepl('obscured', Comments, ignore.case = TRUE) ~ 'Obscured'),
+    QC_7 = case_when(grepl('broken diatom', Comments, ignore.case = TRUE) & !grepl('broken diatom fragment|fragment\\.', Comments, ignore.case = TRUE) ~ 'BrokenDiatoms')
+  ) %>%
+  unite(QualityCheck, starts_with('QC'), remove = TRUE, na.rm = TRUE, sep = ' ')
+
+df_joined$QualityCheck[df_joined$QualityCheck == ''] <- 'Good'
+
+# R assigns sequentially, so column priority will always be the "highest" level of debris
+df_joined <- df_joined %>%
+  mutate(
+    Db_1 = case_when(
+        grepl('high detritus|high sediment|heavy detritus|heavy sediment', Comments, ignore.case = TRUE) ~ 'high',
+        grepl('moderate detritus|moderate sediment', Comments, ignore.case = TRUE) ~ 'moderate',
+        grepl('low detritus|low sediment|light detritus|light sediment', Comments, ignore.case = TRUE) ~ 'low')
+    ) %>%
+    unite(Debris, starts_with('Db'), remove = TRUE, na.rm = TRUE, sep = ' ')
+```
+
+### Remove Columns and Duplicates
+
+```{r}
+df_joined <- df_joined %>%
+  select(-Comments)
+
+check_distinct(df_joined)
+```
+### Merge with EDI Data
+
+```{r}
+df_edi <- get_edi_file(1320, glue::glue('EMP_Phyto_Data_2008-present'))
+df_edi <- df_edi[[1]]
+
+colnames(df_edi)
+
+df_edi <- df_edi %>%
+  rename(Biovolume_per_mL = AverageBiovolume_per_mL) %>%
+  mutate(Debris = NA)
+
+df_edi <- df_edi[,colnames(df_joined)]
+
+df_all <- bind_rows(df_edi, df_joined)
+
+nrow(df_joined)+nrow(df_edi) == nrow(df_all)
+
+# switch date/time to export cols
+df_all$Date <- as.character(df_all$Date)
+df_all$Time <- as.character(df_all$Time)
+```
+
+## Export
+
+```{r}
+write_csv(df_all, 'programs/DWR-EMP/generated_data/EMP_Phyto_Data_2008-2023.csv')
+```

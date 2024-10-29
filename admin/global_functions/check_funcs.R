@@ -1,11 +1,8 @@
-#' Check station names
-#'
-#' Checks for errors/typos in data frame's station names
-#'
-#' @param col_data <- data column containing station names
-#'
-#' @param col_check <- data column containing official station list names
-#' 
+
+# Check Variables ---------------------------------------------------------
+
+# # check station names
+
 check_stations <- function(col_data, col_check){
   
   ls_ex_stations <- unique(col_data)[!(unique(col_data) %in% c(col_check))]
@@ -21,7 +18,16 @@ check_stations <- function(col_data, col_check){
   return(df_ex_stations)
 }
 
-# Check Distinct
+# # check methods
+
+check_methods <- function(df){
+  ls_methods <- unique(df$SamplingMethod)
+  
+  message(message(glue::glue('Currect collection type methods: {toString(ls_methods)}')))
+}
+
+# # check distinct rows
+
 check_distinct <- function(df, return_df = FALSE){
   row_check = identical(nrow(df), nrow(distinct(df)))
   
@@ -29,7 +35,7 @@ check_distinct <- function(df, return_df = FALSE){
     warning('non-distinct rows in data frame')
     
     if (isTRUE(return_df)){
-      df_dupes <- df_joined[duplicated(df_joined),]
+      df_dupes <- df[duplicated(df),]
       
       return(df_dupes)          
     }
@@ -39,12 +45,10 @@ check_distinct <- function(df, return_df = FALSE){
   }
 }
 
-#' Check higher level taxa
-#'
-#' Checks for taxa without higher level classification info
-#'
-#' @param df <- df to check
-#' 
+# Check Taxa --------------------------------------------------------------
+
+# # check higher lvl taxa
+
 check_higher_taxa <- function(df){
   df_error_check <- df %>% select(c('Taxon':'Species'))
   
@@ -63,7 +67,12 @@ check_higher_taxa <- function(df){
   return(check)
 }
 
+# # check synonyms
+
 check_synonyms <- function(df){
+  df_syn <- read_quiet_csv('admin/global_data/phyto_classifications.csv') %>%
+    select(c('Kingdom':'AlgalGroup','Taxon','CurrentTaxon'))
+  
   changed_taxon <- unique(df_syn$Taxon[df_syn$CurrentTaxon != 'None'])
   
   multigen <- changed_taxon[changed_taxon %in% unique(df_syn$CurrentTaxon)]
@@ -97,8 +106,73 @@ check_synonyms <- function(df){
   return(df_output)
 }
 
-check_methods <- function(df){
-  ls_methods <- unique(df$SamplingMethod)
+# Check Plots -------------------------------------------------------------
+
+# # Plot NMDS
+create_nmds <- function(df, group_var, nmds_var, factor_var = NULL, show_legend = TRUE, color_palette = NULL) {
+  set.seed(42)
+
+  if (!is.null(factor_var)) {
+    group_var <- rlang::sym(group_var)
+    nmds_var <- rlang::sym(nmds_var)
+    factor_var <- rlang::sym(factor_var)
+    
+    df_cells <- df %>%
+      select(!!group_var, !!factor_var, Taxon, !!nmds_var) %>%
+      group_by(!!group_var, !!factor_var, Taxon) %>%
+      reframe(!!nmds_var := mean(!!nmds_var, na.rm = TRUE)) %>%
+      pivot_wider(names_from = Taxon, values_from = !!nmds_var)
+    
+    com <- df_cells %>%
+      select(-!!group_var, -!!factor_var)
+    com[is.na(com)] <- 0
+    m_com <- as.matrix(com)
+    
+  } else {
+    factor_var <- rlang::sym(group_var)
+    nmds_var <- rlang::sym(nmds_var)
+    
+    df_cells <- df %>%
+      select(!!factor_var, Taxon, !!nmds_var) %>%
+      group_by(!!factor_var, Taxon) %>%
+      reframe(!!nmds_var := mean(!!nmds_var, na.rm = TRUE)) %>%
+      pivot_wider(names_from = Taxon, values_from = !!nmds_var)
+    
+    com <- df_cells %>%
+      select(-!!factor_var)
+    com[is.na(com)] <- 0
+    m_com <- as.matrix(com)
+  }
   
-  message(message(glue::glue('Currect sampling methods: {toString(ls_methods)}')))
+  nmds <- metaMDS(m_com, distance = 'bray')
+  df_nmds <- as.data.frame(scores(nmds)$sites)
+  
+  df_nmds <- df_nmds %>%
+    mutate(!!factor_var := df_cells %>% pull(!!factor_var)) %>%
+    mutate(!!factor_var := as.factor(!!factor_var))
+  
+  plt_nmds <- ggplot(df_nmds, aes(x = NMDS1, y = NMDS2, group = !!factor_var)) + 
+    geom_point(size = 4, shape = 21, color = '#000000', aes(fill = !!factor_var)) +
+    theme_bw()
+  
+  if (!is.null(color_palette)) {
+    plt_nmds <- plt_nmds + scale_fill_manual(values = color_palette)
+  }
+  
+  if (!show_legend) {
+    plt_nmds <- plt_nmds + theme(legend.position = 'none')
+  }
+    
+  return(list(
+    nmds_df = df_nmds,
+    plot = plt_nmds
+  ))
 }
+
+
+
+
+
+
+
+

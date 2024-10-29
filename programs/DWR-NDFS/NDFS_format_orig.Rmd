@@ -1,0 +1,224 @@
+# Format original NDFS data
+
+**Purpose:** Code to format NDFS data for original PESP upload.
+
+**Author:** Perry ([sarah.perry\@water.ca.gov](mailto:sarah.perry@water.ca.gov){.email})
+
+**Date Edited:** 07/20/2023
+
+# Initial Setup
+
+```{r}
+# Import Packages ---------------------------------------------------------
+library(tidyverse)
+library(fuzzyjoin)
+library(glue)
+library(lubridate)
+source('admin/global_functions/global_funcs.R') # TODO: suppress messages
+source('admin/global_functions/bsa_funcs.R')
+source('programs/DWR-NDFS/code/ndfs_funcs.R')
+source('admin/global_functions/check_funcs.R')
+```
+
+# 2013-2015
+
+```{r}
+# Read in Data ------------------------------------------------------------
+# specify the file path
+data_path_one <- abs_data_path('Component data sets/DWR NDFS/phyto_manipulated_2013-2015.xlsx')
+
+# read in metadata sheet
+df_meta <- read_meta_file('Yolo Bypass Fish Monitoring Program')
+
+# data frame containing Tiffany Browns's standardized phyto taxa csv
+df_syn <- read_quiet_csv('admin/global_data/phyto_classifications.csv')
+
+# new data to format and append
+df_data_one <- readxl::read_excel(data_path_one)
+
+# df_data_test <- df_data_four[!grep('dup',df_data_four$StationCode_original,ignore.case=TRUE),]
+
+df_data_one <- clean_unknowns(df_data_one)
+
+df_data_one <- clean_sp(df_data_one)
+
+df_data_one <- standardize_cols_ndfs(df_data_one, df_meta)
+
+df_data_one <- clean_phytoform(df_data_one)
+
+df_data_one$Time <- sapply(df_data_one$Time, function(x) format(x, format='%H:%M'))
+
+df_data_one$Depth <- as.numeric(df_data_one$Depth)
+
+# # Add in Higher Level Taxa ------------------------------------------------------
+df_joined_one <- higher_lvl_taxa(df_data_one, after_col = 'Lab')
+
+df_filltaxa <- check_higher_taxa(df_joined_one)
+
+# # Update Names ------------------------------------------------------------------
+df_joined_one <- update_synonyms(df_joined_one)
+
+check_synonyms(df_joined_one)
+
+# # Add QC/Debris Columns ------------------------------------------------------------------
+
+df_joined_one <- add_qc_col(df_joined_one)
+
+df_joined_one <- add_debris_col(df_joined_one)
+
+# # Subset Columns
+df_joined_one <- df_joined_one %>%
+  select(all_of(c('Date', 'Time', 'Station', 'SamplingMethod', 'Depth', 'Lab', 'OrigTaxon', 'Taxon', 'Kingdom', 'Phylum', 'Class', 'AlgalGroup', 'DiatomSoftbody', 'Genus', 'Species', 'Units_per_mL', 'Cells_per_mL', 'Biovolume_per_mL', 'PhytoForm', 'QualityCheck', 'Debris')))
+
+# Check
+check_distinct(df_joined_one)
+```
+
+# 2016
+
+```{r}
+# Read in Data ------------------------------------------------------------
+# specify the file path
+data_path_two <- abs_data_path('Component data sets/DWR NDFS/phyto_manipulated_2016.xlsx')
+
+# new data to format and append
+df_data_two <- readxl::read_excel(data_path_two)
+
+df_data_two <- clean_unknowns(df_data_two)
+
+df_data_two <- clean_sp(df_data_two)
+
+df_data_two <- standardize_cols_ndfs(df_data_two, df_meta)
+
+df_data_two <- clean_phytoform(df_data_two)
+
+df_data_two$Time <- sapply(df_data_two$Time, function(x) format(x, format='%H:%M'))
+
+df_data_two$Depth <- as.numeric(df_data_two$Depth)
+
+
+# # Add in Higher Level Taxa ------------------------------------------------------
+df_joined_two <- higher_lvl_taxa(df_data_two, after_col = 'Lab')
+
+df_filltaxa <- check_higher_taxa(df_joined_two)
+
+# # Update Names ------------------------------------------------------------------
+df_joined_two <- update_synonyms(df_joined_two)
+
+check_synonyms(df_joined_two)
+
+# # Add QC/Debris Columns ------------------------------------------------------------------
+
+df_joined_two <- add_qc_col(df_joined_two)
+
+df_joined_two <- add_debris_col(df_joined_two)
+
+# # Subset Columns
+df_joined_two <- df_joined_two %>%
+  select(all_of(c('Lab', 'Date', 'Time', 'Station', 'Depth', 'OrigTaxon', 'Taxon', 'Kingdom', 'Phylum', 'Class', 'AlgalGroup', 'DiatomSoftbody', 'Genus', 'Species', 'Units_per_mL', 'Cells_per_mL', 'Biovolume_per_mL', 'PhytoForm', 'QualityCheck', 'Debris')))
+
+# Check
+check_distinct(df_joined_two)
+```
+
+# 2017-2018
+
+```{r}
+# Read in Data ------------------------------------------------------------
+# specify the file path
+data_path_three <- abs_data_path('Component data sets/DWR NDFS/phyto_manipulated_2017-2018.xlsx')
+
+# new data to format and append
+df_data_three <- readxl::read_excel(data_path_three)
+
+df_data_three <- clean_unknowns(df_data_three)
+
+df_data_three <- clean_sp(df_data_three)
+
+df_data_three <- standardize_cols_ndfs(df_data_three, df_meta)
+
+df_data_three <- clean_phytoform(df_data_three)
+
+df_data_three$Time <- sapply(df_data_three$Time, function(x) format(x, format='%H:%M'))
+
+df_data_three$Depth <- as.numeric(df_data_three$Depth)
+
+# # Add in Higher Level Taxa ------------------------------------------------------
+df_joined_three <- higher_lvl_taxa(df_data_three, after_col = 'Lab')
+
+df_filltaxa <- check_higher_taxa(df_joined_three)
+
+# # Update Names ------------------------------------------------------------------
+df_joined_three <- update_synonyms(df_joined_three)
+
+check_synonyms(df_joined_three)
+
+# # Add QC/Debris Columns ------------------------------------------------------------------
+
+df_joined_three <- add_qc_col(df_joined_three)
+
+df_joined_three <- add_debris_col(df_joined_three)
+
+# # Subset Columns
+df_joined_three <- df_joined_three %>%
+  select(all_of(c('Lab', 'Date', 'Time', 'Station', 'Depth', 'OrigTaxon', 'Taxon', 'Kingdom', 'Phylum', 'Class', 'AlgalGroup', 'DiatomSoftbody', 'Genus', 'Species', 'Units_per_mL', 'Cells_per_mL', 'Biovolume_per_mL', 'PhytoForm', 'QualityCheck', 'Debris')))
+
+# Check
+check_distinct(df_joined_three)
+```
+
+# 2019
+
+```{r}
+# Read in Data ------------------------------------------------------------
+# specify the file path
+data_path_four <- abs_data_path('Component data sets/DWR NDFS/phyto_manipulated_2019.xlsx')
+
+# new data to format and append
+df_data_four <- readxl::read_excel(data_path_four)
+
+df_data_four <- clean_unknowns(df_data_four)
+
+df_data_four <- clean_sp(df_data_four)
+
+df_data_four <- standardize_cols_ndfs(df_data_four, df_meta)
+
+df_data_four <- clean_phytoform(df_data_four)
+
+df_data_four$Time <- sapply(df_data_four$Time, function(x) format(x, format='%H:%M'))
+
+# # Add in Higher Level Taxa ------------------------------------------------------
+df_joined_four <- higher_lvl_taxa(df_data_four, after_col = 'Lab')
+
+df_filltaxa <- check_higher_taxa(df_joined_four)
+
+# # Update Names ------------------------------------------------------------------
+df_joined_four <- update_synonyms(df_joined_four)
+
+check_synonyms(df_joined_four)
+
+# # Add QC/Debris Columns ------------------------------------------------------------------
+
+df_joined_four <- add_qc_col(df_joined_four)
+
+df_joined_four <- add_debris_col(df_joined_four)
+
+# # Subset Columns
+df_joined_four <- df_joined_four %>%
+  select(all_of(c('Lab', 'Date', 'Time', 'Station', 'Depth', 'OrigTaxon', 'Taxon', 'Kingdom', 'Phylum', 'Class', 'AlgalGroup', 'DiatomSoftbody', 'Genus', 'Species', 'Units_per_mL', 'Cells_per_mL', 'Biovolume_per_mL', 'PhytoForm', 'QualityCheck', 'Debris')))
+
+# Check
+check_distinct(df_joined_four)
+```
+
+## Export
+
+```{r}
+# df_joined <- do.call('rbind', list(df_joined_one, df_joined_two, df_joined_three, df_joined_four))
+
+df_joined <- bind_rows(df_joined_one, df_joined_two, df_joined_three, df_joined_four)
+
+write_csv(df_joined[df_joined$Station == 'SHER',], 'programs/DWR-NDFS/data/NDFS-SHER.csv')
+
+write_csv(df_joined, 'programs/DWR-NDFS/data/NDFS_Phyto_Data.csv')
+```

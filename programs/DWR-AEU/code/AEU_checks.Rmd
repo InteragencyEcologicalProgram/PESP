@@ -22,6 +22,8 @@ df_phyto <- df_phyto %>%
 ```{r}
 # Cells per mL ---------------------------------------------------------
 plt_cells <- create_nmds(df_phyto, 'Cells_per_mL', 'Year')
+
+plt_cells
 ```
 
 ```{r}
@@ -29,6 +31,8 @@ plt_cells <- create_nmds(df_phyto, 'Cells_per_mL', 'Year')
 plt_units <- create_nmds(df_phyto, 'Units_per_mL')
 
 plt_units
+
+unique(df_phyto$QualityCheck)
 ```
 
 ```{r}

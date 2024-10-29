@@ -1,0 +1,43 @@
+# Check AEU data
+
+**Purpose:** Code to check AEU data for errors
+
+**Author:** Perry ([sarah.perry\@water.ca.gov](mailto:sarah.perry@water.ca.gov){.email})
+
+```{r message=FALSE, warning=FALSE}
+# Import Packages ---------------------------------------------------------
+library(tidyverse)
+library(vegan)
+library(lubridate)
+source('admin/global_functions/global_funcs.R')
+set.seed(42)
+
+# Read in Data ---------------------------------------------------------
+df_phyto <- read_quiet_csv('programs/DWR-AEU/data/AEU_Phyto_Data.csv')
+
+df_phyto <- df_phyto %>%
+  mutate(Year = year(Date))
+```
+
+```{r}
+# Cells per mL ---------------------------------------------------------
+plt_cells <- create_nmds(df_phyto, 'Cells_per_mL', 'Year')
+
+plt_cells
+```
+
+```{r}
+# Units per mL ---------------------------------------------------------
+plt_units <- create_nmds(df_phyto, 'Units_per_mL')
+
+plt_units
+
+unique(df_phyto$QualityCheck)
+```
+
+```{r}
+# Biovol per mL ---------------------------------------------------------
+plt_biovol <- create_nmds(df_phyto, 'Biovolume_per_mL')
+
+plt_biovol
+```

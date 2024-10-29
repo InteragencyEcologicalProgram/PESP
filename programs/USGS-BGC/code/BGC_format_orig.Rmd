@@ -5,6 +5,7 @@
 **Author:** Perry ([sarah.perry\@water.ca.gov](mailto:sarah.perry@water.ca.gov){.email})
 
 # Initial Setup
+
 ```{r}
 # Import Packages ---------------------------------------------------------
 library(tidyverse)
@@ -12,47 +13,50 @@ library(fuzzyjoin)
 library(glue)
 library(lubridate)
 
-source('admin/global_functions/global_funcs.R') # TODO: suppress messages
+source('admin/global_functions/global_funcs.R')
 source('programs/USGS-BGC/code/bgc_funcs.R')
 source('admin/global_functions/check_funcs.R')
 ```
 
 ```{r}
-# Read in Data ------------------------------------------------------------
+# Read in Data --------------------------------------------------------------------
 # specify the file path
-data_path <- abs_data_path('Component data sets/USGS BGC/USGS_Phytoenumeration_2016topresent-20230622ER.csv')
-
-# data frame containing Tiffany Browns's standardized phyto taxa csv
-df_syn <- read_quiet_csv('admin/global_data/phyto_classifications.csv')
+data_path <- abs_data_path('Component data sets/USGS-BGC/USGS_Phytoenumeration_2016topresent-20230622ER.csv')
 
 # new data to format and append
 df_data <- read_quiet_csv(data_path)
 
-df_data <- rename_cols(df_data)
+# standardize data
+df_data <- standardize_cols_bgc(df_data)
+
+df_data <- add_meta_col(df_data, 'USGS BGC', 'SamplingDepth')
+
+df_data <- add_meta_col(df_data, 'USGS BGC', 'Lab')
 
 df_data <- clean_unknowns(df_data)
 
-df_data <- clean_sp(df_data)
-
 df_data <- add_qc_col(df_data)
 
-df_data <- subset_cols(df_data)
+df_data <- subset_cols_bgc(df_data)
 
 # # Add in Higher Level Taxa ------------------------------------------------------
-df_joined <- higher_lvl_taxa(df_data)
+df_joined <- higher_lvl_taxa(df_data, 'SamplingDepth')
 
 df_filltaxa <- check_higher_taxa(df_joined)
+```
 
+```{r}
 # # Update Names ------------------------------------------------------------------
 df_joined <- update_synonyms(df_joined)
 
 df_fillsyn <- check_synonyms(df_joined)
+```
 
-# # Check Collection Type Variables ---------------------------------------------------
+```{r}
+# # Check Collection Type Variables -----------------------------------------------
 check_methods(df_joined)
 
 # # Subset Columns ----------------------------------------------------------------
-
 # Check
 df_dupes <- check_distinct(df_joined)
 ```
