@@ -4,40 +4,33 @@
 
 **Author:** Perry ([sarah.perry\@water.ca.gov](mailto:sarah.perry@water.ca.gov){.email})
 
-```{r message=FALSE, warning=FALSE}
-# Import Packages ---------------------------------------------------------
+```{r}
 library(tidyverse)
 library(vegan)
 library(lubridate)
 source('admin/global_functions/global_funcs.R')
-set.seed(42)
-
-# Read in Data ---------------------------------------------------------
-df_phyto <- read_quiet_csv('programs/DWR-AEU/data/AEU_Phyto_Data.csv')
-
-df_phyto <- df_phyto %>%
-  mutate(Year = year(Date))
+source('admin/global_functions/check_funcs.R')
 ```
 
 ```{r}
-# Cells per mL ---------------------------------------------------------
-plt_cells <- create_nmds(df_phyto, 'Cells_per_mL', 'Year')
+df_phyto <- read_quiet_csv('programs/DWR-AEU/data/phyto_data_AEU.csv') %>%
+  mutate(Year = year(Date)) %>%
+  mutate(StationYear = paste(Year, Station, sep = ' '))
 
-plt_cells
+# create_nmds(df_phyto, 'Date', 'Cells_per_mL', 'Year')
+create_nmds(df_phyto, 'Year', 'Cells_per_mL')
+
+df_nmds <- create_nmds(df_phyto, 'Year', 'Cells_per_mL')[[1]]
 ```
 
 ```{r}
-# Units per mL ---------------------------------------------------------
-plt_units <- create_nmds(df_phyto, 'Units_per_mL')
+df_phyto <- read_quiet_csv('programs/DWR-AEU/data/phyto_data_AEU.csv') %>%
+  mutate(Year = year(Date)) %>%
+  mutate(StationYear = paste(Year, Station, sep = ' '))
 
-plt_units
+# create_nmds(df_phyto, 'Date', 'Cells_per_mL', 'Year')
+create_nmds(df_phyto, 'StationYear', 'Cells_per_mL')
 
-unique(df_phyto$QualityCheck)
+df_nmds <- create_nmds(df_phyto, 'StationYear', 'Cells_per_mL')[[1]]
 ```
 
-```{r}
-# Biovol per mL ---------------------------------------------------------
-plt_biovol <- create_nmds(df_phyto, 'Biovolume_per_mL')
-
-plt_biovol
-```

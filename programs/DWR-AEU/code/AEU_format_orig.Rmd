@@ -34,6 +34,8 @@ df_data <- add_meta_col(df_data, 'Yolo Bypass Fish Monitoring Program', 'Samplin
 
 df_data <- add_meta_col(df_data, 'Yolo Bypass Fish Monitoring Program', 'Lab')
 
+df_data <- add_meta_col(df_data, 'Yolo Bypass Fish Monitoring Program', 'SamplingMethod')
+
 df_data <- clean_unknowns(df_data)
 
 df_data <- add_qc_col(df_data)
@@ -44,20 +46,33 @@ df_data <- subset_cols_aeu(df_data)
 
 # add different dilution code for data before/including 2020
 df_data <- add_dilution_qc(df_data)
+```
 
+
+```{r}
 # # Add in Higher Level Taxa ------------------------------------------------------
 df_joined <- higher_lvl_taxa(df_data, after_col = 'SamplingDepth')
 
 df_filltaxa <- check_higher_taxa(df_joined) # TODO:  add export = TRUE
+```
 
+```{r}
 # # Update Names ------------------------------------------------------------------
 df_joined <- update_synonyms(df_joined)
 
 df_fillsyn <- check_synonyms(df_joined)
+```
+```{r}
+# # Combine Different Sizes -------------------------------------------------------
 
+df_joined <- combine_sizes(df_joined)
+```
+
+```{r}
 # # Check Collection Type Variables -----------------------------------------------
 check_methods(df_joined)
-
+```
+```{r}
 # # Subset Columns ----------------------------------------------------------------
 # Check
 df_dupes <- check_distinct(df_joined, return_df = TRUE)

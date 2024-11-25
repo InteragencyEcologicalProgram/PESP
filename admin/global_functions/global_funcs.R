@@ -140,8 +140,9 @@ clean_sp <- function(df){
 higher_lvl_taxa <- function(df, after_col){
   # data frame containing Tiffany Brown's standardized phyto taxa csv
   df_syn <- read_quiet_csv('admin/global_data/phyto_classifications.csv') %>%
-    select(c('Kingdom':'AlgalGroup','Taxon','CurrentTaxon')) %>%
-    rename(PureTaxon = Taxon)
+    select(c('Kingdom':'CurrentTaxon')) %>%
+    rename(PureTaxon = Taxon) %>%
+    mutate(PureTaxon = gsub('\\s+', ' ', PureTaxon))
   
   # standardize spp. to sp. in data df
   df <- clean_sp(df)
@@ -167,8 +168,9 @@ higher_lvl_taxa <- function(df, after_col){
   df <- df %>% mutate(PureTaxon = Taxon)
   
   df <- df %>%
-    mutate(PureTaxon = gsub('cf\\. ', '', PureTaxon),
-           PureTaxon = gsub(' var\\..*', '', PureTaxon))
+    mutate(PureTaxon = trimws(gsub('\\s*cf\\.\\s*', ' ', sub('\\s*var\\..*$', '', PureTaxon))),
+           PureTaxon = gsub('\\s+', ' ', PureTaxon)) %>%
+    select(-any_of(c('Genus', 'Species')))
   
   # add higher level taxa to data df (joined df)
   df_joined <- df %>%
@@ -180,6 +182,20 @@ higher_lvl_taxa <- function(df, after_col){
   return(df_joined)
 }
 
+# # combine data of different sizes
+
+combine_sizes <- function(df) {
+  sum_cols <- c('Biovolume_per_mL', 'Units_per_mL', 'Cells_per_mL')
+  
+  df <- df %>%
+    group_by(Date, Station, Taxon) %>%
+    mutate(
+      across(all_of(sum_cols), ~ sum(.x, na.rm = TRUE), .names = '{.col}')
+    ) %>%
+    distinct() %>%
+    ungroup()
+  
+}
 
 # # add metadata cols
 
@@ -194,12 +210,18 @@ add_meta_col <- function(df, program, col_name){
 # # update synonyms
 
 update_synonyms <- function(df) {
+  # data frame containing Tiffany Brown's standardized phyto taxa csv
+  df_syn <- read_quiet_csv('admin/global_data/phyto_classifications.csv') %>%
+    select(c('Kingdom':'CurrentTaxon')) %>%
+    rename(PureTaxon = Taxon) %>%
+    mutate(PureTaxon = gsub('\\s+', ' ', PureTaxon))
+  
   # map the current/original taxon
   synonym_map <- setNames(as.character(df$CurrentTaxon), df$Taxon)
   
   # follow logical sequence to newest taxon
   newest_taxon <- function(taxon) {
-    while (!is.na(synonym_map[taxon]) && synonym_map[taxon] != "None") {
+    while (!is.na(synonym_map[taxon]) && synonym_map[taxon] != 'None') {
       taxon <- synonym_map[taxon]
     }
     return(taxon)
@@ -212,9 +234,24 @@ update_synonyms <- function(df) {
     ) %>%
     mutate(OrigTaxon = ifelse(OrigTaxon == Taxon, NA, OrigTaxon)) %>%
     select(-CurrentTaxon) %>% 
-    relocate(OrigTaxon, .before = Taxon) 
+    relocate(OrigTaxon, .before = Taxon)
   
-  return(df)
+  # create column for merging the taxon
+  df <- df %>% mutate(PureTaxon = Taxon)
+  
+  df <- df %>%
+    mutate(PureTaxon = trimws(gsub('\\s*cf\\.\\s*', ' ', sub('\\s*var\\..*$', '', PureTaxon))),
+           PureTaxon = gsub('\\s+', ' ', PureTaxon)) %>%
+    select(-any_of(c('Kingdom','Phylum','Class','AlgalGroup','Genus', 'Species')))
+  
+  # add higher level taxa to data df (joined df)
+  df_joined <- df %>%
+    left_join(df_syn, by = 'PureTaxon') %>%
+    select(-c(ends_with('.y'), ends_with('.x'), 'PureTaxon')) %>%
+    relocate(c(Taxon, Kingdom, Phylum, Class, AlgalGroup), .after = all_of('OrigTaxon')) %>%
+    relocate(c(Genus, Species), .after = AlgalGroup)
+  
+  return(df_joined)
 }
 
 # # standardize unknowns

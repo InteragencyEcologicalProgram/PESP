@@ -55,38 +55,3 @@ plt_nmds <- ggplot(df_nmds, aes(x = NMDS1, y = NMDS2, group = Station)) +
 
 plt_nmds
 ```
-
-```{r}
-plt_nmds <- function(df, group_var, nmds_var, factor_var) {
-  set.seed(42)
-  
-  df_cells <- df %>%
-    select({{group_var}}, {{factor_var}}, Taxon, {{nmds_var}}) %>%
-    group_by({{group_var}}, {{factor_var}}, Taxon) %>%
-    reframe({{nmds_var}} := mean({{nmds_var}}, na.rm = TRUE)) %>%
-    pivot_wider(names_from = Taxon, values_from = {{nmds_var}})
-  
-  
-  
-  com <- df_cells %>%
-    select(-{{group_var}}, -{{factor_var}})
-  com[is.na(com)] <- 0
-  m_com <- as.matrix(com)
-  
-  nmds <- metaMDS(m_com, distance = 'bray')
-  df_nmds <- as.data.frame(scores(nmds)$sites)
-  
-  df_nmds <- df_nmds %>%
-    mutate({{factor_var}} := df_cells %>% pull({{factor_var}})) %>%
-    mutate({{factor_var}} := as.factor({{factor_var}}))
-  
-  # Create the plot
-  plt_nmds <- ggplot(df_nmds, aes(x = NMDS1, y = NMDS2, group = {{factor_var}})) + 
-    geom_point(size = 4, shape = 21, color = '#000000', aes(fill = {{factor_var}})) +
-    scale_fill_brewer(palette ='Set1') +
-    theme_bw()
-  
-  return(plt_nmds)
-}
-```
-
