@@ -1,3 +1,11 @@
+# Format EMP Phytoplankton Data
+
+**Purpose:** Code to format historic EMP data.
+
+**Author:** Perry ([sarah.perry\@water.ca.gov](mailto:sarah.perry@water.ca.gov){.email})
+
+**Date Edited:** 04/30/2025
+
 ```{r}
 library(lubridate)
 library(tidyverse)

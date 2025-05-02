@@ -1,0 +1,282 @@
+# Taxa Check
+Check how the taxa in FRP's current publication matches with PESP's.
+
+Date: 05/01/2025
+
+```{r}
+library(tidyverse)
+source('admin/global_functions/global_funcs.R')
+```
+
+```{r}
+df_phyto <- get_edi_file('269','phyto')
+```
+
+## Check how EMP taxa match with current list
+```{r}
+# read in FRP data
+df_phyto <- df_phyto %>%
+  separate(
+    col = Taxonomy_EMP,
+    into = c('Kingdom', 'Phylum', 'Class', 'Genus', 'Species'),
+    sep = '/',
+    remove = FALSE,
+    fill = 'right'
+  )
+
+# read in PESP taxonomy
+df_taxa <- read_phyto_taxa()
+```
+
+```{r}
+# determine which genus-species are in PESP, but higher level taxa differ
+species_matches <- df_phyto %>%
+  select(Kingdom, Phylum, Class, Genus, Species) %>%
+  distinct() %>%
+  mutate(Species =
+           case_when(Species == 'spp.' ~ 'sp.',
+                     TRUE ~ Species)
+  ) %>%
+  inner_join(df_taxa, by = c('Genus', 'Species'), suffix = c('_phyto', '_taxa')) %>%
+  filter(
+    Kingdom_phyto != Kingdom_taxa |
+    Phylum_phyto  != Phylum_taxa  |
+    Class_phyto   != Class_taxa
+  )
+
+write_csv(species_matches, abs_pesp_path('Groups/CDFW-FRP/02 Processed Data/2024 Publication Review/FRP_taxon_differences.csv'))
+```
+
+```{r}
+# determine which taxonomy aren't in PESP at all (but should be)
+taxa_mismatch <- df_phyto %>%
+  mutate(Species =
+           case_when(Species == 'spp.' ~ 'sp.',
+                     TRUE ~ Species)
+  ) %>%
+  anti_join(df_taxa, by = c('Kingdom', 'Phylum', 'Class', 'Genus', 'Species')) %>%
+  select(Kingdom, Phylum, Class, Genus, Species) %>%
+  distinct()
+
+taxa_mismatch <- taxa_mismatch %>%
+  anti_join(
+    species_matches %>%
+      select(
+        Kingdom = Kingdom_phyto,
+        Phylum  = Phylum_phyto,
+        Class   = Class_phyto,
+        Genus,
+        Species
+      ) %>%
+      distinct(),
+    by = c('Kingdom', 'Phylum', 'Class', 'Genus', 'Species')
+  ) %>%
+  filter(!(is.na(Kingdom) & is.na(Phylum) & is.na(Class) & is.na(Genus) & is.na(Species)))
+
+write_csv(taxa_mismatch, abs_pesp_path('Groups/CDFW-FRP/02 Processed Data/2024 Publication Review/FRP_taxon_mismatch.csv'))
+```
+
+```{r}
+# determine which taxa exist in PESP but the taxa names should be updated
+need_syn <- df_taxa %>%
+  semi_join(df_phyto, by = c('Kingdom', 'Phylum', 'Class', 'Genus', 'Species')) %>%
+  filter(CurrentTaxon != 'None')
+
+write_csv(taxa_mismatch, abs_pesp_path('Groups/CDFW-FRP/02 Processed Data/2024 Publication Review/FRP_update_synonym.csv'))
+```
+
+```{r}
+# determine which are missing from PESP altogether
+missing_pesp <- df_phyto %>%
+  filter(
+    is.na(Kingdom) &
+    is.na(Phylum) &
+    is.na(Class) &
+    is.na(Genus) &
+    is.na(Species)
+  ) %>%
+  distinct(Taxonomy_FRP)
+
+write_csv(taxa_mismatch, abs_pesp_path('Groups/CDFW-FRP/02 Processed Data/2024 Publication Review/FRP_missing_pesp.csv'))
+```
+
+```{r}
+# taxon that have info for original taxon but not taxonomy FRP or PESP
+no_info <- df_phyto %>%
+  filter(is.na(df_phyto$Taxonomy_FRP)) %>%
+  select(OriginalTaxon) %>%
+  distinct()
+
+write_csv(taxa_mismatch, abs_pesp_path('Groups/CDFW-FRP/02 Processed Data/2024 Publication Review/FRP_missing_info.csv'))
+```
+
+# Check QC Codes
+```{r}
+subcomments <- unique(df_phyto$QualityCheck) %>%
+  map(~ str_split(.x, '\\.\\s+')[[1]]) %>%  
+  unlist() %>%
+  str_trim() %>%
+  str_remove('\\.$') %>%
+  unique() %>%
+  data.frame() %>%
+  setNames('Comments') %>%
+  filter(!is.na(Comments))
+
+colnames(subcomments)
+
+write_csv(subcomments, abs_pesp_path('Groups/CDFW-FRP/02 Processed Data/2024 Publication Review/FRP_unique_comments.csv'))
+```
+
+```{r}
+fill_taxa_by_genus <- function(unmatched_df, df_syn) {
+  # Add lowercase GenusOnly to unmatched
+  unmatched_df <- unmatched_df %>%
+    mutate(GenusOnly = tolower(word(PureTaxon, 1)))
+
+  # Add lowercase GenusOnly to df_syn from Genus
+  df_syn_genus_info <- df_syn %>%
+    mutate(GenusOnly = tolower(Genus)) %>%
+    group_by(GenusOnly) %>%
+    mutate(n_classifications = n_distinct(Kingdom, Phylum, Class, AlgalGroup, Genus)) %>%
+    ungroup()
+
+  # Identify ambiguous genera
+  ambiguous <- df_syn_genus_info %>%
+    filter(n_classifications > 1) %>%
+    distinct(GenusOnly)
+
+  if (nrow(ambiguous) > 0) {
+    stop('Multiple taxonomic classifications found for Genus: ', paste(ambiguous$GenusOnly, collapse = ', '))
+  }
+
+  # Genus-level info with transformed CurrentTaxon
+  genus_info <- df_syn_genus_info %>%
+    group_by(GenusOnly) %>%
+    slice(1) %>%
+    ungroup() %>%
+    mutate(
+      CurrentTaxon = case_when(
+        CurrentTaxon == 'None' ~ 'None',
+        TRUE ~ paste(word(CurrentTaxon, 1), 'sp.')
+      )
+    ) %>%
+    select(GenusOnly, Kingdom, Phylum, Class, AlgalGroup, Genus, CurrentTaxon)
+
+  # Join and finalize
+  joined <- unmatched_df %>%
+    left_join(genus_info, by = 'GenusOnly')
+
+  joined_clean <- joined %>%
+    select(-matches('\\.x$'), -GenusOnly) %>%
+    rename_with(~ sub('\\.y$', '', .x), matches('\\.y$')) %>%
+    mutate(Species = 'sp.')
+
+  return(joined_clean)
+}
+
+higher_lvl_taxa <- function(df, after_col, std_type = 'program') {
+  std_type <- tolower(std_type)
+
+  df <- df %>%
+    mutate(Taxon = stringr::str_trim(Taxon))
+
+  # Normalize "Genus Species cf." → "Genus cf. Species"
+  df <- df %>%
+    mutate(
+      Taxon = dplyr::case_when(
+        stringr::str_detect(Taxon, '^\\w+\\s+\\w+\\s+cf\\.$') ~ 
+          stringr::str_replace(Taxon, '^(\\w+)\\s+(\\w+)\\s+cf\\.$', '\\1 cf. \\2'),
+        TRUE ~ Taxon
+      )
+    )
+
+  # In 'pesp' mode, convert "Genus cf. Species" → "Genus sp."
+  df <- df %>%
+    mutate(
+      Taxon = dplyr::case_when(
+        std_type == 'pesp' & stringr::str_detect(Taxon, '^\\w+\\s+cf\\.\\s+\\w+$') ~
+          stringr::str_replace(Taxon, '^(\\w+)\\s+cf\\.\\s+\\w+$', '\\1 sp.'),
+        TRUE ~ Taxon
+      )
+    )
+
+  # Generate PureTaxon
+  df <- df %>%
+    mutate(
+      PureTaxon = stringr::str_replace_all(Taxon, regex('cf\\.', ignore_case = TRUE), ''),
+      PureTaxon = stringr::str_trim(PureTaxon),
+      PureTaxon = stringr::str_replace_all(PureTaxon, '\\s+', ' '),
+      PureTaxon = tolower(PureTaxon)
+    )
+
+  # Prep df_syn with PureTaxon
+  df_syn <- df_syn %>%
+    mutate(
+      PureTaxon = stringr::str_trim(CurrentTaxon),
+      PureTaxon = stringr::str_replace_all(PureTaxon, '\\s+', ' '),
+      PureTaxon = tolower(PureTaxon)
+    ) %>%
+    select(-Taxon)
+
+  # First match on full PureTaxon
+  df_matched <- df %>%
+    left_join(df_syn, by = 'PureTaxon')
+
+  # Handle unmatched "Genus sp."
+  unmatched_sp <- df_matched %>%
+    filter(is.na(Kingdom)) %>%
+    filter(stringr::str_detect(PureTaxon, '^\\w+\\s+sp\\.$')) %>%
+    mutate(GenusOnly = word(PureTaxon, 1))
+
+
+  if (nrow(unmatched_sp) > 0) {
+    unmatched_sp <- fill_taxa_by_genus(unmatched_sp, df_syn)
+    print(unmatched_sp)
+  }
+
+  # Combine results
+  df_final <- df_matched %>%
+    filter(!stringr::str_detect(PureTaxon, '^\\w+\\s+sp\\.$') | !is.na(Kingdom)) %>%
+    bind_rows(unmatched_sp)
+
+  # Log unmatched
+  unmatched_log <- df_final %>%
+    filter(is.na(Kingdom)) %>%
+    select(Date, Station, Taxon, PureTaxon)
+
+  message('Taxa with no match in reference list: ', nrow(unmatched_log))
+
+  # Final cleanup
+  df_final <- df_final %>%
+    select(-c(ends_with('.x'), ends_with('.y'), PureTaxon)) %>%
+    relocate(c(Taxon, Kingdom, Phylum, Class, AlgalGroup), .after = all_of(after_col)) %>%
+    relocate(c(Genus, Species), .after = AlgalGroup)
+
+  # Attach log
+  existing_log <- attr(df, 'log')
+  attr(df_final, 'log') <- c(existing_log, list(unmatched_taxa = unmatched_log))
+
+  return(df_final)
+}
+
+df <- tibble::tibble(
+  Date = c('2023-01-01', '2023-01-02'),
+  Station = c('A1', 'A2'),
+  Taxon = c('Navicula sp.', 'Asterionella sp.')
+)
+
+df_syn <- tibble::tibble(
+  CurrentTaxon = c('Navicula cryptocephala', 'Testing formosa'),
+  Kingdom = c('Protista', 'Protista'),
+  Phylum = c('Bacillariophyta', 'Bacillariophyta'),
+  Class = c('Bacillariophyceae', 'Bacillariophyceae'),
+  AlgalGroup = c('Diatoms', 'Diatoms'),
+  Genus = c('Navicula', 'Asterionella'),
+  Species = c('cryptocephala', 'formosa'),
+  Taxon = c('Navicula cryptocephala','Asterionella formosa')
+)
+
+# Assume df_syn is available globally or passed in the environment
+result <- higher_lvl_taxa(df, after_col = 'Station')
+```
+
