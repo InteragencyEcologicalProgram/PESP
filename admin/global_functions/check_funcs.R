@@ -28,21 +28,122 @@ check_methods <- function(df){
 
 # # check distinct rows
 
-check_distinct <- function(df, return_df = FALSE){
-  row_check = identical(nrow(df), nrow(distinct(df)))
+check_distinct <- function(df, return_df = FALSE, coerce = TRUE) {
+  # work on a copy for checking
+  df_check <- df
   
-  if (!isTRUE(row_check)){
-    warning('non-distinct rows in data frame')
-    
-    if (isTRUE(return_df)){
-      df_dupes <- df[duplicated(df),]
-      
-      return(df_dupes)          
-    }
-    
-  } else {
-    message('All rows are unique')
+  if (coerce) {
+    df_check <- df_check %>%
+      mutate(
+        across(where(is.factor), as.character),
+        across(where(is.numeric), ~ round(.x, 6))
+      )
   }
+  
+  n_total <- nrow(df_check)
+  n_unique <- nrow(distinct(df_check))
+  n_non_distinct <- n_total - n_unique
+  
+  if (n_non_distinct > 0) {
+    # get full duplicates based on normalized check
+    df_dupes <- df[duplicated(df_check) | duplicated(df_check, fromLast = TRUE), ]
+    
+    warning('Non-distinct rows found in dataframe.')
+    message('Number of non-distinct rows: ', nrow(df_dupes))
+    
+    if (isTRUE(return_df)) {
+      return(df_dupes)
+    } else {
+      attr(df, 'log') <- list(non_distinct_rows = df_dupes)
+      return(df)
+    }
+  } else {
+    message('All rows are unique (n = ', n_total, ')')
+    attr(df, 'log') <- list(non_distinct_rows = NULL)
+    return(df)
+  }
+}
+
+extract_unstandardized_comments <- function(df, comment_col, delimiter = ' ') {
+  comment_col <- rlang::ensym(comment_col)
+  
+  # normalize common delimiters to regex equivalents
+  if (!is.null(delimiter) && delimiter != "") {
+    delimiter <- dplyr::case_when(
+      delimiter == ". "  ~ "\\.\\s*",
+      delimiter == "."   ~ "\\.",
+      delimiter == ", "  ~ ",\\s*",
+      delimiter == ","   ~ ",",
+      delimiter == "; "  ~ ";\\s*",
+      delimiter == ";"   ~ ";",
+      delimiter == " - " ~ "\\s+-\\s*",
+      TRUE               ~ delimiter
+    )
+  }
+  
+  # phrases captured by QualityCheck or Debris
+  known_phrases <- c(
+    'delete',
+    'cross contamination',
+    'did not reach',
+    'cannot meet tally',
+    'cannot meet natural unit',
+    'CNMT>5', 'CNMT >5', 'CNMT > 5',
+    'CMT>5',  'CMT >5',  'CMT > 5',
+    'CMNT<5', 'CMNT <5', 'CMNT < 5',
+    'CMT<5',  'CMT <5',  'CMT < 5',
+    'CMT', 'CMNT','LessThan400cells',
+    'degraded',
+    'poor preservation', 'poorly preserved', 'PoorlyPreserved',
+    'weak preservation', 'weakly preserved',
+    'fungus',
+    'obscured',
+    'many broken diatoms', 'broken diatoms', 'BrokenDiatoms',
+    'high detritus', 'high sediment',
+    'moderate detritus', 'moderate sediment','moderat sediment',
+    'low detritus', 'low sediment',
+    'light detritus', 'light sediment',
+    'heavy detritus', 'heavy sediment',
+    'Good'
+  )
+  
+  # compile regex pattern
+  known_pattern <- paste0(
+    "(", 
+    paste0(stringr::str_replace_all(known_phrases, "(\\W)", "\\\\\\1"), collapse = "|"), 
+    ")"
+  )
+  
+  raw_comments <- df %>%
+    dplyr::pull(!!comment_col) %>%
+    unique() %>%
+    discard(is.na)
+  
+  cleaned_comments <- stringr::str_remove_all(raw_comments, regex(known_pattern, ignore_case = TRUE))
+  
+  # isolate unmatched fragments
+  if (!is.null(delimiter) && delimiter != "") {
+    unmatched <- cleaned_comments %>%
+      map(~ stringr::str_split(.x, delimiter)[[1]]) %>%
+      unlist() %>%
+      stringr::str_trim() %>%
+      stringr::str_remove('\\.$') %>%
+      discard(~ .x == "" || is.na(.x))
+  } else {
+    unmatched <- cleaned_comments %>%
+      stringr::str_trim() %>%
+      discard(~ .x == "" || is.na(.x))
+  }
+  
+  unmatched_df <- unique(unmatched) %>%
+    tibble::tibble(Unmatched = .)
+  
+  if (nrow(unmatched_df) > 0) {
+    message("Unique unstandardized comments: ", nrow(unmatched_df))
+    attr(df, "log")$unmatched_comments <- unmatched_df
+  }
+  
+  return(df)
 }
 
 # Check Taxa --------------------------------------------------------------

@@ -18,7 +18,7 @@
 #' @description
 #' Reads a CSV file using `readr::read_csv()` without printing column type messages or warnings.
 #'
-#' @param fp File path to the CSV
+#' @param fp Filepath to the CSV
 #'
 #' @return A dataframe containing the contents of the CSV file
 #'
@@ -56,19 +56,20 @@ abs_pesp_path <- function(fp_rel = NULL) {
 #' @title Read Phyto Taxonomy File
 #'
 #' @description
-#' Read in Tiffany Brown's phyto taxonomy file.
+#' Read in Tiffany Brown's phytoplankton taxonomy file.
 #' 
 #' @return A dataframe of filtered metadata with no missing ending dates
 #'
 #' @importFrom readr read_csv
 read_phyto_taxa <- function(){
   df <-
-    readxl::read_read(abs_pesp_path('Reference Documents/PhytoTaxonomy.csv'))
+    read_quiet_csv(abs_pesp_path('Reference Documents/PhytoTaxonomy.csv')) %>%
+    select(Kingdom,Phylum,Class,AlgalGroup,Genus,Species,Taxon,CurrentTaxon)
   
   return(df)
 }
 
-#' @title Read Metadata File for Programs
+#' @title Read-in Metadata File for Programs
 #'
 #' @description
 #' Reads in the PESP metadata Excel file and filters it to include only rows for the specified program.
@@ -156,6 +157,7 @@ get_edi_file = function(pkg_id, fnames){
 #' @importFrom dplyr mutate select left_join
 #' @importFrom tidyr unnest
 #' @importFrom purrr map2
+#' @export
 from_meta <- function(df, meta_df, column) {
   meta_df <- meta_df %>%
     mutate(start = `Starting Date`,
@@ -171,55 +173,85 @@ from_meta <- function(df, meta_df, column) {
 
 #' @title Add Quality Control Labels Based on Comments
 #'
-#' Creates a QualityCheck column based on predefined keywords in the comment column
-#' and assigns QC flags based on the presence of those terms.
-#' 
-#' It creates intermediate QC columns (e.g., QC_1 to QC_6) and merges them into a single
-#' `QualityCheck` column; the column is NA if none are found.
+#' Creates a `QualityCheck` column based on predefined keywords in a comment column and on
+#' within-group inconsistencies in taxon-level entries. Flags help identify records needing review.
 #'
-#' @param df A dataframe that includes a comment column
-#' @param comment_col The unquoted name of the comment column to scan for quality flags (e.g., `Comments`)
+#' Intermediate columns (QC_1 to QC_10) are generated for specific conditions and collapsed
+#' into a single `QualityCheck` string per row. The column is NA if no flags are triggered.
 #'
-#' @return The input dataframe with a new `QualityCheck` column summarizing the QC flags
+#' @param df A dataframe that includes a column with comments and taxonomic data
+#' @param comment_col The unquoted name of the comment column to scan for quality issues (e.g., `Comments`)
+#' @param key_cols Character vector of columns to group by before checking taxon-level variation (default: `c('Date', 'Station')`)
+#' @param taxa_col Name of the taxon column (default: `'Taxon'`)
+#'
+#' @return The original dataframe with a new `QualityCheck` column combining quality control flags
 #'
 #' @details
-#' The following labels are assigned based on keyword matches (case-insensitive):
+#' The following quality flags are assigned (case-insensitive):
 #' - **BadData**: contains "delete"
-#' - **TallyNotMet**: contains "did not reach", "cannot meet tally", or "cannot meet natural unit"
+#' - **CrossContamination**: contains "cross contamination"
+#' - **TallyNotMet_Over5**: contains "CMT > 5", "CMNT > 5", or similar
+#' - **TallyNotMet_Under5**: contains "CMT < 5", "CMNT < 5", or similar
+#' - **TallyNotMet**: general phrases like "did not reach", "cannot meet tally", or isolated "CMT"/"CMNT"
 #' - **Degraded**: contains "degraded"
-#' - **PoorlyPreserved**: contains "poor preservation", "weak preservation", "fungus", etc.
+#' - **PoorlyPreserved**: contains "poor preservation", "weak preservation", "fungus"
 #' - **Obscured**: contains "obscured"
 #' - **BrokenDiatoms**: contains "many broken diatoms"
-#' - **CrossContamination**: contains "cross contamination"
-#' - **MultipleSizes**: size range for taxon varies significantly
+#' - **MultipleSizes**: same taxon appears more than once in a group but has differing values in other fields
 #'
-#' @importFrom dplyr mutate case_when
+#' If both TallyNotMet_Over5 and TallyNotMet_Under5 are flagged for a row, they are merged into a single **TallyNotMet** flag.
+#'
+#' @importFrom dplyr mutate case_when group_by ungroup across all_of
 #' @importFrom tidyr unite
 #' @importFrom rlang ensym !!
-add_qc_col <- function(df, comment_col) {
+#' @export
+add_qc_col <- function(df, comment_col, key_cols = c('Date', 'Station'), taxa_col = 'Taxon') {
   comment_col <- rlang::ensym(comment_col)
+  group_cols <- c(key_cols, taxa_col)
   
-  # Flag known QC issues from comment text
+  # flag known QC issues from comment text
   df <- df %>%
     mutate(
-      QC_1 = case_when(grepl('delete', !!comment_col, ignore.case = TRUE) ~ 'BadData'),
-      QC_2 = case_when(grepl('did not reach|cannot meet tally|cannot meet natural unit', !!comment_col, ignore.case = TRUE) ~ 'TallyNotMet'),
-      QC_3 = case_when(grepl('degraded', !!comment_col, ignore.case = TRUE) ~ 'Degraded'),
-      QC_4 = case_when(grepl('poor preservation|poorly preserved|weak preservation|weakly preserved|fungus', !!comment_col, ignore.case = TRUE) ~ 'PoorlyPreserved'),
-      QC_5 = case_when(grepl('obscured', !!comment_col, ignore.case = TRUE) ~ 'Obscured'),
-      QC_6 = case_when(grepl('many broken diatoms', !!comment_col, ignore.case = TRUE) ~ 'BrokenDiatoms'),
-      QC_7 = case_when(grepl('cross contamination', !!comment_col, ignore.case = TRUE) ~ 'CrossContamination')
+      QC_1 = case_when(grepl('\\bdelete\\b', !!comment_col, ignore.case = TRUE) ~ 'BadData'),
+      QC_2 = case_when(grepl('cross contamination', !!comment_col, ignore.case = TRUE) ~ 'CrossContamination'),
+      QC_4 = case_when(grepl('CNMT>5|CNMT\\s>5|CNMT\\s>\\s5|CMT>5|CMT\\s>5|CMT\\s>\\s5|CMNT>5|CMNT\\s>5|CMNT\\s>\\s5', !!comment_col, ignore.case = TRUE) ~ 'TallyNotMet_Over5'),
+      QC_5 = case_when(grepl('CNMT<5|CNMT\\s<5|CNMT\\s<\\s5|CMT<5|CMT\\s<5|CMT\\s<\\s5|CMNT<5|CMNT\\s<5|CMNT\\s<\\s5', !!comment_col, ignore.case = TRUE) ~ 'TallyNotMet_Under5'),
+      QC_3 = case_when(
+        grepl('did not reach|cannot meet tally|cannot meet natural unit|LessThan400Cells', !!comment_col, ignore.case = TRUE) ~ 'TallyNotMet',
+        grepl('\\bCMT\\b|\\bCMNT\\b', !!comment_col, ignore.case = TRUE) ~ 'TallyNotMet'  # if only CMNT/CMT
+      ),
+      QC_6 = case_when(grepl('degraded', !!comment_col, ignore.case = TRUE) ~ 'Degraded'),
+      QC_7 = case_when(grepl('poor preservation|poorly preserved|weak preservation|weakly preserved|fungus|PoorlyPreserved', !!comment_col, ignore.case = TRUE) ~ 'PoorlyPreserved'),
+      QC_8 = case_when(grepl('obscured', !!comment_col, ignore.case = TRUE) ~ 'Obscured'),
+      QC_9 = case_when(grepl('many broken diatoms|broken diatoms|BrokenDiatoms', !!comment_col, ignore.case = TRUE) ~ 'BrokenDiatoms')
     )
   
-  # Identify taxa with multiple entries for the same Datetime and Station
+  # handle combined case of both Over5 and Under5 being flagged
   df <- df %>%
-    group_by(Datetime, Station, Taxon) %>%
     mutate(
-      QC_8 = if (n() > 1) 'MultipleSizes' else NA_character_
+      both_4_5 = !is.na(QC_4) & !is.na(QC_5),
+      QC_3 = ifelse(both_4_5, 'TallyNotMet', QC_3),
+      QC_4 = ifelse(both_4_5, NA_character_, QC_4),
+      QC_5 = ifelse(both_4_5, NA_character_, QC_5)
+    ) %>%
+    select(-both_4_5)
+  
+  # identify taxa with multiple entries per group that differ in any field
+  df <- df %>%
+    group_by(across(all_of(group_cols))) %>%
+    mutate(
+      QC_10 = {
+        non_group_cols <- setdiff(names(cur_data()), group_cols)
+        if (n() > 1 && any(sapply(cur_data()[non_group_cols], function(x) length(unique(x)) > 1))) {
+          'MultipleSizes'
+        } else {
+          NA_character_
+        }
+      }
     ) %>%
     ungroup()
   
-  # Collapse all QC_* columns into a single QualityCheck string
+  # collapse all QC_* columns into a single string
   df <- df %>%
     unite(QualityCheck, starts_with('QC'), remove = TRUE, na.rm = TRUE, sep = ' ')
   
@@ -253,7 +285,7 @@ add_debris_col <- function(df, comment_col){
     mutate(
       Db_1 = case_when(
         grepl('high detritus|high sediment|heavy detritus|heavy sediment', !!comment_col, ignore.case = TRUE) ~ 'high',
-        grepl('moderate detritus|moderate sediment', !!comment_col, ignore.case = TRUE) ~ 'moderate',
+        grepl('moderate detritus|moderate sediment|moderat sediment', !!comment_col, ignore.case = TRUE) ~ 'moderate',
         grepl('low detritus|low sediment|light detritus|light sediment', !!comment_col, ignore.case = TRUE) ~ 'low'
       )
     ) %>%
@@ -276,6 +308,7 @@ add_debris_col <- function(df, comment_col){
 #' @return A dataframe with the specified metadata column added
 #'
 #' @importFrom rlang enquo
+#' @export
 add_meta_col <- function(df, program, col_name){
   # read in metadata sheet
   df_meta <- read_meta_file(program)
@@ -284,68 +317,54 @@ add_meta_col <- function(df, program, col_name){
 }
 
 # Taxa Related Functions --------------------------------------------------
-#' @title Standardize Species Labels and Remove Trailing Numbers
-#'
-#' Standardizes taxon names by:
-#' - converting 'spp.' to 'sp.'
-#' - removing trailing numeric labels like 'sp. 1'
-#'
-#' @param df A dataframe containing `Taxon` and `Species` columns to clean
-#'
-#' @return A dataframe with updated `Taxon` and `Species` columns
-#'
-#' @importFrom stringr str_replace_all str_replace
-clean_sp <- function(df) {
-  df$Taxon <- stringr::str_replace_all(df$Taxon, 'spp\\.', 'sp.')
-  df$Species <- stringr::str_replace_all(df$Species, 'spp\\.', 'sp.')
-  
-  # Remove anything after 'sp.' and clean whitespace
-  df$Taxon <- stringr::str_replace(df$Taxon, 'sp\\..*', 'sp.')
-  df$Species <- stringr::str_replace(df$Species, 'sp\\..*', 'sp.')
-  
-  # Remove any trailing number preceded by a space (e.g., ' sp. 1', ' cf. 2')
-  df$Taxon <- gsub('\\s+\\d+$', '', df$Taxon)
-  df$Species <- gsub('\\s+\\d+$', '', df$Species)
-  
-  return(df)
-}
-
 #' @title Standardize Unknown Taxon Labels
 #'
 #' @description
-#' This function standardizes taxon names by:
-#' - Converting 'spp.' to 'sp.'
-#' - Normalizing unknown-like terms to 'Unknown'
-#' - Removing trailing numbers in taxon names
-#' Logs any changes applied to the `Taxon` column.
+#' Standardizes taxon names in a dataframe by:
+#' - Replacing case-insensitive variants of "unknown", "unidentified", or "undetermined" with `"Unknown"`
+#' - Converting trailing `sp. X` or `spp. X` to just `sp.` or `spp.`
+#' - Optionally converting all `spp.` to `sp.` for consistency
 #'
-#' @param df A dataframe containing `Taxon` and `Species` columns to clean
+#' A log of changes to the `Taxon` column is returned as an attribute.
 #'
-#' @return A dataframe with updated `Taxon` and `Species` columns, and a 'log' attribute tracking changes
+#' @param df A dataframe containing a `Taxon` column
+#' @param std_sp Logical; if `TRUE`, standardizes `spp.` to `sp.` (default: `TRUE`)
+#'
+#' @return A dataframe with updated `Taxon` values. The dataframe includes a `log` attribute listing unique `Taxon` values that were changed.
 #'
 #' @importFrom stringr str_replace_all str_replace
-clean_unknowns <- function(df) {
+#' @importFrom dplyr case_when distinct
+#' @importFrom tibble tibble
+#' @export
+clean_unknowns <- function(df, std_sp = TRUE) {
   original_taxon <- df$Taxon
   
+  # standardize unknown/unidentified/undetermined to "Unknown"
   unknown_syns <- 'unknown|unidentified|undetermined'
   df$Taxon <- dplyr::case_when(
-    grepl(unknown_syns, df$Taxon, ignore.case = TRUE) ~ stringr::str_replace_all(df$Taxon, regex(unknown_syns, ignore_case = TRUE), 'Unknown'),
+    grepl(unknown_syns, df$Taxon, ignore.case = TRUE) ~ 
+      stringr::str_replace_all(df$Taxon, regex(unknown_syns, ignore_case = TRUE), 'Unknown'),
     TRUE ~ df$Taxon
   )
   
-  df$Taxon <- stringr::str_replace_all(df$Taxon, 'spp\\.', 'sp.')
+  # simplify sp. X -> sp. and spp. X -> spp.
+  df$Taxon <- df$Taxon %>%
+    stringr::str_replace('sp\\..*', 'sp.') %>%
+    stringr::str_replace('spp\\..*', 'spp.')
   
-  df$Taxon <- stringr::str_replace(df$Taxon, 'sp\\..*', 'sp.')
+  # optionally standardize spp. -> sp.
+  if (std_sp) {
+    df$Taxon <- stringr::str_replace_all(df$Taxon, 'spp\\.', 'sp.')
+  }
   
-  df$Taxon <- gsub('\\s+\\d+$', '', df$Taxon)
-  
+  # create log of unique corrections only
   log_df <- tibble::tibble(
-    row = which(original_taxon != df$Taxon),
     old_Taxon = original_taxon[original_taxon != df$Taxon],
-    new_Taxon = df$Taxon[original_taxon != df$Taxon],
-  )
+    new_Taxon = df$Taxon[original_taxon != df$Taxon]
+  ) %>%
+    distinct()
   
-  message('Unknown taxon standardized: ', nrow(log_df))
+  message('Unique unknown taxon standardized: ', nrow(log_df))
   attr(df, 'log') <- list(clean_unknowns = log_df)
   return(df)
 }
@@ -363,8 +382,9 @@ clean_unknowns <- function(df) {
 #'
 #' @importFrom dplyr left_join mutate select coalesce filter
 #' @importFrom readr read_csv
+#' @export
 correct_taxon_typos <- function(df) {
-  df_typos <- df_typos #read_quiet_csv('admin/global_data/common_typos.csv')
+  df_typos <- read_quiet_csv(abs_pesp_path('Reference Documents/TaxaTypos.csv'))
   
   df <- df %>%
     left_join(df_typos, by = 'Taxon')
@@ -372,8 +392,9 @@ correct_taxon_typos <- function(df) {
   if ('TaxonCorrected' %in% names(df) && any(!is.na(df$TaxonCorrected))) {
     typo_log <- df %>%
       filter(!is.na(TaxonCorrected) & TaxonCorrected != Taxon) %>%
-      select(Date, Station, original_Taxon = Taxon, corrected_Taxon = TaxonCorrected)
-    message('Known typos corrected: ', nrow(typo_log))
+      distinct(original_Taxon = Taxon, corrected_Taxon = TaxonCorrected)
+    
+    message('Unique known typos corrected: ', nrow(typo_log))
   } else {
     typo_log <- tibble::tibble()
     message('No known taxon typos found.')
@@ -401,102 +422,134 @@ resolve_final_taxon <- function(taxon, df_syn) {
 #' @title Update Taxon Names to Reflect Current Synonym Metadata
 #'
 #' @description
-#' Updates outdated taxon names to their current standardized forms using a synonym chain
-#' from a metadata file. Preserves the original name in a new column and logs all replacements.
+#' Updates outdated or deprecated taxon names based on a synonym chain defined in an external
+#' metadata file. The function resolves all synonym chains, including those involving `cf.` notation,
+#' and replaces each name with the most current terminal taxon.
+#' The original name is retained in a new `OrigTaxon` column, and changes are recorded in a log attribute.
 #'
-#' @param df A dataframe with a `Taxon` column to standardize using synonym metadata
+#' @param df A dataframe with a `Taxon` column containing the taxon names to standardize
 #'
-#' @return A dataframe with current Taxon values and an OrigTaxon column (if changed),
-#' plus a log attribute with synonym updates
+#' @return A dataframe with:
+#' - Updated `Taxon` values reflecting the most current names
+#' - An `OrigTaxon` column indicating the original names (NA if unchanged)
+#' - A `log` attribute (`$synonym_updates`) listing unique updates
 #'
-#' @importFrom dplyr mutate select left_join relocate any_of
+#' @details
+#' - Synonym chains are resolved iteratively until reaching a terminal name (`CurrentTaxon == "None"`).
+#' - Names in the form `Genus cf. species` are normalized, resolved, and reconstructed in the same form.
+#' - Circular references are avoided using a safeguard mechanism.
+#'
+#' @importFrom dplyr mutate select left_join relocate distinct filter
+#' @importFrom stringr str_detect str_match str_split str_trim
+#' @importFrom memoise memoise
+#' @export
 update_synonyms <- function(df) {
-  df_syn <- df_syn %>%
-    select(c('Taxon', 'CurrentTaxon')) %>%
+  df_syn <- read_phyto_taxa() %>%
+    select(Taxon, CurrentTaxon) %>%
     rename(PureTaxon = Taxon)
   
   synonym_map <- setNames(as.character(df_syn$CurrentTaxon), df_syn$PureTaxon)
   
+  # safely traverse the synonym chain
+  newest_taxon <- function(taxon) {
+    seen <- character()
+    while (!is.na(taxon) && taxon %in% names(synonym_map)) {
+      next_taxon <- synonym_map[[taxon]]
+      if (is.na(next_taxon) || next_taxon == 'None' || next_taxon %in% seen) break
+      seen <- c(seen, taxon)
+      taxon <- next_taxon
+    }
+    return(taxon)
+  }
+  
+  # resolve cf. and standard names
   resolve_synonym <- function(taxon) {
-    # handle "Genus cf. species"
-    if (stringr::str_detect(taxon, '^\\w+\\s+cf\\.\\s+\\w+$')) {
-      genus <- stringr::str_match(taxon, '^(\\w+)\\s+cf\\.\\s+\\w+$')[,2]
-      species <- stringr::str_match(taxon, '^\\w+\\s+cf\\.\\s+(\\w+)$')[,2]
-      clean_taxon <- paste(genus, species)
+    cf_pattern <- '^([\\w-]+)\\s+cf\\.\\s+([\\w-]+)$'
+    
+    if (str_detect(taxon, cf_pattern)) {
+      matches <- str_match(taxon, cf_pattern)
+      clean_taxon <- paste(matches[2], matches[3])
       resolved <- newest_taxon(clean_taxon)
-      resolved_parts <- stringr::str_split(resolved, '\\s+')[[1]]
-      if (length(resolved_parts) >= 2) {
-        return(paste(resolved_parts[1], 'cf.', paste(resolved_parts[-1], collapse = ' ')))
+      resolved_parts <- str_split(resolved, '\\s+')[[1]]
+      
+      resolved_genus <- resolved_parts[1]
+      resolved_species <- if (length(resolved_parts) >= 2) {
+        paste(resolved_parts[-1], collapse = ' ')
       } else {
-        return(paste(resolved_parts[1], 'cf.'))
+        ''
       }
+      return(str_trim(paste(resolved_genus, 'cf.', resolved_species)))
     } else {
       return(newest_taxon(taxon))
     }
   }
   
-  newest_taxon <- function(taxon) {
-    while (!is.na(synonym_map[taxon]) && synonym_map[taxon] != 'None') {
-      taxon <- synonym_map[taxon]
-    }
-    return(taxon)
-  }
+  memo_resolve_synonym <- memoise::memoise(resolve_synonym)
+  
+  unique_taxa <- unique(df$Taxon)
+  resolved_taxa_map <- setNames(
+    vapply(unique_taxa, memo_resolve_synonym, character(1)),
+    unique_taxa
+  )
   
   df <- df %>%
     mutate(
       OrigTaxon = Taxon,
-      Taxon = sapply(Taxon, resolve_synonym)
+      Taxon = resolved_taxa_map[Taxon]
     ) %>%
     mutate(OrigTaxon = ifelse(OrigTaxon == Taxon, NA, OrigTaxon)) %>%
     relocate(OrigTaxon, .before = Taxon)
   
   update_log <- df %>%
     filter(!is.na(OrigTaxon)) %>%
-    select(Date, Station, OrigTaxon, UpdatedTaxon = Taxon)
+    distinct(OrigTaxon, UpdatedTaxon = Taxon)
   
-  message('Synonym updates applied: ', nrow(update_log))
+  message('Unique synonym updates applied: ', nrow(update_log))
   attr(df, 'log') <- list(synonym_updates = update_log)
+  
   return(df)
 }
 
 #' @title Add Higher-Level Taxonomic Information
 #'
 #' @description
-#' Appends hierarchical taxonomy fields (Kingdom, Phylum, Class, AlgalGroup, Genus, Species)
-#' to each record based on a reference classification table. Matching is performed using a
-#' normalized `PureTaxon` field, derived from the `Taxon` column by:
+#' Appends hierarchical taxonomy fields to each record using a reference classification table
+#' obtained via `read_phyto_taxa()`. Matching is based on a normalized `PureTaxon` field,
+#' derived from the `Taxon` column by:
 #'
-#' - Removing any instance of "cf." (case-insensitive)
-#' - Trimming leading/trailing whitespace
-#' - Collapsing multiple internal spaces
-#' - Converting to lowercase
+#' - Removing "cf." (case-insensitive)
+#' - Trimming whitespace and collapsing multiple spaces
 #'
-#' The behavior of the final `Taxon` column differs depending on `std_type`:
+#' The behavior of the final `Taxon` column depends on `std_type`:
+#' 
+#' - For both, taxa in the form "Genus Species cf." are normalized to "Genus cf. Species"
 #'
 #' - For `std_type = "program"` (default):
-#'   - The original `Taxon` is preserved (e.g., "cf. Genus Species", "Genus cf. Species")
+#'   - The `Taxon` column remains unchanged
 #'
-#' - For `std_type = "PESP"`:
-#'   - If `Taxon` is of the form "Genus cf. Species", it is standardized to "Genus sp."
-#'   - If `Taxon` is "Genus Species cf.", it is normalized to "Genus cf. Species" first
-#'   - If `Taxon` is "cf. Genus Species", it is retained as-is
+#' - For `std_type = "pesp"`:
+#'   - Taxa like "Genus cf. Species" are rewritten as "Genus sp."
+
+#'   - Taxa of the form "cf. Genus Species" are preserved as-is
 #'
-#' In all cases, Genus and Species are assigned based on the match to the reference taxonomy table.
+#' The original name is preserved in the `OrigTaxon` column (added if missing).
 #'
-#' @param df A dataframe with a `Taxon` column to be enriched with taxonomic metadata
-#' @param after_col Column name after which to insert taxonomy fields
-#' @param std_type Character; either "program" (default) or "PESP" — controls cf. handling and taxon naming
+#' @param df A dataframe with a `Taxon` column to enrich with classification metadata
+#' @param after_col Column name after which to insert the new taxonomy fields (e.g., "Taxon")
+#' @param std_type Character; either `"program"` (default) or `"pesp"` — controls how `cf.` taxa are standardized
 #'
-#' @return A dataframe with taxonomy columns added (Kingdom, Phylum, Class, AlgalGroup, Genus, Species),
-#' and a 'log' attribute containing unmatched taxon records.
+#' @return A dataframe with additional columns:
+#' - `OrigTaxon`, `Taxon`, `Kingdom`, `Phylum`, `Class`, `AlgalGroup`, `Genus`, `Species`
 #'
-#' @importFrom dplyr mutate select left_join relocate any_of filter
-#' @importFrom stringr str_replace_all str_trim str_detect str_replace
+#' Includes a `log` attribute containing a `unmatched_taxa` dataframe of `PureTaxon` values not found in the reference list.
+#'
+#' @importFrom dplyr mutate select left_join relocate any_of distinct filter
+#' @importFrom stringr str_replace_all str_trim str_replace str_detect
 #' @importFrom readr read_csv
-higher_lvl_taxa <- function(df, after_col, std_type = 'program') {
+higher_lvl_taxa <- function(df, after_col = NULL, std_type = 'program') {
   std_type <- tolower(std_type)
   
-  # Step 1: Normalize "Genus Species cf." → "Genus cf. Species"
+  # Step 1: Normalize "Genus Species cf." -> "Genus cf. Species"
   df <- df %>%
     mutate(
       Taxon = stringr::str_trim(Taxon),
@@ -507,7 +560,7 @@ higher_lvl_taxa <- function(df, after_col, std_type = 'program') {
       )
     )
   
-  # Step 2: Apply PESP rewrite ("Genus cf. Species" → "Genus sp.") to both Taxon and OrigTaxon
+  # Step 2: PESP standardization (if applicable)
   if (std_type == 'pesp') {
     df <- df %>%
       mutate(
@@ -523,8 +576,8 @@ higher_lvl_taxa <- function(df, after_col, std_type = 'program') {
         )
       )
   }
-
-  # Step 3: Save OrigTaxon (only if it doesn't already exist)
+  
+  # Step 3: Save OrigTaxon if not already present
   if (!'OrigTaxon' %in% names(df)) {
     df <- df %>%
       mutate(OrigTaxon = Taxon)
@@ -538,8 +591,10 @@ higher_lvl_taxa <- function(df, after_col, std_type = 'program') {
       PureTaxon = stringr::str_replace_all(PureTaxon, '\\s+', ' '),
       PureTaxon = tolower(PureTaxon)
     )
-  # Step 5: Prepare df_syn and join based on PureTaxon
-  df_syn_clean <- df_syn %>%
+  
+  # Step 5: Prepare df_syn with normalized PureTaxon
+  df_syn <- read_phyto_taxa()
+  df_syn <- df_syn %>%
     mutate(
       PureTaxon = stringr::str_trim(Taxon),
       PureTaxon = stringr::str_replace_all(PureTaxon, '\\s+', ' '),
@@ -547,19 +602,25 @@ higher_lvl_taxa <- function(df, after_col, std_type = 'program') {
     ) %>%
     select(-Taxon)
   
+  # Step 6: Create unmatched log (distinct only)
   unmatched_log <- df %>%
-    filter(!PureTaxon %in% df_syn_clean$PureTaxon) %>%
-    select(Date, Station, OrigTaxon, Taxon, PureTaxon)
+    filter(!PureTaxon %in% df_syn$PureTaxon) %>%
+    distinct(OrigTaxon, Taxon, PureTaxon)
   
-  message('Taxa with no match in reference list: ', nrow(unmatched_log))
+  message('Unique taxa with no match in reference list: ', nrow(unmatched_log))
   
-  # Step 6?
+  # Step 7: Join and relocate
   df_joined <- df %>%
-    left_join(df_syn_clean, by = 'PureTaxon') %>%
-    select(-PureTaxon) %>%
-    relocate(c(OrigTaxon, Taxon, Kingdom, Phylum, Class, AlgalGroup), .after = all_of(after_col)) %>%
-    relocate(c(Genus, Species), .after = AlgalGroup)
+    left_join(df_syn, by = 'PureTaxon') %>%
+    select(-PureTaxon)
   
+  if (!is.null(after_col)) {
+    df_joined <- df_joined %>%
+      relocate(c(OrigTaxon, Taxon, Kingdom, Phylum, Class, AlgalGroup), .after = all_of(after_col)) %>%
+      relocate(c(Genus, Species), .after = AlgalGroup)
+  }
+  
+  # Step 8: Attach updated log
   existing_log <- attr(df, 'log')
   attr(df_joined, 'log') <- c(existing_log, list(unmatched_taxa = unmatched_log))
   
@@ -569,44 +630,41 @@ higher_lvl_taxa <- function(df, after_col, std_type = 'program') {
 #' @title Combine Taxon Records That Differ by Size or Label Variation
 #'
 #' @description
-#' Aggregates multiple taxon records per sampling event that share the same Date, Station,
-#' and Taxon but may differ in size or labeling. Sums key numeric columns and logs combinations.
+#' Aggregates multiple taxon records per sampling event (same `Date`, `Station`, and `Taxon`)
+#' that may differ due to size distinctions or inconsistent labeling.
+#' Measurement columns (eg. `Biovolume_per_mL`, `Units_per_mL`, `Cells_per_mL`) are summed within each group.
 #'
-#' @param df A dataframe containing taxonomic data with columns for Date, Station, Taxon, and numeric summary fields
+#' - If multiple distinct `OrigTaxon` values are found, they are combined into a single
+#'   semicolon-separated string. If `OrigTaxon` is `NA`, the corresponding `Taxon` value is used instead.
+#' - Only one row per group is retained after aggregation.
+#' - A log of all merged taxon groups is returned as an attribute.
 #'
-#' @return A dataframe where taxon rows are aggregated and a log of merged entries is attached
+#' @param df A dataframe containing taxonomic records with columns for `Date`, `Station`, `Taxon`,
+#' optionally `OrigTaxon`, and numeric summary fields
+#' @param key_cols Character vector of columns used to group taxon entries (default: `c("Date", "Station")`)
+#' @param data_cols Character vector of numeric columns to sum (default: `c("Biovolume_per_mL", "Units_per_mL", "Cells_per_mL")`)
 #'
-#' @importFrom dplyr group_by ungroup mutate across distinct all_of
-#' @title Combine Taxon Records That Differ by Size or Label Variation
+#' @return A dataframe with summed numeric values and standardized `OrigTaxon` entries.
+#' A log of combined taxon rows is attached as an attribute under `$combined_taxa`.
 #'
-#' @description
-#' Aggregates multiple taxon records per sampling event that share the same Date, Station,
-#' and Taxon but may differ in size or original labeling. Key numeric columns (e.g., Biovolume_per_mL)
-#' are summed within each group. If multiple values of `OrigTaxon` exist, they are collapsed into
-#' a single semicolon-separated string. If `OrigTaxon` is `NA`, the corresponding `Taxon` value is used instead.
-#' Only one row per unique group is retained after aggregation. A log of combined entries is attached as an attribute.
-#'
-#' @param df A dataframe containing taxonomic data with columns for Date, Station, Taxon, OrigTaxon, and numeric fields
-#'
-#' @return A dataframe where taxon rows are aggregated and a 'combined_taxa' log is attached as an attribute
-#'
-#' @importFrom dplyr group_by ungroup mutate across slice all_of if_else summarise filter
-combine_taxons <- function(df) {
-  sum_cols <- c('Biovolume_per_mL', 'Units_per_mL', 'Cells_per_mL')
-  sum_cols <- intersect(sum_cols, names(df))
+#' @importFrom dplyr group_by ungroup mutate across slice all_of if_else summarize filter select
+#' @importFrom stats na.omit
+combine_taxons <- function(df, key_cols = c('Date','Station'), data_cols = c('Biovolume_per_mL', 'Units_per_mL', 'Cells_per_mL')) {
+  data_cols <- intersect(data_cols, names(df))
+  group_cols <- c(key_cols, 'Taxon')
   
-  # Identify combinations
+  # identify combinations
   combine_log <- df %>%
-    group_by(Date, Station, Taxon) %>%
+    group_by(across(all_of(group_cols))) %>%
     summarise(n_combined = n(), .groups = 'drop') %>%
     filter(n_combined > 1)
   
   df <- df %>%
-    group_by(Date, Station, Taxon) %>%
+    group_by(across(all_of(group_cols))) %>%
     mutate(
       .combine_group = n() > 1,
       .group_taxon = Taxon[1],
-      across(all_of(sum_cols), ~ sum(.x, na.rm = TRUE), .names = '{.col}')
+      across(all_of(data_cols), ~ sum(.x, na.rm = TRUE), .names = '{.col}')
     ) %>%
     mutate(
       OrigTaxon = if (.combine_group[1]) {
@@ -620,7 +678,7 @@ combine_taxons <- function(df) {
         ifelse(is.na(OrigTaxon[1]), Taxon[1], OrigTaxon[1])
       }
     ) %>%
-    slice(1) %>%  # keep only one row per group
+    slice(1) %>%
     ungroup() %>%
     select(-.combine_group, -.group_taxon)
   

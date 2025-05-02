@@ -153,7 +153,7 @@ clean_unknowns <- function(df) {
     new_Taxon = df$Taxon[original_taxon != df$Taxon],
   )
   
-  message('Unknown taxon standardized: ', nrow(log_df))
+  message('Unique unknown taxon standardized: ', nrow(log_df))
   attr(df, 'log') <- list(clean_unknowns = log_df)
   return(df)
 }
