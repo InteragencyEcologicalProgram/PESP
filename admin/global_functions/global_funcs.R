@@ -18,7 +18,7 @@
 #' @description
 #' Reads a CSV file using `readr::read_csv()` without printing column type messages or warnings.
 #'
-#' @param fp Filepath to the CSV
+#' @param fp filepath to the CSV
 #'
 #' @return A dataframe containing the contents of the CSV file
 #'
@@ -205,7 +205,7 @@ from_meta <- function(df, meta_df, column) {
 #' @importFrom tidyr unite
 #' @importFrom rlang ensym !!
 #' @export
-add_qc_col <- function(df, comment_col, key_cols = c('Date', 'Station'), taxa_col = 'Taxon') {
+add_qc_col <- function(df, comment_col = 'Comments', key_cols = c('Date', 'Station'), taxa_col = 'Taxon') {
   comment_col <- rlang::ensym(comment_col)
   group_cols <- c(key_cols, taxa_col)
   
@@ -241,8 +241,8 @@ add_qc_col <- function(df, comment_col, key_cols = c('Date', 'Station'), taxa_co
     group_by(across(all_of(group_cols))) %>%
     mutate(
       QC_10 = {
-        non_group_cols <- setdiff(names(cur_data()), group_cols)
-        if (n() > 1 && any(sapply(cur_data()[non_group_cols], function(x) length(unique(x)) > 1))) {
+        non_group_cols <- setdiff(names(pick(everything())), group_cols)
+        if (n() > 1 && any(sapply(pick(everything())[non_group_cols], function(x) length(unique(x)) > 1))) {
           'MultipleSizes'
         } else {
           NA_character_
@@ -278,7 +278,7 @@ add_qc_col <- function(df, comment_col, key_cols = c('Date', 'Station'), taxa_co
 #' @importFrom dplyr mutate case_when
 #' @importFrom tidyr unite
 #' @importFrom rlang ensym !!
-add_debris_col <- function(df, comment_col){
+add_debris_col <- function(df, comment_col = 'Comments'){
   comment_col <- rlang::ensym(comment_col) 
   
   df <- df %>%
@@ -372,51 +372,78 @@ clean_unknowns <- function(df, std_sp = TRUE) {
 #' @title Correct Taxon Names Using a Typo Lookup Table
 #'
 #' @description
-#' Corrects known taxon name typos based on an external lookup table with known errors.
-#' Replaces incorrect entries with their corrected forms and logs changes.
+#' Corrects known taxon name typos based on an external lookup table. The function
+#' handles taxon names that include the qualifier \code{"cf."} by temporarily removing it
+#' during matching and re-inserting it afterward at its original position. Replacements are made
+#' using an exact match against a supplied typo correction table. The output includes a log of
+#' corrected entries where the underlying base name (excluding \code{"cf."}) was actually changed.
 #'
-#' @param df A dataframe with a Taxon column to check for typos
-#' @param typo_file Path to a CSV file containing columns Taxon and TaxonCorrected
+#' @param df A dataframe containing a \code{Taxon} column with taxonomic names to correct
 #'
-#' @return A dataframe with corrected Taxon names and a 'log' attribute containing taxon_corrections
+#' @return A dataframe with corrected \code{Taxon} values. An attribute \code{'log'} is attached
+#' containing a dataframe named \code{taxon_corrections}, which lists the original and corrected names
+#' (including both \code{cf.} and non-\code{cf.} variants when applicable).
 #'
-#' @importFrom dplyr left_join mutate select coalesce filter
-#' @importFrom readr read_csv
+#' @importFrom dplyr mutate filter select distinct arrange
+#' @importFrom purrr map_chr
+#' @importFrom stringr str_split str_trim
 #' @export
 correct_taxon_typos <- function(df) {
   df_typos <- read_quiet_csv(abs_pesp_path('Reference Documents/TaxaTypos.csv'))
   
-  df <- df %>%
-    left_join(df_typos, by = 'Taxon')
+  typo_map <- setNames(df_typos$TaxonCorrected, df_typos$Taxon)
   
-  if ('TaxonCorrected' %in% names(df) && any(!is.na(df$TaxonCorrected))) {
-    typo_log <- df %>%
-      filter(!is.na(TaxonCorrected) & TaxonCorrected != Taxon) %>%
-      distinct(original_Taxon = Taxon, corrected_Taxon = TaxonCorrected)
+  correct_taxon <- function(taxon) {
+    words <- str_split(taxon, '\\s+')[[1]]
+    cf_pos <- which(words == 'cf.')
+    pure_words <- words[words != 'cf.']
     
+    if (length(pure_words) == 0) return(taxon)
+    
+    pure_taxon <- paste(pure_words, collapse = ' ')
+    corrected <- typo_map[pure_taxon]
+    if (length(corrected) == 0 || is.na(corrected)) {
+      corrected <- pure_taxon
+    } else {
+      corrected <- corrected[[1]]
+    }
+    
+    corrected_words <- str_split(corrected, '\\s+')[[1]]
+    
+    if (length(cf_pos) > 0) {
+      for (pos in cf_pos) {
+        insert_at <- min(pos, length(corrected_words) + 1)
+        corrected_words <- append(corrected_words, 'cf.', after = insert_at - 1)
+      }
+    }
+    
+    str_trim(paste(corrected_words, collapse = ' '))
+  }
+  
+  df <- df %>%
+    mutate(
+      .orig_taxon = Taxon,
+      Taxon = map_chr(Taxon, correct_taxon)
+    )
+  
+  typo_log <- df %>%
+    mutate(
+      base_orig = map_chr(.orig_taxon, ~ paste(str_split(.x, '\\s+')[[1]][.x != 'cf.'], collapse = ' ')),
+      base_new  = map_chr(Taxon,       ~ paste(str_split(.x, '\\s+')[[1]][.x != 'cf.'], collapse = ' '))
+    ) %>%
+    filter(base_orig != base_new) %>%
+    distinct(original_Taxon = .orig_taxon, corrected_Taxon = Taxon) %>%
+    arrange(original_Taxon)
+  
+  if (nrow(typo_log) > 0) {
     message('Unique known typos corrected: ', nrow(typo_log))
   } else {
-    typo_log <- tibble::tibble()
     message('No known taxon typos found.')
   }
   
-  df <- df %>%
-    mutate(Taxon = coalesce(TaxonCorrected, Taxon)) %>%
-    select(-TaxonCorrected)
-  
+  df <- df %>% select(-.orig_taxon)
   attr(df, 'log') <- list(taxon_corrections = typo_log)
   return(df)
-}
-
-resolve_final_taxon <- function(taxon, df_syn) {
-  current <- taxon
-  while(TRUE) {
-    match_row <- df_syn %>% filter(tolower(Taxon) == tolower(current))
-    if (nrow(match_row) == 0 || is.na(match_row$CurrentTaxon) || tolower(match_row$CurrentTaxon) == 'none') {
-      return(current)
-    }
-    current <- match_row$CurrentTaxon
-  }
 }
 
 #' @title Update Taxon Names to Reflect Current Synonym Metadata
@@ -508,6 +535,50 @@ update_synonyms <- function(df) {
   attr(df, 'log') <- list(synonym_updates = update_log)
   
   return(df)
+}
+
+#' @title Remove Non-Phytoplankton Taxa from a Dataset
+#'
+#' @description
+#' Removes rows from a dataframe where the \code{Taxon} matches an entry in an external
+#' CSV file of known non-phytoplankton taxa. Returns the filtered dataframe and logs
+#' the number and names of removed taxa.
+#'
+#' @param df A dataframe with a \code{Taxon} column
+#' @param exclude_file Path to a CSV file with a single column named \code{Taxon}
+#'        containing taxa to be excluded
+#'
+#' @return The filtered dataframe, with an attribute \code{'log'} containing
+#'         a list named \code{non_phyto_removed}, including a character vector of
+#'         removed taxa
+#'
+#' @importFrom readr read_csv
+#' @importFrom dplyr filter distinct pull
+#' @export
+remove_non_phyto <- function(df) {
+  exclude_taxa <- read_quiet_csv(abs_pesp_path('Reference Documents/TaxaNotPhyto.csv')) %>%
+    dplyr::pull(Taxon)
+  
+  removed <- df %>%
+    dplyr::filter(Taxon %in% exclude_taxa) %>%
+    dplyr::pull(Taxon) %>%
+    unique()
+  
+  if (length(removed) > 0) {
+    message('Non-phytoplankton taxa removed: ', length(removed))
+  } else {
+    message('No non-phytoplankton taxa found.')
+  }
+  
+  df_clean <- df %>%
+    dplyr::filter(!Taxon %in% exclude_taxa)
+  
+  removed_log <- tibble::tibble(RemovedTaxon = removed)
+  
+  existing_log <- attr(df, 'log')
+  invisible(attr(df_clean, 'log') <- c(existing_log, list(non_phyto_removed = removed_log)))
+  
+  return(df_clean)
 }
 
 #' @title Add Higher-Level Taxonomic Information
@@ -605,7 +676,7 @@ higher_lvl_taxa <- function(df, after_col = NULL, std_type = 'program') {
   # Step 6: Create unmatched log (distinct only)
   unmatched_log <- df %>%
     filter(!PureTaxon %in% df_syn$PureTaxon) %>%
-    distinct(OrigTaxon, Taxon, PureTaxon)
+    distinct(Taxon)
   
   message('Unique taxa with no match in reference list: ', nrow(unmatched_log))
   
@@ -642,15 +713,15 @@ higher_lvl_taxa <- function(df, after_col = NULL, std_type = 'program') {
 #' @param df A dataframe containing taxonomic records with columns for `Date`, `Station`, `Taxon`,
 #' optionally `OrigTaxon`, and numeric summary fields
 #' @param key_cols Character vector of columns used to group taxon entries (default: `c("Date", "Station")`)
-#' @param data_cols Character vector of numeric columns to sum (default: `c("Biovolume_per_mL", "Units_per_mL", "Cells_per_mL")`)
+#' @param measurement_cols Character vector of numeric columns to sum (default: `c("Biovolume_per_mL", "Units_per_mL", "Cells_per_mL")`)
 #'
 #' @return A dataframe with summed numeric values and standardized `OrigTaxon` entries.
 #' A log of combined taxon rows is attached as an attribute under `$combined_taxa`.
 #'
 #' @importFrom dplyr group_by ungroup mutate across slice all_of if_else summarize filter select
 #' @importFrom stats na.omit
-combine_taxons <- function(df, key_cols = c('Date','Station'), data_cols = c('Biovolume_per_mL', 'Units_per_mL', 'Cells_per_mL')) {
-  data_cols <- intersect(data_cols, names(df))
+combine_taxons <- function(df, key_cols = c('Date','Station'), measurement_cols = c('Biovolume_per_mL', 'Units_per_mL', 'Cells_per_mL')) {
+  measurement_cols <- intersect(measurement_cols, names(df))
   group_cols <- c(key_cols, 'Taxon')
   
   # identify combinations
@@ -664,7 +735,7 @@ combine_taxons <- function(df, key_cols = c('Date','Station'), data_cols = c('Bi
     mutate(
       .combine_group = n() > 1,
       .group_taxon = Taxon[1],
-      across(all_of(data_cols), ~ sum(.x, na.rm = TRUE), .names = '{.col}')
+      across(all_of(measurement_cols), ~ sum(.x, na.rm = TRUE), .names = '{.col}')
     ) %>%
     mutate(
       OrigTaxon = if (.combine_group[1]) {

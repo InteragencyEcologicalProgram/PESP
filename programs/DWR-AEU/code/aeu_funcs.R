@@ -32,7 +32,7 @@ calc_data_aeu <- function(df){
 
 # add in lat/lons
 add_latlon_aeu <- function(df){
-  df_latlon <- read_quiet_csv(abs_data_path('Component data sets/DWR-AEU/aeu_latlon.csv'))  %>%
+  df_latlon <- read_quiet_csv(abs_pesp_path('Groups/DWR-AEU/Metadata/Stations-AEU.csv'))  %>%
     select(c('Station Name','Latitude', 'Longitude')) %>%
     rename(Station = `Station Name`)
   
@@ -62,7 +62,7 @@ standardize_cols_aeu <- function(df){
 
   # select and reorder relevant columns
   df <- df %>%
-    select(all_of(c('Date', 'Time', 'Station', 'Latitude', 'Longitude', 'Taxon', 'Genus', 'Species', 'Units_per_mL', 'Cells_per_mL', 'Biovolume_per_mL', 'GALD', 'PhytoForm', 'Comments')))
+    select(all_of(c('Date', 'Time', 'Station', 'Latitude', 'Longitude', 'Taxon', 'Units_per_mL', 'Cells_per_mL', 'Biovolume_per_mL', 'GALD', 'PhytoForm', 'Comments')))
 }
 
 add_dilution_qc <- function(df){

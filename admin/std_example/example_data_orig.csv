@@ -1,0 +1,22 @@
+Date,Station,Taxon,Biovolume_per_mL,Cells_per_mL,Units_per_mL,Comments
+2023-05-01,A,unidentified flagellate,57.7,1736,126,delete this row
+2023-05-01,B,Lohmaniella sp.,19.4,2786,137,cross contamination noted
+2023-05-16,A,Hemidiscus cuniformis var. ventricosus,50.1,2378,80,CNMT > 5 on recount
+2023-05-16,B,Melosira cf. granulata,37.7,2597,121,did not reach natural unit
+2023-05-31,A,Melosira granulata,50.6,1287,95,degraded sample quality
+2023-05-31,B,Snowella sp.,50.7,751,24,weak preservation and fungus present
+2023-06-15,A,Chlamydonephris pomiformis,49.7,694,75,many broken diatoms and obscured view
+2023-06-15,B,Cryptomonas sp. 1,34.1,2046,133,moderate detritus in field
+2023-06-30,A,Dinobryon spp. 3,54.8,690,51,high sediment levels
+2023-06-30,B,Example species,32.3,1109,79,low detritus and light sediment
+2023-07-15,A,unidentified flagellate,37.8,1256,25,delete this row
+2023-07-15,B,Lohmaniella sp.,53.6,908,130,cross contamination noted
+2023-07-30,A,Hemidiscus cuniformis var. ventricosus,41.8,2787,60,CNMT > 5 on recount
+2023-07-30,B,Melosira cf. granulata,34.1,1968,105,did not reach natural unit
+2023-08-14,A,Melosira granulata,16.6,2142,33,degraded sample quality
+2023-08-14,B,Snowella sp.,34.9,850,89,weak preservation and fungus present
+2023-08-29,A,Chlamydonephris pomiformis,20.9,2040,129,many broken diatoms and obscured view
+2023-08-29,B,Cryptomonas sp. 1,12.1,582,52,moderate detritus in field
+2023-09-13,A,Dinobryon spp. 3,35.8,2890,63,high sediment levels
+2023-09-13,B,Example species,27.8,969,85,low detritus and light sediment
+2023-05-01,A,unidentified flagellate,62.7,1936,136,delete this row

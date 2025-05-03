@@ -1,0 +1,138 @@
+# Format original AEU data
+
+**Purpose:** Code to format AEU data for original PESP upload.
+
+**Author:** Perry ([sarah.perry\@water.ca.gov](mailto:sarah.perry@water.ca.gov){.email})
+
+# Initial Setup
+
+```{r, message=FALSE, warning=FALSE}
+# Import Packages ---------------------------------------------------------
+library(tidyverse)
+library(fuzzyjoin)
+library(glue)
+library(lubridate)
+
+source('admin/global_functions/global_funcs.R')
+source('programs/DWR-AEU/code/aeu_funcs.R')
+source('admin/global_functions/bsa_funcs.R')
+source('admin/global_functions/check_funcs.R')
+```
+
+## Read in data
+```{r}
+# specify the file path
+data_path <- abs_pesp_path('Groups/DWR-AEU/01 Raw Data/dwr-aeu-2020.csv')
+
+# new data to format and append
+df_data <- read_quiet_csv(data_path)
+```
+
+# Clean up main taxa issues
+```{r}
+df_data <- df_data %>%
+  distinct() %>%
+  rename(Taxon = Taxon)
+
+df_data <- correct_Taxon_typos(df_data)
+df_data <- clean_unknowns(df_data)
+df_data <- update_synonyms(df_data)
+```
+
+```{r}
+# Convert Date to Date format
+df_data <- df_data %>%
+  mutate(Date = mdy(sample_date))
+
+# Identify top 6 most consistent & abundant taxa
+taxa_ranked <- df_data %>%
+  mutate(abs_diff = abs(total_cells - unit_abundance)) %>%
+  group_by(Taxon) %>%
+  summarise(
+    n_dates = n_distinct(Date),
+    avg_abs_diff = mean(abs_diff, na.rm = TRUE)
+  ) %>%
+  arrange(desc(n_dates), desc(avg_abs_diff)) %>%
+  slice_head(n = 1)
+
+vlines <- as.Date(c(
+  '2013-09-01',
+  '2013-11-30',
+  '2014-01-01',
+  '2020-12-31',
+  '2021-03-01', '2021-03-31',
+  '2021-10-01', '2021-10-31'
+))
+
+top_taxa <- taxa_ranked$Taxon
+
+# Compute difference and filter to top taxa
+df_top_diff <- df_data %>%
+  filter(Taxon %in% top_taxa) %>%
+  mutate(Diff = total_cells - unit_abundance)
+
+# Define shading ranges
+shade_df <- data.frame(
+  xmin = as.Date(c('2013-09-01', '2014-01-01', '2021-03-01', '2021-10-01')),
+  xmax = as.Date(c('2013-11-30', '2020-12-31', '2021-03-31', '2021-10-31'))
+)
+
+# Plot difference with shaded time periods
+ggplot(df_top_diff, aes(x = Date, y = Diff)) +
+  # Background shading
+  geom_rect(data = shade_df, aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf),
+            inherit.aes = FALSE, fill = 'gray85', alpha = 0.5) +
+  geom_line(color = 'steelblue') +
+  geom_hline(yintercept = 0, linetype = 'solid', color = 'black') +
+  geom_vline(xintercept = vlines, linetype = 'dashed', color = 'gray40') +
+  facet_wrap(~ Taxon, nrow = 2, scales = 'free_y') +
+  labs(title = 'Top 6 Taxa: Total Cells Minus Unit Abundance',
+       x = 'Date', y = 'Total Cells - Unit Abundance') +
+  theme_minimal()
+```
+```{r}
+plot_start <- min(df_top_diff$Date, na.rm = TRUE)
+plot_end   <- as.Date('2014-12-31')
+
+shade_df_limited <- shade_df %>%
+  filter(xmax >= plot_start & xmin <= plot_end) %>%
+  mutate(
+    xmin = pmax(xmin, plot_start),
+    xmax = pmin(xmax, plot_end)
+  )
+
+ggplot(df_top_diff, aes(x = Date, y = Diff)) +
+  # Background shading (trimmed to visible range)
+  geom_rect(data = shade_df_limited, aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf),
+            inherit.aes = FALSE, fill = 'gray85', alpha = 0.5) +
+  geom_line(color = 'steelblue') +
+  geom_hline(yintercept = 0, linetype = 'solid', color = 'black') +
+  geom_vline(xintercept = vlines, linetype = 'dashed', color = 'gray40') +
+  scale_x_date(limits = c(plot_start, plot_end)) +
+  facet_wrap(~ Taxon, nrow = 2, scales = 'free_y') +
+  labs(title = 'Top 6 Taxa: Total Cells Minus Unit Abundance',
+       x = 'Date', y = 'Total Cells - Unit Abundance') +
+  theme_minimal()
+```
+
+```{r}
+check_bsa_issue <- function(df) {
+  df_out <- df %>%
+    mutate(Diff = total_cells - unit_abundance) %>%
+    filter(!is.na(Diff) & Diff < 0)
+
+  n <- nrow(df_out)
+
+  if (n > 0) {
+    message('Total cells < unit abundance in ', n, 
+            ifelse(n == 1, ' case.', ' cases.'))
+    return(df_out)
+  } else {
+    message('No instances found where total cells < than unit abundance.')
+    return(invisible(NULL))
+  }
+}
+
+check_bsa_issue(df_data)
+```
+

@@ -105,6 +105,7 @@ attr(df_frp, 'log') <- c(existing_log, list(unmatched_taxa_updated = updated_unm
 message('Remaining unmatched taxa after FRP typo join: ', nrow(updated_unmatched))
 attr(df_frp, 'log')$unmatched_taxa_updated
 ```
+
 ## Combine taxa (multiple sizes, standardized unknowns)
 ```{r}
 df_frp <- combine_taxons(df_frp, key_cols = 'SampleID_frp', data_cols = c('Biov_permL', 'Units_permL', 'Cells_permL'))

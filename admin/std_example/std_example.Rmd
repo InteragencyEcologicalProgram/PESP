@@ -1,0 +1,67 @@
+# Example file for taxa standardization
+
+# Read in example data
+```{r message = FALSE}
+library(tidyverse)
+source('admin/global_functions/global_funcs.R')
+source('admin/global_functions/check_funcs.R')
+
+df_data <- read_csv('admin/std_example/example_data_orig.csv')
+```
+
+# Check distinct columns
+```{r}
+df_data <- check_distinct(df_data, type = 'full')
+
+# remove duplicates
+df_data <- df_data %>% distinct()
+```
+## Correct typos
+```{r}
+df_data <- correct_taxon_typos(df_data)
+attr(df_data, 'log')$taxon_corrections
+```
+
+## Add QC column
+```{r}
+df_data <- add_qc_col(df_data)
+df_data <- add_debris_col(df_data)
+
+df_data <- extract_unstandardized_comments(df_data, 'Comments', delimiter = '. ')
+attr(df_data, 'log')$unmatched_comments
+```
+
+## Standardize unknowns
+```{r}
+df_data <- clean_unknowns(df_data)
+attr(df_data, 'log')$clean_unknowns
+```
+
+## Update synonyms
+```{r}
+df_data <- update_synonyms(df_data)
+attr(df_data, 'log')$synonym_updates
+```
+
+## Add in higher-level taxa
+```{r}
+df_data <- higher_lvl_taxa(df_data)
+attr(df_data, 'log')$unmatched_taxa
+```
+
+## Check distinct cols before combining
+```{r}
+df_data <- check_distinct(df_data, type = 'full')
+attr(df_data, 'log')$nondistinct_allrows
+
+df_data <- check_distinct(df_data, type = 'key_cols')
+attr(df_data, 'log')$nondistinct_keyrows
+```
+
+## Combine taxa (multiple sizes, standardized unknowns)
+```{r}
+df_data <- combine_taxons(df_data)
+attr(df_data, 'log')$combined_taxa
+```
+
+

@@ -19,15 +19,27 @@ source('admin/global_functions/bsa_funcs.R')
 source('admin/global_functions/check_funcs.R')
 ```
 
+## Read in data
 ```{r}
-# Read in Data --------------------------------------------------------------------
 # specify the file path
-data_path <- abs_data_path('Component data sets/DWR-AEU/dwr-aeu-2020.csv')
+data_path <- abs_pesp_path('Groups/DWR-AEU/01 Raw Data/dwr-aeu-2020.csv')
 
 # new data to format and append
 df_data <- read_quiet_csv(data_path)
+```
 
-# standardize data
+# Check distinct columns
+```{r}
+df_data <- check_distinct(df_data, type = 'full')
+attr(df_data, 'log')$nondistinct_allrows
+
+# remove duplicates
+df_data <- df_data %>% distinct()
+```
+
+
+## Standardize data and add metadata columns
+```{r}
 df_data <- standardize_cols_aeu(df_data)
 
 df_data <- add_meta_col(df_data, 'Yolo Bypass Fish Monitoring Program', 'SamplingDepth')
@@ -35,52 +47,74 @@ df_data <- add_meta_col(df_data, 'Yolo Bypass Fish Monitoring Program', 'Samplin
 df_data <- add_meta_col(df_data, 'Yolo Bypass Fish Monitoring Program', 'Lab')
 
 df_data <- add_meta_col(df_data, 'Yolo Bypass Fish Monitoring Program', 'SamplingMethod')
+```
 
-df_data <- clean_unknowns(df_data)
+# Add Taxonomy (and QC column)
 
+## Correct typos
+```{r}
+df_data <- correct_taxon_typos(df_data)
+attr(df_data, 'log')$taxon_corrections
+```
+
+## Add QC column
+```{r}
 df_data <- add_qc_col(df_data)
-
 df_data <- add_debris_col(df_data)
 
-df_data <- subset_cols_aeu(df_data)
+df_data <- extract_unstandardized_comments(df_data, 'Comments', delimiter = '. ')
+attr(df_data, 'log')$unmatched_comments
+```
 
+## Standardize unknowns
+```{r}
+df_data <- clean_unknowns(df_data)
+attr(df_data, 'log')$clean_unknowns
+```
+
+## Update synonyms
+```{r}
+df_data <- update_synonyms(df_data)
+attr(df_data, 'log')$synonym_updates
+```
+
+## Add in higher-level taxa
+```{r}
+df_data <- higher_lvl_taxa(df_data)
+attr(df_data, 'log')$unmatched_taxa
+```
+
+## Check distinct cols before combining
+```{r}
+df_data <- check_distinct(df_data, type = 'full')
+attr(df_data, 'log')$nondistinct_allrows
+
+df_data <- check_distinct(df_data, type = 'key_cols')
+attr(df_data, 'log')$nondistinct_keyrows
+```
+
+## Combine taxa (multiple sizes, standardized unknowns)
+```{r}
+df_data <- combine_taxons(df_data)
+attr(df_data, 'log')$combined_taxa
+```
+
+# Finish formatting
+```{r}
+df_data <- subset_cols_aeu(df_data)
+```
+
+```{r}
 # add different dilution code for data before/including 2020
 df_data <- add_dilution_qc(df_data)
 ```
 
 ```{r}
-# # Add in Higher Level Taxa ------------------------------------------------------
-df_joined <- higher_lvl_taxa(df_data, after_col = 'SamplingDepth')
-
-df_filltaxa <- check_higher_taxa(df_joined) # TODO:  add export = TRUE
-```
-
-```{r}
-# # Update Names ------------------------------------------------------------------
-df_joined <- update_synonyms(df_joined)
-
-df_fillsyn <- check_synonyms(df_joined)
-```
-
-```{r}
-# # Combine Different Sizes -------------------------------------------------------
-
-df_joined <- combine_sizes(df_joined)
-```
-
-```{r}
 # # Check Collection Type Variables -----------------------------------------------
-check_methods(df_joined)
+check_methods(df_data)
 ```
-
-```{r}
-# # Subset Columns ----------------------------------------------------------------
-# Check
-df_dupes <- check_distinct(df_joined, return_df = TRUE)
-```
-
 ## Export
 
 ```{r}
-write_csv(df_joined, 'programs/DWR-AEU/data/phyto_data_AEU.csv')
+# write_csv(df_joined, 'programs/DWR-AEU/data/phyto_data_AEU.csv')
 ```

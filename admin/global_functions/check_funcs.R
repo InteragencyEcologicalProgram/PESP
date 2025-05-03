@@ -27,9 +27,12 @@ check_methods <- function(df){
 }
 
 # # check distinct rows
-
-check_distinct <- function(df, return_df = FALSE, coerce = TRUE) {
-  # work on a copy for checking
+check_distinct <- function(df, return_df = FALSE, coerce = TRUE,
+                           type = c('full', 'key_cols'),
+                           key_cols = c('Station','Date'),
+                           taxa_cols = c('Taxon'),
+                           measurement_cols = c('Biovolume_per_mL','Cells_per_mL','Units_per_mL')) {
+  type <- match.arg(type)
   df_check <- df
   
   if (coerce) {
@@ -40,27 +43,55 @@ check_distinct <- function(df, return_df = FALSE, coerce = TRUE) {
       )
   }
   
-  n_total <- nrow(df_check)
-  n_unique <- nrow(distinct(df_check))
-  n_non_distinct <- n_total - n_unique
-  
-  if (n_non_distinct > 0) {
-    # get full duplicates based on normalized check
-    df_dupes <- df[duplicated(df_check) | duplicated(df_check, fromLast = TRUE), ]
+  if (type == 'full') {
+    n_total <- nrow(df_check)
+    n_unique <- nrow(distinct(df_check))
+    n_non_distinct <- n_total - n_unique
     
-    warning('Non-distinct rows found in dataframe.')
-    message('Number of non-distinct rows: ', nrow(df_dupes))
-    
-    if (isTRUE(return_df)) {
-      return(df_dupes)
+    if (n_non_distinct > 0) {
+      df_dupes <- df[duplicated(df_check) | duplicated(df_check, fromLast = TRUE), ]
+      message('Number of non-distinct rows: ', nrow(df_dupes))
+      
+      if (isTRUE(return_df)) {
+        return(df_dupes)
+      } else {
+        attr(df, 'log') <- list(nondistinct_allrows = df_dupes)
+        return(df)
+      }
     } else {
-      attr(df, 'log') <- list(non_distinct_rows = df_dupes)
-      return(df)
+      message('All rows are unique.')
+      attr(df, 'log') <- list(nondistinct_allrows = NULL)
+      return(invisible(df))
     }
-  } else {
-    message('All rows are unique (n = ', n_total, ')')
-    attr(df, 'log') <- list(non_distinct_rows = NULL)
-    return(df)
+    
+  } else if (type == 'key_cols') {
+    if (is.null(key_cols) || is.null(measurement_cols)) {
+      stop('For type = "key_cols", both key_cols and measurement_cols must be provided.')
+    }
+    
+    df_grouped <- df_check %>%
+      group_by(across(all_of(c(key_cols, taxa_cols, measurement_cols)))) %>%
+      summarise(n = n(), .groups = 'drop') %>%
+      filter(n > 1)
+    
+    nondistinct_keyrows <- df_grouped %>%
+      filter(if_any(all_of(measurement_cols), ~ .x > 1))
+    
+    n_inconsistent <- nrow(nondistinct_keyrows)
+    
+    if (n_inconsistent > 0) {
+      message('Number of inconsistent key combinations: ', n_inconsistent)
+      attr(df, 'log') <- list(nondistinct_keyrows = nondistinct_keyrows)
+      if (isTRUE(return_df)) {
+        return(nondistinct_keyrows)
+      } else {
+        return(df)
+      }
+    } else {
+      message('All key+taxa+measurement column combinations are unique.')
+      attr(df, 'log') <- list(nondistinct_keyrows = NULL)
+      return(invisible(df))
+    }
   }
 }
 
