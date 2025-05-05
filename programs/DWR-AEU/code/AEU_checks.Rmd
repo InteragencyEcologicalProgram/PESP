@@ -17,20 +17,42 @@ df_phyto <- read_quiet_csv('programs/DWR-AEU/data/phyto_data_AEU.csv') %>%
   mutate(Year = year(Date)) %>%
   mutate(StationYear = paste(Year, Station, sep = ' '))
 
-# create_nmds(df_phyto, 'Date', 'Cells_per_mL', 'Year')
-create_nmds(df_phyto, 'Year', 'Cells_per_mL')
+# create NMDS
+df_nmds1 <- create_nmds(df_phyto,
+                       group_var = 'Year',
+                       nmds_var = 'Cells_per_mL')
 
-df_nmds <- create_nmds(df_phyto, 'Year', 'Cells_per_mL')[[1]]
+# print dataframe
+df_nmds1[[1]]
+
+# print graph
+df_nmds1[[2]]
+
+ggsave(
+  filename = abs_pesp_path('Groups/DWR-AEU/02 Processed Data/QC files/graphs/AEU_NMDS_CellspermL_Year.jpg'),
+  plot = df_nmds1[[2]],
+  width = 8,
+  height = 6
+)
 ```
 
 ```{r}
-df_phyto <- read_quiet_csv('programs/DWR-AEU/data/phyto_data_AEU.csv') %>%
-  mutate(Year = year(Date)) %>%
-  mutate(StationYear = paste(Year, Station, sep = ' '))
+# create NMDS
+df_nmds2 <- create_nmds(df_phyto,
+                        group_var = 'Date',
+                        nmds_var = 'Cells_per_mL',
+                        factor_var = 'Year')
 
-# create_nmds(df_phyto, 'Date', 'Cells_per_mL', 'Year')
-create_nmds(df_phyto, 'StationYear', 'Cells_per_mL')
+# print dataframe
+df_nmds2[[1]]
 
-df_nmds <- create_nmds(df_phyto, 'StationYear', 'Cells_per_mL')[[1]]
+# print graph
+df_nmds2[[2]]
+
+ggsave(
+  filename = abs_pesp_path('Groups/DWR-AEU/02 Processed Data/QC files/graphs/AEU_NMDS_CellspermL_Date.jpg'),
+  plot = df_nmds2[[2]],
+  width = 8,
+  height = 6
+)
 ```
-

@@ -45,9 +45,9 @@ abs_pesp_path <- function(fp_rel = NULL) {
   fp_full <- 'California Department of Water Resources/Phytoplankton synthesis - Documents/'
   
   if (is.null(fp_rel)) {
-    fp_abs <- normalizePath(file.path(Sys.getenv('USERPROFILE'), fp_full))
+    fp_abs <- normalizePath(file.path(Sys.getenv('USERPROFILE'), fp_full), mustWork = FALSE)
   } else {
-    fp_abs <- normalizePath(file.path(Sys.getenv('USERPROFILE'), fp_full, fp_rel))
+    fp_abs <- normalizePath(file.path(Sys.getenv('USERPROFILE'), fp_full, fp_rel), mustWork = FALSE)
   }
   
   return(fp_abs)
@@ -129,7 +129,7 @@ get_edi_file = function(pkg_id, fnames){
   }
   # download data
   dfs = purrr::map(glue::glue('https://pasta.lternet.edu/package/data/eml/edi/{pkg_id}/{latest_revision}/{included_entities}'),
-                   readr::read_csv, guess_max = 1000000)
+                   readr::read_csv, guess_max = 1000000, show_col_types = FALSE)
   names(dfs) = names(included_entities)
   
   if (length(dfs) == 1) {
@@ -251,9 +251,11 @@ add_qc_col <- function(df, comment_col = 'Comments', key_cols = c('Date', 'Stati
     ) %>%
     ungroup()
   
-  # collapse all QC_* columns into a single string
+  # collapse all QC columns into a single string, default to 'NoCode' if all are NA
   df <- df %>%
-    unite(QualityCheck, starts_with('QC'), remove = TRUE, na.rm = TRUE, sep = ' ')
+    unite(QualityCheck, starts_with('QC'), remove = TRUE, na.rm = TRUE, sep = ' ') %>%
+    mutate(QualityCheck = case_when(QualityCheck == '' ~ 'NoCode',
+                                    TRUE ~ QualityCheck))
   
   return(df)
 }
@@ -284,9 +286,10 @@ add_debris_col <- function(df, comment_col = 'Comments'){
   df <- df %>%
     mutate(
       Db_1 = case_when(
-        grepl('high detritus|high sediment|heavy detritus|heavy sediment', !!comment_col, ignore.case = TRUE) ~ 'high',
-        grepl('moderate detritus|moderate sediment|moderat sediment', !!comment_col, ignore.case = TRUE) ~ 'moderate',
-        grepl('low detritus|low sediment|light detritus|light sediment', !!comment_col, ignore.case = TRUE) ~ 'low'
+        grepl('high detritus|high sediment|heavy detritus|heavy sediment', !!comment_col, ignore.case = TRUE) ~ 'High',
+        grepl('moderate detritus|moderate sediment|moderat sediment', !!comment_col, ignore.case = TRUE) ~ 'Moderate',
+        grepl('low detritus|low sediment|light detritus|light sediment', !!comment_col, ignore.case = TRUE) ~ 'Low',
+        TRUE ~ 'Unknown'
       )
     ) %>%
     unite(Debris, starts_with('Db'), remove = TRUE, na.rm = TRUE, sep = ' ')
@@ -298,8 +301,9 @@ add_debris_col <- function(df, comment_col = 'Comments'){
 #'
 #' @description
 #' Adds a metadata column to a dataframe by joining it with a program-specific metadata sheet.
-#' The metadata sheet is loaded using `read_meta_file(program)` and the join is performed
+#' The metadata sheet is loaded using `read_meta_file(program)`, and the join is performed
 #' based on the column specified by `col_name`. This is a wrapper around `from_meta()`.
+#' After joining, the function prints the unique values found in the added column.
 #'
 #' @param df A dataframe to which the metadata column will be added
 #' @param program A character string specifying the program used to select the metadata file
@@ -307,13 +311,23 @@ add_debris_col <- function(df, comment_col = 'Comments'){
 #'
 #' @return A dataframe with the specified metadata column added
 #'
-#' @importFrom rlang enquo
+#' @importFrom rlang enquo as_name
+#' @importFrom dplyr pull
 #' @export
 add_meta_col <- function(df, program, col_name){
   # read in metadata sheet
   df_meta <- read_meta_file(program)
   
   df <- from_meta(df, df_meta, {{ col_name }})
+  
+  # extract column name as string
+  col_str <- rlang::as_name(rlang::enquo(col_name))
+  
+  # print unique values
+  unique_vals <- df %>% dplyr::pull({{ col_name }}) %>% unique()
+  message('Unique values for ', col_str, ': ', paste(unique_vals, collapse = ', '))
+  
+  return(df)
 }
 
 # Taxa Related Functions --------------------------------------------------
@@ -756,4 +770,11 @@ combine_taxons <- function(df, key_cols = c('Date','Station'), measurement_cols 
   message('Taxon rows combined: ', nrow(combine_log))
   attr(df, 'log') <- list(combined_taxa = combine_log)
   return(df)
+}
+
+# write log file
+write_log_file <- function(df_log, fp) {
+  if (!(nrow(df_log) == 0 && ncol(df_log) == 1)) {
+    write_csv(df_log, abs_pesp_path(fp))
+  }
 }

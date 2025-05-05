@@ -292,7 +292,10 @@ create_nmds <- function(df, group_var, nmds_var, factor_var = NULL, show_legend 
     m_com <- as.matrix(com)
   }
   
-  nmds <- metaMDS(m_com, distance = 'bray')
+  nmds <- NULL
+  invisible(capture.output({
+    nmds <- metaMDS(m_com, distance = 'bray')
+  }))
   df_nmds <- as.data.frame(scores(nmds)$sites)
   
   df_nmds <- df_nmds %>%
@@ -301,6 +304,7 @@ create_nmds <- function(df, group_var, nmds_var, factor_var = NULL, show_legend 
   
   plt_nmds <- ggplot(df_nmds, aes(x = NMDS1, y = NMDS2, group = !!factor_var)) + 
     geom_point(size = 4, shape = 21, color = '#000000', aes(fill = !!factor_var)) +
+    labs(title = paste('NMDS of', nmds_var, 'by', group_var)) +
     theme_bw()
   
   if (!is.null(color_palette)) {
@@ -319,8 +323,106 @@ create_nmds <- function(df, group_var, nmds_var, factor_var = NULL, show_legend 
 
 
 
+# Plot BSA Check ----------------------------------------------------------
+
+plot_bsa_check <- function(df_data,
+                           taxon = 'Microcystis aeruginosa',
+                           cell_col = 'Total Number of Cells',
+                           unit_col = 'Unit Abundance (# of Natural Units)',
+                           x_range = NULL,
+                           y_range = NULL) {
+  
+  # convert string column names to symbols
+  cell_sym <- sym(cell_col)
+  unit_sym <- sym(unit_col)
+  
+  # filter and compute difference
+  df_micro <- df_data %>%
+    mutate(Diff = !!cell_sym - !!unit_sym)
+  
+  # define shaded regions
+  df_shade <- data.frame(
+    xmin = as.Date(c('2013-09-01', '2013-11-01', '2014-01-01', '2021-03-01')),
+    xmax = as.Date(c('2013-09-30', '2013-11-30', '2020-12-31', '2021-10-31'))
+  )
+  
+  # define vertical lines
+  vlines <- as.Date(c('2013-09-01','2013-09-30','2013-11-01','2013-11-30','2014-01-01','2020-12-31','2021-03-01','2021-10-31'))
+  
+  # build plot
+  plt <- ggplot(df_micro, aes(x = Date, y = Diff)) +
+    geom_rect(data = df_shade, aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf),
+              inherit.aes = FALSE, fill = 'gray85', alpha = 0.5) +
+    geom_point(aes(color = Diff < 0)) +
+    scale_color_manual(values = c('FALSE' = 'steelblue', 'TRUE' = 'red'), guide = 'none') +
+    geom_hline(yintercept = 0, linetype = 'solid', color = 'black') +
+    geom_vline(xintercept = vlines, linetype = 'dashed', color = 'gray40') +
+    labs(title = paste('Differences for',taxon), x = 'Date', y = 'TotalCells - UnitAbundance') +
+    theme_minimal()
+  
+  # apply zoom
+  if (!is.null(x_range) || !is.null(y_range)) {
+    plt <- plt + coord_cartesian(xlim = as.Date(x_range), ylim = y_range)
+  }
+  
+  return(plt)
+}
 
 
+check_bsa_issue <- function(df,
+                            cell_col = 'Total Number of Cells',
+                            unit_col = 'Unit Abundance (# of Natural Units)') {
+  # convert string column names to symbols
+  cell_sym <- sym(cell_col)
+  unit_sym <- sym(unit_col)
+  
+  # filter and compute difference
+  df_out <- df %>%
+    mutate(Diff = !!cell_sym - !!unit_sym) %>%
+    filter(!is.na(Diff) & Diff < 0)
+  
+  # determine if any rows were < 0
+  n <- nrow(df_out)
+  
+  if (n > 0) {
+    message('Total cells < unit abundance in ', n, 
+            ifelse(n == 1, ' case.', ' cases.'))
+    
+    # create log of issues (Taxon + Diff details)
+    log_df <- df_out %>%
+      distinct()
+    
+    attr(df_out, 'log') <- list(bsa_issue = log_df)
+    return(df_out)
+  } else {
+    message('No instances found where total cells < than unit abundance.')
+    return(invisible(NULL))
+  }
+}
 
-
-
+check_nas <- function(df, exclude_cols = NULL) {
+  # identify columns to check
+  cols_to_check <- if (!is.null(exclude_cols)) {
+    setdiff(names(df), exclude_cols)
+  } else {
+    names(df)
+  }
+  
+  df_check <- df[, cols_to_check, drop = FALSE]
+  
+  # check which columns have missing values
+  na_cols <- names(which(colSums(is.na(df_check)) > 0))
+  
+  # create log as a tibble
+  log_df <- tibble::tibble(MissingInColumn = na_cols) %>% distinct()
+  
+  if (length(na_cols) > 0) {
+    message('Missing values found in ', length(na_cols), ' column(s): ', paste(na_cols, collapse = ', '))
+  } else {
+    message('No missing values found.')
+  }
+  
+  # attach log to df
+  attr(df, 'log') <- list(na_check = log_df)
+  return(df)
+}

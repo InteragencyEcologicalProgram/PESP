@@ -27,6 +27,8 @@ calc_data_aeu <- function(df){
       Biovolume_per_mL = round(rowMeans(select(., contains('biovolume')), na.rm = TRUE) * factor * total_cells, 2)
     )
   
+  message('Calculated Units, Cells, and Biovolume per mL.')
+  
   return(df)
 }
 
@@ -38,6 +40,8 @@ add_latlon_aeu <- function(df){
   
   df <- df %>%
     left_join(., df_latlon, by = 'Station')
+  
+  message('Added in latitude and longitude.')
   
   return(df)
 }
@@ -70,7 +74,7 @@ add_dilution_qc <- function(df){
     mutate(
       QualityCheck =
         case_when(
-          Date <= '2023-06-25' & QualityCheck == 'Good' ~ 'DifDilution',
+          Date <= '2023-06-25' & QualityCheck == 'NoCode' ~ 'DifDilution',
           Date <= '2023-06-25' ~ paste0(QualityCheck, ' DifDilution'),
           TRUE ~ QualityCheck
         )
@@ -78,7 +82,7 @@ add_dilution_qc <- function(df){
 }
 
 subset_cols_aeu <- function(df){
-  keep_cols <- c('Date', 'Time', 'Station', 'Latitude', 'Longitude', 'SamplingMethod', 'SamplingDepth', 'Taxon', 'Genus', 'Species', 'Lab', 'Units_per_mL', 'Cells_per_mL', 'Biovolume_per_mL', 'QualityCheck', 'Debris') 
+  keep_cols <- c('Date', 'Time', 'Station', 'Latitude', 'Longitude', 'SampleMethod', 'SampleDepth', 'Taxon', 'Genus', 'Species', 'Lab', 'Units_per_mL', 'Cells_per_mL', 'Biovolume_per_mL', 'QualityCheck', 'Debris') 
   
   df <- df %>%
     select(all_of(keep_cols))

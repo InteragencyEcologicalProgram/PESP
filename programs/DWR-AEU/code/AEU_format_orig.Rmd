@@ -5,7 +5,6 @@
 **Author:** Perry ([sarah.perry\@water.ca.gov](mailto:sarah.perry@water.ca.gov){.email})
 
 # Initial Setup
-
 ```{r, message=FALSE, warning=FALSE}
 # Import Packages ---------------------------------------------------------
 library(tidyverse)
@@ -28,13 +27,16 @@ data_path <- abs_pesp_path('Groups/DWR-AEU/01 Raw Data/dwr-aeu-2020.csv')
 df_data <- read_quiet_csv(data_path)
 ```
 
-# Check distinct columns
+## Check distinct columns
 ```{r}
 df_data <- check_distinct(df_data, type = 'full')
-attr(df_data, 'log')$nondistinct_allrows
+nondistinct_rows <- attr(df_data, 'log')$nondistinct_allrows
+write_log_file(nondistinct_rows, 'Groups/DWR-AEU/02 Processed Data/QC files/tables/AEU_nondistinct_rows.csv')
 
 # remove duplicates
 df_data <- df_data %>% distinct()
+
+print(nondistinct_rows)
 ```
 
 
@@ -42,11 +44,11 @@ df_data <- df_data %>% distinct()
 ```{r}
 df_data <- standardize_cols_aeu(df_data)
 
-df_data <- add_meta_col(df_data, 'Yolo Bypass Fish Monitoring Program', 'SamplingDepth')
+df_data <- add_meta_col(df_data, 'Yolo Bypass Fish Monitoring Program', 'SampleDepth')
 
 df_data <- add_meta_col(df_data, 'Yolo Bypass Fish Monitoring Program', 'Lab')
 
-df_data <- add_meta_col(df_data, 'Yolo Bypass Fish Monitoring Program', 'SamplingMethod')
+df_data <- add_meta_col(df_data, 'Yolo Bypass Fish Monitoring Program', 'SampleMethod')
 ```
 
 # Add Taxonomy (and QC column)
@@ -54,7 +56,10 @@ df_data <- add_meta_col(df_data, 'Yolo Bypass Fish Monitoring Program', 'Samplin
 ## Correct typos
 ```{r}
 df_data <- correct_taxon_typos(df_data)
-attr(df_data, 'log')$taxon_corrections
+corrected_typos <- attr(df_data, 'log')$taxon_corrections
+write_log_file(corrected_typos, 'Groups/DWR-AEU/02 Processed Data/QC files/tables/AEU_corrected_typos.csv')
+
+print(corrected_typos)
 ```
 
 ## Add QC column
@@ -63,25 +68,37 @@ df_data <- add_qc_col(df_data)
 df_data <- add_debris_col(df_data)
 
 df_data <- extract_unstandardized_comments(df_data, 'Comments', delimiter = '. ')
-attr(df_data, 'log')$unmatched_comments
+unmatched_comments <- attr(df_data, 'log')$unmatched_comments
+write_log_file(unmatched_comments, 'Groups/DWR-AEU/02 Processed Data/QC files/tables/AEU_leftover_comments.csv')
+
+print(unmatched_comments)
 ```
 
 ## Standardize unknowns
 ```{r}
 df_data <- clean_unknowns(df_data)
-attr(df_data, 'log')$clean_unknowns
+standardized_unknowns <- attr(df_data, 'log')$clean_unknowns
+write_log_file(standardized_unknowns, 'Groups/DWR-AEU/02 Processed Data/QC files/tables/AEU_standardized_unknowns.csv')
+
+print(standardized_unknowns)
 ```
 
 ## Update synonyms
 ```{r}
 df_data <- update_synonyms(df_data)
-attr(df_data, 'log')$synonym_updates
+updated_synonyms <- attr(df_data, 'log')$synonym_updates
+write_log_file(updated_synonyms, 'Groups/DWR-AEU/02 Processed Data/QC files/tables/AEU_updated_synonyms.csv')
+
+print(updated_synonyms)
 ```
 
 ## Add in higher-level taxa
 ```{r}
 df_data <- higher_lvl_taxa(df_data)
-attr(df_data, 'log')$unmatched_taxa
+needs_hierarchy <- attr(df_data, 'log')$unmatched_taxa
+write_log_file(needs_hierarchy, 'Groups/DWR-AEU/02 Processed Data/QC files/tables/AEU_needs_hierarchy.csv')
+
+print(needs_hierarchy)
 ```
 
 ## Check distinct cols before combining
@@ -96,25 +113,35 @@ attr(df_data, 'log')$nondistinct_keyrows
 ## Combine taxa (multiple sizes, standardized unknowns)
 ```{r}
 df_data <- combine_taxons(df_data)
-attr(df_data, 'log')$combined_taxa
+combined_taxa <- attr(df_data, 'log')$combined_taxa
+write_log_file(combined_taxa, 'Groups/DWR-AEU/02 Processed Data/QC files/tables/AEU_combined_taxa.csv')
+
+print(combined_taxa)
 ```
 
 # Finish formatting
+
+## Subset columns
 ```{r}
+# subset relevant columns
 df_data <- subset_cols_aeu(df_data)
 ```
 
+## Add different dilution factor
 ```{r}
-# add different dilution code for data before/including 2020
 df_data <- add_dilution_qc(df_data)
 ```
 
+## Checks
 ```{r}
-# # Check Collection Type Variables -----------------------------------------------
-check_methods(df_data)
-```
-## Export
+# check for NAs
+df_data <- check_nas(df_data)
+na_check <- attr(df_data, 'log')$na_check
 
+print(na_check)
+```
+
+# Export
 ```{r}
-# write_csv(df_joined, 'programs/DWR-AEU/data/phyto_data_AEU.csv')
+write_csv(df_data, abs_pesp_path('Groups/DWR-AEU/02 Processed Data/AEU_draft.csv'))
 ```

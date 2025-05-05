@@ -1,0 +1,51 @@
+# Check for BSA Issue (FRP)
+
+**Purpose:** Code to check if FRP has the BSA issue
+
+**Author:** Perry ([sarah.perry\@water.ca.gov](mailto:sarah.perry@water.ca.gov){.email})
+
+# Initial Setup
+```{r, message=FALSE, warning=FALSE}
+# Import Packages ---------------------------------------------------------
+library(tidyverse)
+library(fuzzyjoin)
+library(glue)
+library(lubridate)
+
+source('admin/global_functions/global_funcs.R')
+source('admin/global_functions/bsa_funcs.R')
+source('admin/global_functions/check_funcs.R')
+```
+
+## Read in data
+```{r}
+# specify the file path
+df_phyto <- get_edi_file('269','phyto')
+df_data <- df_phyto
+```
+
+# Plots
+```{r}
+plot_bsa_check(df_data, taxon = 'Bacteria/Cyanobacteria/Cyanophyceae/Eucapsis/microscopica', cell_col = 'Cells_permL', unit_col = 'Units_permL')
+```
+
+
+```{r}
+plot_bsa_check(df_data,
+               taxon = 'Bacteria/Cyanobacteria/Cyanophyceae/Eucapsis/microscopica',
+               cell_col = 'Cells_permL',
+               unit_col = 'Units_permL',
+               y_range = c(-1000,1000),
+               x_range = c('2022-01-01','2023-12-31'))
+```
+
+# Check
+```{r}
+bsa_check <- check_bsa_issue(df_data,
+                             cell_col = 'Cells_permL',
+                             unit_col = 'Units_permL')
+df_bsa <- attr(bsa_check, 'log')$bsa_issue
+
+write_csv(df_bsa, abs_pesp_path('Groups/CDFW-FRP/02 Processed Data/2024 Publication Review/FRP_suspect_values.csv'), na = '')
+```
+
