@@ -13,7 +13,7 @@ library(glue)
 library(lubridate)
 
 source('admin/global_functions/global_funcs.R')
-source('programs/DWR-AEU/code/aeu_funcs.R')
+source('programs/DWR-AEU/ref_code/aeu_funcs.R')
 source('admin/global_functions/bsa_funcs.R')
 source('admin/global_functions/check_funcs.R')
 ```
@@ -40,10 +40,50 @@ print(nondistinct_rows)
 ```
 
 
-## Standardize data and add metadata columns
+## Rename columns
 ```{r}
-df_data <- standardize_cols_aeu(df_data)
+rename_map <- c(
+  'Taxon' = 'taxon',
+  'Station' = 'station_code',
+  'Date' = 'sample_date',
+  'Time' = 'sample_time',
+  'PhytoForm' = 'colony_filament_individual_group_code',
+  'Comments' = 'comments',
+  'GALD' = 'gald1'
+)
 
+df_data <- rename_cols(df_data, rename_map)
+```
+## Remove old taxa info
+```{r}
+df_data <- remove_taxa_info(df_data)
+```
+
+
+## Calculate measurement columns
+```{r}
+df_data <- calc_data_bsa(df_data, unit_col = 'unit_abundance', cell_col = 'total_cells')
+```
+
+## Clean PhytoForm column
+```{r}
+df_data <- clean_phytoform_bsa(df_data)
+```
+
+## Add in lat/lons
+```{r}
+df_data <- add_latlon(df_data, 'Groups/DWR-AEU/Metadata/Stations-AEU.csv')
+```
+## Fix Date and Time
+```{r}
+df_data$Date <- as.Date(df_data$Date,'%m/%d/%Y')
+
+df_data$Time <- sub(':00$', '', df_data$Time)
+```
+
+
+## Add metadata columns
+```{r}
 df_data <- add_meta_col(df_data, 'Yolo Bypass Fish Monitoring Program', 'SampleDepth')
 
 df_data <- add_meta_col(df_data, 'Yolo Bypass Fish Monitoring Program', 'Lab')
@@ -123,9 +163,14 @@ print(combined_taxa)
 
 ## Subset columns
 ```{r}
-# subset relevant columns
 df_data <- subset_cols_aeu(df_data)
 ```
+
+## Format SampleDepth
+```{r}
+df_data <- df_data %>% mutate(SampleDepth = as.numeric(str_remove(SampleDepth, ' meter')))
+```
+
 
 ## Add different dilution factor
 ```{r}

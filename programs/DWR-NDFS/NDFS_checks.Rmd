@@ -13,7 +13,7 @@ source('admin/global_functions/check_funcs.R')
 ```
 
 ```{r}
-df_phyto <- read_quiet_csv('programs/DWR-AEU/data/phyto_data_AEU.csv') %>%
+df_phyto <- read_quiet_csv(abs_pesp_path('Groups/DWR-NDFS/02 Processed Data/NDFS_draft.csv'))  %>%
   mutate(Year = year(Date)) %>%
   mutate(StationYear = paste(Year, Station, sep = ' '))
 
@@ -29,7 +29,7 @@ df_nmds1[[1]]
 df_nmds1[[2]]
 
 ggsave(
-  filename = abs_pesp_path('Groups/DWR-AEU/02 Processed Data/QC files/graphs/AEU_NMDS_CellspermL_Year.jpg'),
+  filename = abs_pesp_path('Groups/DWR-NDFS/02 Processed Data/QC files/graphs/NDFS_NMDS_CellspermL_Year.jpg'),
   plot = df_nmds1[[2]],
   width = 8,
   height = 6
@@ -50,7 +50,7 @@ df_nmds2[[1]]
 df_nmds2[[2]]
 
 ggsave(
-  filename = abs_pesp_path('Groups/DWR-AEU/02 Processed Data/QC files/graphs/AEU_NMDS_CellspermL_Date.jpg'),
+  filename = abs_pesp_path('Groups/DWR-NDFS/02 Processed Data/QC files/graphs/NDFS_NMDS_CellspermL_Date.jpg'),
   plot = df_nmds2[[2]],
   width = 8,
   height = 6

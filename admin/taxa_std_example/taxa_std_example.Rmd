@@ -1,21 +1,22 @@
 # Example file for taxa standardization
 
-# Read in example data
+## Read in example data
 ```{r message = FALSE}
 library(tidyverse)
 source('admin/global_functions/global_funcs.R')
 source('admin/global_functions/check_funcs.R')
 
-df_data <- read_csv('admin/std_example/example_data_orig.csv')
+df_data <- read_csv('admin/taxa_std_example/example_data_orig.csv')
 ```
 
-# Check distinct columns
+## Check distinct columns
 ```{r}
 df_data <- check_distinct(df_data, type = 'full')
 
 # remove duplicates
 df_data <- df_data %>% distinct()
 ```
+
 ## Correct typos
 ```{r}
 df_data <- correct_taxon_typos(df_data)
@@ -63,5 +64,3 @@ attr(df_data, 'log')$nondistinct_keyrows
 df_data <- combine_taxons(df_data)
 attr(df_data, 'log')$combined_taxa
 ```
-
-

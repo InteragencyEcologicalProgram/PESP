@@ -1,0 +1,58 @@
+# Check AEU data
+
+**Purpose:** Code to check AEU data for errors
+
+**Author:** Perry ([sarah.perry\@water.ca.gov](mailto:sarah.perry@water.ca.gov){.email})
+
+```{r}
+library(tidyverse)
+library(vegan)
+library(lubridate)
+source('admin/global_functions/global_funcs.R')
+source('admin/global_functions/check_funcs.R')
+```
+
+```{r}
+df_phyto <- read_quiet_csv(abs_pesp_path('Groups/DWR-AEU/02 Processed Data/AEU_draft.csv')) %>%
+  mutate(Year = year(Date)) %>%
+  mutate(StationYear = paste(Year, Station, sep = ' '))
+
+# create NMDS
+df_nmds1 <- create_nmds(df_phyto,
+                       group_var = 'Year',
+                       nmds_var = 'Cells_per_mL')
+
+# print dataframe
+df_nmds1[[1]]
+
+# print graph
+df_nmds1[[2]]
+
+ggsave(
+  filename = abs_pesp_path('Groups/DWR-AEU/02 Processed Data/QC files/graphs/AEU_NMDS_CellspermL_Year.jpg'),
+  plot = df_nmds1[[2]],
+  width = 8,
+  height = 6
+)
+```
+
+```{r}
+# create NMDS
+df_nmds2 <- create_nmds(df_phyto,
+                        group_var = 'Date',
+                        nmds_var = 'Cells_per_mL',
+                        factor_var = 'Year')
+
+# print dataframe
+df_nmds2[[1]]
+
+# print graph
+df_nmds2[[2]]
+
+ggsave(
+  filename = abs_pesp_path('Groups/DWR-AEU/02 Processed Data/QC files/graphs/AEU_NMDS_CellspermL_Date.jpg'),
+  plot = df_nmds2[[2]],
+  width = 8,
+  height = 6
+)
+```

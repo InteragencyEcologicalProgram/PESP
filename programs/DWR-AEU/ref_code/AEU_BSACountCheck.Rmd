@@ -41,6 +41,7 @@ df_data <- update_synonyms(df_data)
 df_data <- df_data %>%
   mutate(Date = mdy(sample_date))
 ```
+
 ```{r}
 plot_bsa_check(df_data, cell_col = 'total_cells', unit_col = 'unit_abundance')
 ```

@@ -21,14 +21,14 @@ check_stations <- function(col_data, col_check){
 # # check methods
 
 check_methods <- function(df){
-  ls_methods <- unique(df$SamplingMethod)
+  ls_methods <- unique(df$SampleMethod)
   
   message(message(glue::glue('Currect collection type methods: {toString(ls_methods)}')))
 }
 
 # # check distinct rows
 check_distinct <- function(df, return_df = FALSE, coerce = TRUE,
-                           type = c('full', 'key_cols'),
+                           type = c('full', 'key_measure_cols', 'key_cols'),
                            key_cols = c('Station','Date'),
                            taxa_cols = c('Taxon'),
                            measurement_cols = c('Biovolume_per_mL','Cells_per_mL','Units_per_mL')) {
@@ -64,31 +64,62 @@ check_distinct <- function(df, return_df = FALSE, coerce = TRUE,
       return(invisible(df))
     }
     
-  } else if (type == 'key_cols') {
+  } else if (type == 'key_measure_cols') {
     if (is.null(key_cols) || is.null(measurement_cols)) {
-      stop('For type = "key_cols", both key_cols and measurement_cols must be provided.')
+      stop('For type = "key_measure_cols", both key_cols and measurement_cols must be provided.')
     }
     
-    df_grouped <- df_check %>%
+    # find non-distinct keys
+    nondistinct_keys <- df_check %>%
       group_by(across(all_of(c(key_cols, taxa_cols, measurement_cols)))) %>%
       summarise(n = n(), .groups = 'drop') %>%
-      filter(n > 1)
+      filter(n > 1) %>%
+      select(all_of(c(key_cols, taxa_cols, measurement_cols)))
     
-    nondistinct_keyrows <- df_grouped %>%
-      filter(if_any(all_of(measurement_cols), ~ .x > 1))
+    # extract all original rows that match these non-distinct keys
+    df_dupes <- df %>%
+      semi_join(nondistinct_keys, by = c(key_cols, taxa_cols, measurement_cols))
     
-    n_inconsistent <- nrow(nondistinct_keyrows)
+    n_inconsistent <- nrow(df_dupes)
     
     if (n_inconsistent > 0) {
-      message('Number of inconsistent key combinations: ', n_inconsistent)
-      attr(df, 'log') <- list(nondistinct_keyrows = nondistinct_keyrows)
+      message('Number of inconsistent key+taxa+measurement rows: ', n_inconsistent)
+      attr(df, 'log') <- list(nondistinct_keymeasurerows = df_dupes)
       if (isTRUE(return_df)) {
-        return(nondistinct_keyrows)
+        return(df_dupes)
       } else {
         return(df)
       }
     } else {
       message('All key+taxa+measurement column combinations are unique.')
+      attr(df, 'log') <- list(nondistinct_keymeasurerows = NULL)
+      return(invisible(df))
+    }
+    
+  } else if (type == 'key_cols') {
+    # find non-distinct keys
+    nondistinct_keys <- df_check %>%
+      group_by(across(all_of(c(key_cols, taxa_cols)))) %>%
+      summarise(n = n(), .groups = 'drop') %>%
+      filter(n > 1) %>%
+      select(all_of(c(key_cols, taxa_cols)))
+    
+    # extract all original rows that match these non-distinct keys
+    df_dupes <- df %>%
+      semi_join(nondistinct_keys, by = c(key_cols, taxa_cols))
+    
+    n_non_distinct <- nrow(df_dupes)
+    
+    if (n_non_distinct > 0) {
+      message('Number of non-distinct key+taxa rows: ', n_non_distinct)
+      attr(df, 'log') <- list(nondistinct_keyrows = df_dupes)
+      if (isTRUE(return_df)) {
+        return(df_dupes)
+      } else {
+        return(df)
+      }
+    } else {
+      message('All key+taxa combinations are unique.')
       attr(df, 'log') <- list(nondistinct_keyrows = NULL)
       return(invisible(df))
     }
@@ -257,19 +288,20 @@ check_nodata <- function(df) {
 # Check Plots -------------------------------------------------------------
 
 # # Plot NMDS
-create_nmds <- function(df, group_var, nmds_var, factor_var = NULL, show_legend = TRUE, color_palette = NULL) {
+create_nmds <- function(df, group_var, nmds_var, taxa_var = 'Taxon', factor_var = NULL, show_legend = TRUE, color_palette = NULL) {
   set.seed(42)
 
   if (!is.null(factor_var)) {
     group_var <- rlang::sym(group_var)
     nmds_var <- rlang::sym(nmds_var)
+    taxa_var <- rlang::sym(taxa_var)
     factor_var <- rlang::sym(factor_var)
     
     df_cells <- df %>%
-      select(!!group_var, !!factor_var, Taxon, !!nmds_var) %>%
-      group_by(!!group_var, !!factor_var, Taxon) %>%
+      select(!!group_var, !!factor_var, !!taxa_var, !!nmds_var) %>%
+      group_by(!!group_var, !!factor_var, !!taxa_var) %>%
       reframe(!!nmds_var := mean(!!nmds_var, na.rm = TRUE)) %>%
-      pivot_wider(names_from = Taxon, values_from = !!nmds_var)
+      pivot_wider(names_from = !!taxa_var, values_from = !!nmds_var)
     
     com <- df_cells %>%
       select(-!!group_var, -!!factor_var)
@@ -279,12 +311,13 @@ create_nmds <- function(df, group_var, nmds_var, factor_var = NULL, show_legend 
   } else {
     factor_var <- rlang::sym(group_var)
     nmds_var <- rlang::sym(nmds_var)
+    taxa_var <- rlang::sym(taxa_var)
     
     df_cells <- df %>%
-      select(!!factor_var, Taxon, !!nmds_var) %>%
-      group_by(!!factor_var, Taxon) %>%
+      select(!!factor_var, !!taxa_var, !!nmds_var) %>%
+      group_by(!!factor_var, !!taxa_var) %>%
       reframe(!!nmds_var := mean(!!nmds_var, na.rm = TRUE)) %>%
-      pivot_wider(names_from = Taxon, values_from = !!nmds_var)
+      pivot_wider(names_from = !!taxa_var, values_from = !!nmds_var)
     
     com <- df_cells %>%
       select(-!!factor_var)
@@ -316,8 +349,9 @@ create_nmds <- function(df, group_var, nmds_var, factor_var = NULL, show_legend 
   }
     
   return(list(
-    nmds_df = df_nmds,
-    plot = plt_nmds
+    df_nmds = df_nmds,
+    plot = plt_nmds,
+    raw_nmds = nmds
   ))
 }
 
@@ -400,29 +434,43 @@ check_bsa_issue <- function(df,
   }
 }
 
-check_nas <- function(df, exclude_cols = NULL) {
-  # identify columns to check
-  cols_to_check <- if (!is.null(exclude_cols)) {
+check_nas <- function(df, exclude_cols = 'OrigTaxon') {
+  # Identify columns to check for partial NAs
+  cols_to_check_partial <- if (!is.null(exclude_cols)) {
     setdiff(names(df), exclude_cols)
   } else {
     names(df)
   }
   
-  df_check <- df[, cols_to_check, drop = FALSE]
+  # Check for partial NAs
+  df_check_partial <- df[, cols_to_check_partial, drop = FALSE]
+  na_cols_partial <- names(which(colSums(is.na(df_check_partial)) > 0))
   
-  # check which columns have missing values
-  na_cols <- names(which(colSums(is.na(df_check)) > 0))
+  # Check for fully missing columns (including excluded columns)
+  na_cols_full <- names(which(colSums(is.na(df)) == nrow(df)))
   
-  # create log as a tibble
-  log_df <- tibble::tibble(MissingInColumn = na_cols) %>% distinct()
+  # Create log as a tibble
+  log_df <- tibble::tibble(MissingInColumn = na_cols_partial) %>% distinct()
   
-  if (length(na_cols) > 0) {
-    message('Missing values found in ', length(na_cols), ' column(s): ', paste(na_cols, collapse = ', '))
+  # Print messages
+  if (length(na_cols_partial) > 0) {
+    message('Missing values found in ', length(na_cols_partial), ' column(s): ', paste(na_cols_partial, collapse = ', '))
   } else {
-    message('No missing values found.')
+    message('No missing values found (excluding ', paste(exclude_cols, collapse = ', '), ')')
   }
   
-  # attach log to df
+  if (length(na_cols_full) > 0) {
+    message('All values are missing in ', length(na_cols_full), ' column(s): ', paste(na_cols_full, collapse = ', '))
+  }
+  
+  # Attach log to df
   attr(df, 'log') <- list(na_check = log_df)
+  
   return(df)
+}
+
+unique_check <- function(df, col) {
+  col_sym <- rlang::ensym(col)
+  unique_vals <- unique(df %>% dplyr::pull(!!col_sym))
+  message('Unique ', rlang::as_string(col_sym), 's: ', paste(unique_vals, collapse = ', '))
 }

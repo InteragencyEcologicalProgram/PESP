@@ -4,221 +4,563 @@
 
 **Author:** Perry ([sarah.perry\@water.ca.gov](mailto:sarah.perry@water.ca.gov){.email})
 
-**Date Edited:** 07/20/2023
+**Date Edited:** 05/05/2025
 
 # Initial Setup
-
 ```{r}
 # Import Packages ---------------------------------------------------------
 library(tidyverse)
 library(fuzzyjoin)
 library(glue)
 library(lubridate)
-source('admin/global_functions/global_funcs.R') # TODO: suppress messages
+source('admin/global_functions/global_funcs.R')
 source('admin/global_functions/bsa_funcs.R')
-source('programs/DWR-NDFS/code/ndfs_funcs.R')
+source('programs/DWR-NDFS/ref_code/ndfs_funcs.R')
 source('admin/global_functions/check_funcs.R')
 ```
 
 # 2013-2015
-
 ```{r}
 # Read in Data ------------------------------------------------------------
 # specify the file path
-data_path_one <- abs_data_path('Component data sets/DWR NDFS/phyto_manipulated_2013-2015.xlsx')
-
-# read in metadata sheet
-df_meta <- read_meta_file('Yolo Bypass Fish Monitoring Program')
-
-# data frame containing Tiffany Browns's standardized phyto taxa csv
-df_syn <- read_quiet_csv('admin/global_data/phyto_classifications.csv')
+data_path_one <- abs_pesp_path('Groups/DWR-NDFS/01 Raw Data/phyto_manipulated_2013-2015.xlsx')
 
 # new data to format and append
-df_data_one <- readxl::read_excel(data_path_one)
+df_data_one <- readxl::read_excel(data_path_one) %>%
+  mutate(across(contains('Biovolume'), as.numeric))
+```
 
-# df_data_test <- df_data_four[!grep('dup',df_data_four$StationCode_original,ignore.case=TRUE),]
+## Check distinct columns
+```{r}
+df_data_one <- check_distinct(df_data_one, type = 'full')
+nondistinct_rows <- attr(df_data_one, 'log')$nondistinct_allrows
+```
 
-df_data_one <- clean_unknowns(df_data_one)
+## Rename columns
+```{r}
+rename_map <- c(
+  'Station' = 'StationCode',
+  'PhytoForm' = 'Colony_Filament_IndividualGroupCode',
+  'SampleDepth' = 'Depth'
+)
 
-df_data_one <- clean_sp(df_data_one)
+df_data_one <- rename_cols(df_data_one, rename_map)
+```
 
-df_data_one <- standardize_cols_ndfs(df_data_one, df_meta)
+## Calculate measurement columns
+```{r}
+df_data_one <- calc_data_bsa(df_data_one, cell_col = 'NumberOfCellsPerUnit', unit_col = 'UnitAbundance')
+```
 
-df_data_one <- clean_phytoform(df_data_one)
+## Clean PhytoForm column
+```{r}
+df_data_one <- clean_phytoform_bsa(df_data_one) %>%
+  mutate(
+    PhytoForm = case_when(
+      PhytoForm == 'c3' ~ 'c',
+      PhytoForm == 'F' ~ 'f',
+      TRUE ~ PhytoForm
+    )
+  )
 
+unique_check(df_data_one, PhytoForm)
+```
+
+## Add in latlon
+```{r}
+unique_check(df_data_one, Station)
+
+df_data_one <- add_latlon(df_data_one, 'Groups/DWR-NDFS/Metadata/NDFS_Stations.csv') %>%
+  filter(Station %in% c('BL5','I80','LIB','LIS','RCS','RD22','RMB','RVB','RYI','SDI','SHR','STTD'))
+
+unique_check(df_data_one, Station)
+
+unique_check(df_data_one, Purpose)
+unique_check(df_data_one, StationCode_original)
+```
+
+## Add in depth
+```{r}
+unique_check(df_data_one, SampleDepth)
+
+df_data_one <- df_data_one %>%
+  mutate(SampleDepth =
+           case_when(grepl('3M', StationCode_original, ignore.case = TRUE) ~ '3', 
+             SampleDepth == 'NA' ~ '1',
+            TRUE ~ SampleDepth)) %>%
+  mutate(SampleDepth = as.numeric(SampleDepth))
+
+unique_check(df_data_one, SampleDepth)
+```
+
+## Add in lab
+```{r}
+df_data_one <- add_meta_col(df_data_one, 'North Delta Food Subsidy Study', 'Lab')
+unique_check(df_data_one, 'Lab')
+```
+
+## Standardize Time
+```{r}
 df_data_one$Time <- sapply(df_data_one$Time, function(x) format(x, format='%H:%M'))
+```
 
-df_data_one$Depth <- as.numeric(df_data_one$Depth)
-
-# # Add in Higher Level Taxa ------------------------------------------------------
-df_joined_one <- higher_lvl_taxa(df_data_one, after_col = 'Lab')
-
-df_filltaxa <- check_higher_taxa(df_joined_one)
-
-# # Update Names ------------------------------------------------------------------
-df_joined_one <- update_synonyms(df_joined_one)
-
-check_synonyms(df_joined_one)
-
-# # Add QC/Debris Columns ------------------------------------------------------------------
-
-df_joined_one <- add_qc_col(df_joined_one)
-
-df_joined_one <- add_debris_col(df_joined_one)
-
-# # Subset Columns
-df_joined_one <- df_joined_one %>%
-  select(all_of(c('Date', 'Time', 'Station', 'SamplingMethod', 'Depth', 'Lab', 'OrigTaxon', 'Taxon', 'Kingdom', 'Phylum', 'Class', 'AlgalGroup', 'DiatomSoftbody', 'Genus', 'Species', 'Units_per_mL', 'Cells_per_mL', 'Biovolume_per_mL', 'PhytoForm', 'QualityCheck', 'Debris')))
-
-# Check
-check_distinct(df_joined_one)
+## Select relevant columns
+```{r}
+df_data_one <- df_data_one %>%
+  select(all_of(c('Date', 'Time', 'Station', 'Latitude', 'Longitude', 'SampleDepth', 'Lab', 'Taxon', 'Units_per_mL', 'Cells_per_mL', 'Biovolume_per_mL', 'PhytoForm', 'Comments')))
 ```
 
 # 2016
 
+## Read in data
 ```{r}
 # Read in Data ------------------------------------------------------------
 # specify the file path
-data_path_two <- abs_data_path('Component data sets/DWR NDFS/phyto_manipulated_2016.xlsx')
+data_path_two <- abs_pesp_path('Groups/DWR-NDFS/01 Raw Data/phyto_manipulated_2016.xlsx')
 
 # new data to format and append
-df_data_two <- readxl::read_excel(data_path_two)
+df_data_two <- readxl::read_excel(data_path_two) %>%
+    mutate(across(contains('Biovolume'), as.numeric))
+```
 
-df_data_two <- clean_unknowns(df_data_two)
+## Check distinct columns
+```{r}
+df_data_two <- check_distinct(df_data_two, type = 'full')
+nondistinct_rows <- attr(df_data_two, 'log')$nondistinct_allrows
+```
 
-df_data_two <- clean_sp(df_data_two)
+## Rename columns
+```{r}
+rename_map <- c(
+  'Station' = 'StationCode',
+  'PhytoForm' = 'Colony_Filament_IndividualGroupCode',
+  'SampleDepth' = 'Depth'
+)
 
-df_data_two <- standardize_cols_ndfs(df_data_two, df_meta)
+df_data_two <- rename_cols(df_data_two, rename_map)
+```
 
-df_data_two <- clean_phytoform(df_data_two)
+## Calculate measurement columns
+```{r}
+df_data_two <- calc_data_bsa(df_data_two, cell_col = 'NumberOfCellsPerUnit', unit_col = 'UnitAbundance')
+```
 
+## Clean PhytoForm column
+```{r}
+df_data_two <- clean_phytoform_bsa(df_data_two)
+```
+
+## Add in latlon
+```{r}
+unique_check(df_data_two, Station)
+
+df_data_two <- add_latlon(df_data_two, 'Groups/DWR-NDFS/Metadata/NDFS_Stations.csv')  %>%
+  filter(Station %in% c('BL5','I80','LIB','LIS','RCS','RD22','RMB','RVB','RYI','SDI','SHR','STTD'))
+
+unique_check(df_data_two, Station)
+unique_check(df_data_two, Purpose)
+unique_check(df_data_two, StationCode_original)
+```
+
+## Add in depth
+```{r}
+unique_check(df_data_two, SampleDepth)
+
+df_data_two <- df_data_two %>%
+  mutate(SampleDepth =
+           case_when(grepl('3M', StationCode_original, ignore.case = TRUE) ~ '3', 
+             SampleDepth == 'NA' ~ '1',
+            TRUE ~ SampleDepth)) %>%
+  mutate(SampleDepth = as.numeric(SampleDepth))
+
+unique_check(df_data_two, SampleDepth)
+```
+
+## Add in lab
+```{r}
+df_data_two <- add_meta_col(df_data_two, 'North Delta Food Subsidy Study', 'Lab')
+unique_check(df_data_two, 'Lab')
+```
+
+## Standardize Time
+```{r}
 df_data_two$Time <- sapply(df_data_two$Time, function(x) format(x, format='%H:%M'))
+```
 
-df_data_two$Depth <- as.numeric(df_data_two$Depth)
-
-
-# # Add in Higher Level Taxa ------------------------------------------------------
-df_joined_two <- higher_lvl_taxa(df_data_two, after_col = 'Lab')
-
-df_filltaxa <- check_higher_taxa(df_joined_two)
-
-# # Update Names ------------------------------------------------------------------
-df_joined_two <- update_synonyms(df_joined_two)
-
-check_synonyms(df_joined_two)
-
-# # Add QC/Debris Columns ------------------------------------------------------------------
-
-df_joined_two <- add_qc_col(df_joined_two)
-
-df_joined_two <- add_debris_col(df_joined_two)
-
-# # Subset Columns
-df_joined_two <- df_joined_two %>%
-  select(all_of(c('Lab', 'Date', 'Time', 'Station', 'Depth', 'OrigTaxon', 'Taxon', 'Kingdom', 'Phylum', 'Class', 'AlgalGroup', 'DiatomSoftbody', 'Genus', 'Species', 'Units_per_mL', 'Cells_per_mL', 'Biovolume_per_mL', 'PhytoForm', 'QualityCheck', 'Debris')))
-
-# Check
-check_distinct(df_joined_two)
+## Select relevant columns
+```{r}
+df_data_two <- df_data_two %>%
+  select(all_of(c('Date', 'Time', 'Station', 'Latitude', 'Longitude', 'SampleDepth', 'Lab', 'Taxon', 'Units_per_mL', 'Cells_per_mL', 'Biovolume_per_mL', 'PhytoForm', 'Comments')))
 ```
 
 # 2017-2018
 
-```{r}
+## Read in data
+```{r warning = FALSE}
 # Read in Data ------------------------------------------------------------
 # specify the file path
-data_path_three <- abs_data_path('Component data sets/DWR NDFS/phyto_manipulated_2017-2018.xlsx')
+data_path_three <- abs_pesp_path('Groups/DWR-NDFS/01 Raw Data/phyto_manipulated_2017-2018.xlsx')
 
 # new data to format and append
-df_data_three <- readxl::read_excel(data_path_three)
+df_data_three <- readxl::read_excel(data_path_three) %>%
+      mutate(across(contains('Biovolume'), as.numeric))
+```
 
-df_data_three <- clean_unknowns(df_data_three)
 
-df_data_three <- clean_sp(df_data_three)
+## Check distinct columns
+```{r}
+df_data_three <- check_distinct(df_data_three, type = 'full')
+nondistinct_rows <- attr(df_data_three, 'log')$nondistinct_allrows
+```
 
-df_data_three <- standardize_cols_ndfs(df_data_three, df_meta)
+## Rename columns
+```{r}
+rename_map <- c(
+  'Station' = 'StationCode',
+  'PhytoForm' = 'Colony_Filament_IndividualGroupCode',
+  'SampleDepth' = 'Depth'
+)
 
-df_data_three <- clean_phytoform(df_data_three)
+df_data_three <- rename_cols(df_data_three, rename_map)
+```
 
+## Calculate measurement columns
+```{r}
+df_data_three <- calc_data_bsa(df_data_three, cell_col = 'NumberOfCellsPerUnit', unit_col = 'UnitAbundance')
+```
+
+## Clean PhytoForm column
+```{r}
+df_data_three <- clean_phytoform_bsa(df_data_three)
+
+df_data_three <- df_data_three %>%
+  mutate(PhytoForm =
+           case_when(PhytoForm == 'na' ~ NA_character_,
+                     TRUE ~ PhytoForm))
+
+unique_check(df_data_three, PhytoForm)
+```
+
+## Add in latlon
+```{r}
+unique_check(df_data_three, Station)
+unique_check(df_data_three, StationCode_original)
+
+df_data_three <- add_latlon(df_data_three, 'Groups/DWR-NDFS/Metadata/NDFS_Stations.csv')  %>%
+  filter(Station %in% c('BL5','I80','LIB','LIS','RCS','RD22','RMB','RVB','RYI','SDI','SHR','STTD'))
+
+unique_check(df_data_three, Station)
+unique_check(df_data_three, Purpose)
+unique_check(df_data_three, StationCode_original)
+```
+
+## Add in depth
+```{r}
+unique_check(df_data_three, SampleDepth)
+
+df_data_three <- df_data_three %>%
+  mutate(SampleDepth =
+           case_when(grepl('3M', StationCode_original, ignore.case = TRUE) ~ '3', 
+             SampleDepth == 'NA' ~ '1',
+            TRUE ~ SampleDepth)) %>%
+  mutate(SampleDepth = as.numeric(SampleDepth))
+
+unique_check(df_data_three, SampleDepth)
+```
+
+## Add in lab
+```{r}
+df_data_three <- add_meta_col(df_data_three, 'North Delta Food Subsidy Study', 'Lab')
+unique_check(df_data_three, 'Lab')
+```
+
+## Standardize Time
+```{r}
 df_data_three$Time <- sapply(df_data_three$Time, function(x) format(x, format='%H:%M'))
+```
 
-df_data_three$Depth <- as.numeric(df_data_three$Depth)
-
-# # Add in Higher Level Taxa ------------------------------------------------------
-df_joined_three <- higher_lvl_taxa(df_data_three, after_col = 'Lab')
-
-df_filltaxa <- check_higher_taxa(df_joined_three)
-
-# # Update Names ------------------------------------------------------------------
-df_joined_three <- update_synonyms(df_joined_three)
-
-check_synonyms(df_joined_three)
-
-# # Add QC/Debris Columns ------------------------------------------------------------------
-
-df_joined_three <- add_qc_col(df_joined_three)
-
-df_joined_three <- add_debris_col(df_joined_three)
-
-# # Subset Columns
-df_joined_three <- df_joined_three %>%
-  select(all_of(c('Lab', 'Date', 'Time', 'Station', 'Depth', 'OrigTaxon', 'Taxon', 'Kingdom', 'Phylum', 'Class', 'AlgalGroup', 'DiatomSoftbody', 'Genus', 'Species', 'Units_per_mL', 'Cells_per_mL', 'Biovolume_per_mL', 'PhytoForm', 'QualityCheck', 'Debris')))
-
-# Check
-check_distinct(df_joined_three)
+## Select relevant columns
+```{r}
+df_data_three <- df_data_three %>%
+  select(all_of(c('Date', 'Time', 'Station', 'Latitude', 'Longitude', 'SampleDepth', 'Lab', 'Taxon', 'Units_per_mL', 'Cells_per_mL', 'Biovolume_per_mL', 'PhytoForm', 'Comments')))
 ```
 
 # 2019
 
+## Read in data
 ```{r}
 # Read in Data ------------------------------------------------------------
 # specify the file path
-data_path_four <- abs_data_path('Component data sets/DWR NDFS/phyto_manipulated_2019.xlsx')
+data_path_four <- abs_pesp_path('Groups/DWR-NDFS/01 Raw Data/phyto_manipulated_2019.xlsx')
 
 # new data to format and append
-df_data_four <- readxl::read_excel(data_path_four)
-
-df_data_four <- clean_unknowns(df_data_four)
-
-df_data_four <- clean_sp(df_data_four)
-
-df_data_four <- standardize_cols_ndfs(df_data_four, df_meta)
-
-df_data_four <- clean_phytoform(df_data_four)
-
-df_data_four$Time <- sapply(df_data_four$Time, function(x) format(x, format='%H:%M'))
-
-# # Add in Higher Level Taxa ------------------------------------------------------
-df_joined_four <- higher_lvl_taxa(df_data_four, after_col = 'Lab')
-
-df_filltaxa <- check_higher_taxa(df_joined_four)
-
-# # Update Names ------------------------------------------------------------------
-df_joined_four <- update_synonyms(df_joined_four)
-
-check_synonyms(df_joined_four)
-
-# # Add QC/Debris Columns ------------------------------------------------------------------
-
-df_joined_four <- add_qc_col(df_joined_four)
-
-df_joined_four <- add_debris_col(df_joined_four)
-
-# # Subset Columns
-df_joined_four <- df_joined_four %>%
-  select(all_of(c('Lab', 'Date', 'Time', 'Station', 'Depth', 'OrigTaxon', 'Taxon', 'Kingdom', 'Phylum', 'Class', 'AlgalGroup', 'DiatomSoftbody', 'Genus', 'Species', 'Units_per_mL', 'Cells_per_mL', 'Biovolume_per_mL', 'PhytoForm', 'QualityCheck', 'Debris')))
-
-# Check
-check_distinct(df_joined_four)
+df_data_four <- readxl::read_excel(data_path_four) %>%
+      mutate(across(contains('Biovolume'), as.numeric))
 ```
 
-## Export
+
+## Check distinct columns
+```{r}
+df_data_four <- check_distinct(df_data_four, type = 'full')
+nondistinct_rows <- attr(df_data_four, 'log')$nondistinct_allrows
+```
+
+## Rename columns
+```{r}
+rename_map <- c(
+  'Station' = 'StationCode',
+  'PhytoForm' = 'Colony_Filament_IndividualGroupCode',
+  'SampleDepth' = 'Depth'
+)
+
+df_data_four <- rename_cols(df_data_four, rename_map)
+```
+
+## Calculate measurement columns
+```{r}
+df_data_four <- calc_data_bsa(df_data_four, cell_col = 'NumberOfCellsPerUnit', unit_col = 'UnitAbundance')
+```
+
+## Clean PhytoForm column
+```{r}
+df_data_four <- clean_phytoform_bsa(df_data_four)
+
+df_data_four <- df_data_four %>%
+  mutate(PhytoForm =
+           case_when(PhytoForm == '7.4' ~ NA_character_,
+                     TRUE ~ PhytoForm))
+
+unique_check(df_data_four, PhytoForm)
+```
+
+## Add in latlon
+```{r}
+unique_check(df_data_four, Station)
+
+df_data_four <- add_latlon(df_data_four, 'Groups/DWR-NDFS/Metadata/NDFS_Stations.csv')  %>%
+  filter(Station %in% c('BL5','I80','LIB','LIS','RCS','RD22','RMB','RVB','RYI','SDI','SHR','STTD'))
+
+unique_check(df_data_four, Station)
+unique_check(df_data_four, StationCode_original)
+```
+
+## Filter purposes
+```{r}
+unique_check(df_data_four, Purpose)
+
+df_data_four <- df_data_four %>%
+  filter(Purpose == 'Normal')
+
+unique_check(df_data_four, Purpose)
+```
+
+## Add in depth
+```{r}
+unique_check(df_data_four, SampleDepth)
+
+df_data_four <- df_data_four %>%
+  mutate(SampleDepth =
+           case_when(grepl('3M', StationCode_original, ignore.case = TRUE) ~ 3, 
+             SampleDepth == 0 ~ 1,
+            TRUE ~ SampleDepth))
+
+unique_check(df_data_four, SampleDepth)
+```
+
+## Add in lab
+```{r}
+df_data_four <- add_meta_col(df_data_four, 'North Delta Food Subsidy Study', 'Lab')
+unique_check(df_data_four, 'Lab')
+```
+
+## Standardize Time
+```{r}
+df_data_four$Time <- sapply(df_data_four$Time, function(x) format(x, format='%H:%M'))
+```
+
+## Select relevant columns
+```{r}
+df_data_four <- df_data_four %>%
+  select(all_of(c('Date', 'Time', 'Station', 'Latitude', 'Longitude', 'SampleDepth', 'Lab', 'Taxon', 'Units_per_mL', 'Cells_per_mL', 'Biovolume_per_mL', 'PhytoForm', 'Comments')))
+```
+
+# 2020
+
+## Read in data
+```{r}
+# Read in Data ------------------------------------------------------------
+# specify the file path
+data_path_five <- abs_pesp_path('Groups/DWR-NDFS/01 Raw Data/phyto_2020.xlsx')
+
+# new data to format and append
+df_data_five <- readxl::read_excel(data_path_five) %>%
+  mutate(across(contains('Biovolume'), as.numeric)) %>%
+  filter(!(is.na(SampleDate) & is.na(SampleTime) & is.na(StationCode)))
+```
+
+## Check distinct columns
+```{r}
+df_data_five <- check_distinct(df_data_five, type = 'full')
+nondistinct_rows <- attr(df_data_five, 'log')$nondistinct_allrows
+```
+
+## Rename columns
+```{r}
+rename_map <- c(
+  'Station' = 'StationCode',
+  'PhytoForm' = 'Colony_Filament_IndividualGroupCode',
+  'SampleDepth' = 'Depth'
+)
+
+df_data_five <- rename_cols(df_data_five, rename_map)
+```
+
+## Calculate measurement columns
+```{r}
+df_data_five <- calc_data_bsa(df_data_five, cell_col = 'Number_of_cells_per_unit', unit_col = 'Unit_Abundance')
+```
+
+## Clean PhytoForm column
+```{r}
+df_data_five <- clean_phytoform_bsa(df_data_five)
+```
+
+## Add in latlon
+```{r}
+unique_check(df_data_five, Station)
+
+df_data_five <- add_latlon(df_data_five, 'Groups/DWR-NDFS/Metadata/NDFS_Stations.csv')  %>%
+  filter(Station %in% c('BL5','I80','LIB','LIS','RCS','RD22','RMB','RVB','RYI','SDI','SHR','STTD'))
+
+unique_check(df_data_five, Station)
+```
+## Add in depth
+```{r}
+unique_check(df_data_five, SampleDepth)
+
+df_data_five <- df_data_five %>%
+  mutate(SampleDepth =
+           case_when(is.na(SampleDepth) ~ 1,
+                     TRUE ~ SampleDepth))
+
+unique_check(df_data_five, SampleDepth)
+```
+
+## Add in lab
+```{r}
+df_data_five <- add_meta_col(df_data_five, 'North Delta Food Subsidy Study', 'Lab')
+unique_check(df_data_five, 'Lab')
+```
+
+## Standardize Time
+```{r}
+df_data_five$Time <- sapply(df_data_five$SampleTime, function(x) format(x, format='%H:%M'))
+df_data_five <- df_data_five %>%
+  rename(Date = SampleDate)
+```
+
+## Select relevant columns
+```{r}
+df_data_five <- df_data_five %>%
+  select(all_of(c('Date', 'Time', 'Station', 'Latitude', 'Longitude', 'SampleDepth', 'Lab', 'Taxon', 'Units_per_mL', 'Cells_per_mL', 'Biovolume_per_mL', 'PhytoForm', 'Comments')))
+```
+
+# Add Taxonomy (and QC column)
+
+## Join data
+```{r}
+df_joined <- bind_rows(df_data_one, df_data_two, df_data_three, df_data_four, df_data_five)
+```
+
+## Correct typos
+```{r}
+df_data <- correct_taxon_typos(df_joined)
+corrected_typos <- attr(df_data, 'log')$taxon_corrections
+write_log_file(corrected_typos, 'Groups/DWR-NDFS/02 Processed Data/QC files/tables/NDFS_corrected_typos.csv')
+
+print(corrected_typos)
+```
+
+## Add QC column
+```{r}
+df_data <- add_qc_col(df_data)
+df_data <- add_debris_col(df_data)
+
+df_data <- extract_unstandardized_comments(df_data, 'Comments', delimiter = '. ')
+unmatched_comments <- attr(df_data, 'log')$unmatched_comments
+write_log_file(unmatched_comments, 'Groups/DWR-NDFS/02 Processed Data/QC files/tables/NDFS_leftover_comments.csv')
+
+print(unmatched_comments)
+```
+
+## Standardize unknowns
+```{r}
+df_data <- clean_unknowns(df_data)
+standardized_unknowns <- attr(df_data, 'log')$clean_unknowns
+write_log_file(standardized_unknowns, 'Groups/DWR-NDFS/02 Processed Data/QC files/tables/NDFS_standardized_unknowns.csv')
+
+print(standardized_unknowns)
+```
+
+## Update synonyms
+```{r}
+df_data <- update_synonyms(df_data)
+updated_synonyms <- attr(df_data, 'log')$synonym_updates
+write_log_file(updated_synonyms, 'Groups/DWR-NDFS/02 Processed Data/QC files/tables/NDFS_updated_synonyms.csv')
+
+print(updated_synonyms)
+```
+
+## Add in higher-level taxa
+```{r}
+df_data$Taxon <- iconv(df_data$Taxon, from = 'ISO-8859-1', to = 'UTF-8')
+df_data$Taxon <- unname(df_data$Taxon)
+
+df_data <- higher_lvl_taxa(df_data)
+needs_hierarchy <- attr(df_data, 'log')$unmatched_taxa
+write_log_file(needs_hierarchy, 'Groups/DWR-NDFS/02 Processed Data/QC files/tables/NDFS_needs_hierarchy.csv')
+
+print(needs_hierarchy)
+```
+
+## Check distinct cols before combining
+```{r}
+df_data <- check_distinct(df_data, type = 'full')
+attr(df_data, 'log')$nondistinct_allrows
+
+df_data <- check_distinct(df_data, type = 'key_cols')
+attr(df_data, 'log')$nondistinct_keyrows
+```
+
+## Combine taxa (multiple sizes, standardized unknowns)
+```{r}
+df_data <- combine_taxons(df_data, key_cols = c('Date', 'Time', 'Station', 'SampleDepth'))
+combined_taxa <- attr(df_data, 'log')$combined_taxa
+write_log_file(combined_taxa, 'Groups/DWR-NDFS/02 Processed Data/QC files/tables/NDFS_combined_taxa.csv')
+
+print(combined_taxa)
+```
+
+# Export
+
+## Add sample method
+```{r}
+df_data$SampleMethod <- 'dip pole'
+```
+
+## Add dilution QC code
+```{r}
+df_data <- add_dilution_qc(df_data)
+```
+
+## Subset data
+```{r}
+keep_cols <- c('Date', 'Time', 'Station', 'Latitude', 'Longitude', 'SampleMethod', 'SampleDepth', 'OrigTaxon', 'Taxon', 'Kingdom', 'Phylum', 'Class', 'AlgalGroup', 'Genus', 'Species', 'Lab', 'Units_per_mL', 'Cells_per_mL', 'Biovolume_per_mL', 'QualityCheck', 'Debris') 
+
+df_data <- df_data %>%
+  select(all_of(keep_cols))
+```
 
 ```{r}
-# df_joined <- do.call('rbind', list(df_joined_one, df_joined_two, df_joined_three, df_joined_four))
-
-df_joined <- bind_rows(df_joined_one, df_joined_two, df_joined_three, df_joined_four)
-
-write_csv(df_joined[df_joined$Station == 'SHER',], 'programs/DWR-NDFS/data/NDFS-SHER.csv')
-
-write_csv(df_joined, 'programs/DWR-NDFS/data/NDFS_Phyto_Data.csv')
+write_csv(df_data, abs_pesp_path('Groups/DWR-NDFS/02 Processed Data/NDFS_draft.csv'))
 ```

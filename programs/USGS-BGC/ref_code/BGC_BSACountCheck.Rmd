@@ -1,0 +1,241 @@
+# Check for BSA Issue (BGC)
+
+**Purpose:** Code to check if BGC has the BSA issue
+
+**Author:** Perry ([sarah.perry\@water.ca.gov](mailto:sarah.perry@water.ca.gov){.email})
+
+```{r}
+library(tidyverse)
+library(vegan)
+library(lubridate)
+source('admin/global_functions/global_funcs.R')
+source('admin/global_functions/check_funcs.R')
+```
+
+```{r}
+df_phyto <- read_quiet_csv(abs_pesp_path('Groups/USGS-BGC/02 Processed Data/BGC_draft.csv')) %>%
+  mutate(Year = year(Date)) %>%
+  mutate(StationYear = paste(Year, Station, sep = ' '))
+
+# create NMDS
+df_nmds1 <- create_nmds(df_phyto,
+                       group_var = 'Year',
+                       nmds_var = 'Cells_per_mL',
+                       taxa_var = 'AlgalGroup')
+
+# print dataframe
+df_nmds1[[1]]
+
+# print graph
+df_nmds1[[2]]
+
+ggsave(
+  filename = abs_pesp_path('Groups/USGS-BGC/02 Processed Data/QC files/graphs/BGC_NMDS_CellspermL_Year.jpg'),
+  plot = df_nmds1[[2]],
+  width = 8,
+  height = 6
+)
+
+unique(df_phyto$Year)
+```
+
+```{r}
+# create NMDS
+df_nmds2 <- create_nmds(df_phyto,
+                        group_var = 'Date',
+                        nmds_var = 'Cells_per_mL',
+                        factor_var = 'Year')
+
+# print dataframe
+df_nmds2[[1]]
+
+# print graph
+df_nmds2[[2]]
+
+ggsave(
+  filename = abs_pesp_path('Groups/USGS-BGC/02 Processed Data/QC files/graphs/BGC_NMDS_CellspermL_Date.jpg'),
+  plot = df_nmds2[[2]],
+  width = 8,
+  height = 6
+)
+```
+Data looks odd.
+
+Methods?
+
+```{r}
+df_phyto %>%
+  count(Year, SampleMethod) %>%
+  arrange(Year, SampleMethod) %>%
+  group_by(Year) %>%
+  summarise(SampleMethods = paste0('  • ', SampleMethod, ' (', n, ')', collapse = '\n')) %>%
+  mutate(Summary = paste0('Year ', Year, ':\n', SampleMethods)) %>%
+  pull(Summary) %>%
+  cat(sep = '\n\n')
+```
+
+No.
+
+Sites?
+```{r}
+df_phyto %>%
+  count(Year, Station) %>%
+  arrange(Year, Station) %>%
+  group_by(Year) %>%
+  summarise(Stations = paste0('  • ', Station, ' (', n, ')', collapse = '\n')) %>%
+  mutate(Summary = paste0('Year ', Year, ':\n', Stations)) %>%
+  pull(Summary) %>%
+  cat(sep = '\n\n')
+```
+```{r}
+library(ggrepel)
+library(sf)
+
+base_map <- map_data('state') %>%
+  filter(region == 'california')
+
+df_phyto %>%
+  group_by(Station, Longitude, Latitude) %>%
+  ggplot(aes(x = Longitude, y = Latitude)) +
+  geom_polygon(data = base_map, aes(x = long, y = lat, group = group),
+               fill = 'gray90', color = 'gray50', linewidth = 0.2, inherit.aes = FALSE) +
+  geom_point(color = 'blue', size = 1) +
+  # geom_text_repel(aes(label = Station), size = 3, max.overlaps = 10) +
+  coord_sf(xlim = c(-122.7, -121.2), ylim = c(37.35, 38.65)) +
+  facet_wrap(~ Year) +
+  labs(title = 'Station Locations by Year',
+       x = 'Longitude',
+       y = 'Latitude') +
+  theme_minimal()
+```
+
+```{r}
+# Find all Taxa present in 2016 or 2017
+valid_taxa <- df_phyto %>%
+  filter(Year %in% c(2016, 2017,2018)) %>%
+  pull(Station) %>%
+  unique()
+
+# Filter the main dataframe
+df_phyto_filtered <- df_phyto %>%
+  filter(Year > 2018 & Station %in% valid_taxa | Year <= 2018)
+```
+
+```{r}
+# create NMDS
+df_nmds3 <- create_nmds(df_phyto_filtered,
+                        group_var = 'Date',
+                        nmds_var = 'Cells_per_mL',
+                        factor_var = 'Year')
+
+# print dataframe
+df_nmds3[[1]]
+
+# print graph
+df_nmds3[[2]]
+
+# ggsave(
+#   filename = abs_pesp_path('Groups/USGS-BGC/02 Processed Data/QC files/graphs/BGC_NMDS_CellspermL_Date.jpg'),
+#   plot = df_nmds2[[2]],
+#   width = 8,
+#   height = 6
+# )
+```
+
+```{r}
+# Find all Taxa present in 2016 or 2017
+valid_taxa <- df_phyto %>%
+  filter(Year %in% c(2016, 2017,2018)) %>%
+  pull(Taxon) %>%
+  unique()
+
+# Find all Stations present in 2016 or 2017
+valid_stations <- df_phyto %>%
+  filter(Year %in% c(2016, 2017,2018)) %>%
+  pull(Station) %>%
+  unique()
+
+# Filter the main dataframe
+df_phyto_filtered <- df_phyto %>%
+  filter(
+    (Year > 2018 & Taxon %in% valid_taxa & Station %in% valid_stations) |
+    (Year <= 2018)
+  )
+```
+
+```{r}
+# create NMDS
+df_nmds4 <- create_nmds(df_phyto_filtered,
+                        group_var = 'Date',
+                        nmds_var = 'Cells_per_mL',
+                        factor_var = 'Year')
+
+# print dataframe
+df_nmds4[[1]]
+
+# print graph
+df_nmds4[[2]]
+
+# ggsave(
+#   filename = abs_pesp_path('Groups/USGS-BGC/02 Processed Data/QC files/graphs/BGC_NMDS_CellspermL_Date.jpg'),
+#   plot = df_nmds2[[2]],
+#   width = 8,
+#   height = 6
+# )
+```
+```{r}
+df_phyto_group <- df_phyto %>%
+  mutate(
+    YearGroup = case_when(
+      Year %in% c(2016, 2017,2018) ~ '2016-2018',
+      Year >= 2019 ~ '2019+'
+    )
+  )
+
+taxon_matrix <- df_phyto_group %>%
+  group_by(YearGroup) %>%
+  mutate(DistYears = n_distinct(Year)) %>%
+  ungroup() %>%
+  group_by(YearGroup, AlgalGroup) %>%
+  summarise(
+    AverageAbundance = sum(Cells_per_mL, na.rm = TRUE)/DistYears,
+  )  %>%
+  select(YearGroup, AlgalGroup, AverageAbundance) %>%
+  pivot_wider(names_from = AlgalGroup, values_from = AverageAbundance, values_fill = 0) %>%
+  column_to_rownames('YearGroup')
+
+simper_results <- simper(taxon_matrix, group = rownames(taxon_matrix))
+
+# Extract the results into a clean dataframe
+simper_df <- bind_rows(
+  lapply(simper_results, function(x) {
+    as.data.frame(x) %>%
+      rownames_to_column('AlgalGroup') %>%
+      mutate(Contrast = attr(x, 'contrast'))
+  })
+)
+
+# Remove zero-only taxa
+simper_filtered <- simper_df %>%
+  filter(!(ava == 0 & avb == 0)) %>%
+  arrange(desc(cusum))
+
+# Print the cleaned results
+simper_filtered
+```
+```{r}
+top_contributors <- simper_filtered %>%
+  group_by(species) %>%
+  slice_max(order_by = cusum, n = 20)
+
+top_contributors %>%
+  mutate(Taxon = reorder(Taxon, cusum)) %>%
+  ggplot(aes(x = Taxon, y = cusum, fill = species)) +
+  geom_col() +
+  coord_flip() +
+  labs(title = 'Top Taxa Contributing to NMDS Differences',
+       x = 'Taxon',
+       y = 'Cumulative Contribution (%)') +
+  theme_minimal()
+```
+
