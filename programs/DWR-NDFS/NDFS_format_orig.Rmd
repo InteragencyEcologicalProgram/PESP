@@ -545,7 +545,7 @@ print(combined_taxa)
 
 ## Add sample method
 ```{r}
-df_data$SampleMethod <- 'dip pole'
+df_data <- add_meta_col(df_data, 'North Delta Food Subsidy Study', 'SampleMethod')
 ```
 
 ## Add dilution QC code

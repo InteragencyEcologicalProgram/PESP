@@ -1062,7 +1062,9 @@ print(combined_taxa)</code></pre>
 <h1>Export</h1>
 <div id="add-sample-method" class="section level2">
 <h2>Add sample method</h2>
-<pre class="r"><code>df_data$SampleMethod &lt;- &#39;dip pole&#39;</code></pre>
+<pre class="r"><code>df_data &lt;- add_meta_col(df_data, &#39;North Delta Food Subsidy Study&#39;, &#39;SampleMethod&#39;)</code></pre>
+<pre><code>## added SampleMethod:
+##   • 10/30/2013 - 08/11/2020: dip pole</code></pre>
 </div>
 <div id="add-dilution-qc-code" class="section level2">
 <h2>Add dilution QC code</h2>
