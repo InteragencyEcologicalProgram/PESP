@@ -1,6 +1,6 @@
-# Check AEU data
+# Check NDFS data
 
-**Purpose:** Code to check AEU data for errors
+**Purpose:** Code to check NDFS data for errors
 
 **Author:** Perry ([sarah.perry\@water.ca.gov](mailto:sarah.perry@water.ca.gov){.email})
 
