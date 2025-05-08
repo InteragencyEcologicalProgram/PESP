@@ -109,24 +109,24 @@ read_meta_file <- function(program_name){
 #' @importFrom readr read_csv
 #' @export
 get_edi_file = function(pkg_id, fnames){
-  # get revision
+  # Get revision
   revision_url = glue::glue('https://pasta.lternet.edu/package/eml/edi/{pkg_id}')
   all_revisions = readLines(revision_url, warn = FALSE) 
   latest_revision = tail(all_revisions, 1)
   
-  # get entities 
+  # Get entities 
   pkg_url = glue::glue('https://pasta.lternet.edu/package/data/eml/edi/{pkg_id}/{latest_revision}')
   all_entities = readLines(pkg_url, warn = FALSE)
   name_urls = glue::glue('https://pasta.lternet.edu/package/name/eml/edi/{pkg_id}/{latest_revision}/{all_entities}')
   names(all_entities) = purrr::map_chr(name_urls, readLines, warn = FALSE)
   
-  # select entities that match fnames
+  # Select entities that match fnames
   fname_regex = stringr::str_c(glue::glue('({fnames})'), collapse = '|')
   included_entities = all_entities[stringr::str_detect(names(all_entities), fname_regex)]
   if(length(included_entities) != length(fnames)){
     stop('Not all specified filenames are included in package')
   }
-  # download data
+  # Download data
   dfs = purrr::map(glue::glue('https://pasta.lternet.edu/package/data/eml/edi/{pkg_id}/{latest_revision}/{included_entities}'),
                    readr::read_csv, guess_max = 1000000, show_col_types = FALSE)
   names(dfs) = names(included_entities)
@@ -208,7 +208,7 @@ add_qc_col <- function(df, comment_col = 'Comments', key_cols = c('Date', 'Stati
   comment_col <- rlang::ensym(comment_col)
   group_cols <- c(key_cols, taxa_col)
   
-  # flag known QC issues from comment text
+  # Flag known QC issues from comment text
   df <- df %>%
     mutate(
       QC_1 = case_when(grepl('\\bdelete\\b', !!comment_col, ignore.case = TRUE) ~ 'BadData'),
@@ -225,7 +225,7 @@ add_qc_col <- function(df, comment_col = 'Comments', key_cols = c('Date', 'Stati
       QC_9 = case_when(grepl('many broken diatoms|broken diatoms|BrokenDiatoms', !!comment_col, ignore.case = TRUE) ~ 'BrokenDiatoms')
     )
   
-  # handle combined case of both Over5 and Under5 being flagged
+  # Handle combined case of both Over5 and Under5 being flagged
   df <- df %>%
     mutate(
       both_4_5 = !is.na(QC_4) & !is.na(QC_5),
@@ -235,7 +235,7 @@ add_qc_col <- function(df, comment_col = 'Comments', key_cols = c('Date', 'Stati
     ) %>%
     select(-both_4_5)
   
-  # identify taxa with multiple entries per group that differ in any field
+  # Identify taxa with multiple entries per group that differ in any field
   df <- df %>%
     group_by(across(all_of(group_cols))) %>%
     mutate(
@@ -250,7 +250,7 @@ add_qc_col <- function(df, comment_col = 'Comments', key_cols = c('Date', 'Stati
     ) %>%
     ungroup()
   
-  # collapse all QC columns into a single string, default to 'NoCode' if all are NA
+  # Collapse all QC columns into a single string, default to 'NoCode' if all are NA
   df <- df %>%
     unite(QualityCheck, starts_with('QC'), remove = TRUE, na.rm = TRUE, sep = ' ') %>%
     mutate(QualityCheck = case_when(QualityCheck == '' ~ 'NoCode',
@@ -314,66 +314,64 @@ add_debris_col <- function(df, comment_col = 'Comments'){
 #' @importFrom dplyr pull
 #' @export
 add_meta_col <- function(df, program, col_name){
-  # read in metadata sheet
+  # Read in metadata sheet
   df_meta <- read_meta_file(program)
   col_str <- rlang::as_name(rlang::enquo(col_name))
   
-  # check if col_name exists in df_meta
+  # Check if col_name exists in df_meta
   if (!col_str %in% colnames(df_meta)) {
     stop(paste('Column', col_str, 'not found in metadata file for program', program))
   }
   
-  # convert date columns to Date type for comparison
+  # Convert date columns to Date type for comparison
   df_meta <- df_meta %>%
     mutate(
       `Starting Date` = as.Date(`Starting Date`, format = '%m/%d/%Y'),
       `Ending Date` = as.Date(`Ending Date`, format = '%m/%d/%Y')
     )
   
-  # get the actual date range in df
+  # Get the actual date range in df
   df_min_date <- min(df$Date, na.rm = TRUE)
   df_max_date <- max(df$Date, na.rm = TRUE)
   
-  # filter metadata to only include relevant date ranges
+  # Filter metadata to only include relevant date ranges
   df_meta <- df_meta %>%
     filter(
       `Ending Date` >= df_min_date | is.na(`Ending Date`), # keep rows that could overlap
       `Starting Date` <= df_max_date
     )
   
-  # adjust the first start date and last end date
+  # Adjust the first start date and last end date
   first_start_index <- which.min(df_meta$`Starting Date`)
   df_meta$`Starting Date`[first_start_index] <- df_min_date
   
-  # find the last row within the df date range
+  # Find the last row within the df date range
   last_valid_index <- which.max(ifelse(is.na(df_meta$`Ending Date`), df_max_date, df_meta$`Ending Date`))
   df_meta$`Ending Date`[last_valid_index] <- df_max_date
   
-  # initialize new column
+  # Initialize new column
   df[[col_str]] <- NA
   
-  # collect messages
+  # Collect messages
   messages <- c(paste0('added ', col_str, ':'))
   
-  # apply metadata values based on date ranges
+  # Apply metadata values based on date ranges
   for (i in seq_len(nrow(df_meta))) {
     meta_row <- df_meta[i, ]
     start_date <- meta_row$`Starting Date`
     end_date <- meta_row$`Ending Date`
     value <- meta_row[[col_str]]
     
-    # apply to matching rows in df
+    # Apply to matching rows in df
     matching_rows <- df$Date >= start_date & df$Date <= end_date
     df[[col_str]][matching_rows] <- value
     
-    # format date range for message
+    # Format date range for message
     messages <- c(messages, paste0('  • ', format(start_date, '%m/%d/%Y'), ' - ', format(end_date, '%m/%d/%Y'), ': ', value))
   }
   
-  # print the combined message
   message(paste(messages, collapse = '\n'))
-  
-  # return the modified dataframe
+
   return(df)
 }
 
@@ -400,7 +398,7 @@ add_meta_col <- function(df, program, col_name){
 clean_unknowns <- function(df, std_sp = TRUE) {
   original_taxon <- df$Taxon
   
-  # standardize unknown/unidentified/undetermined to "Unknown"
+  # Standardize unknown/unidentified/undetermined to "Unknown"
   unknown_syns <- 'unknown|unidentified|undetermined'
   df$Taxon <- dplyr::case_when(
     grepl(unknown_syns, df$Taxon, ignore.case = TRUE) ~ 
@@ -408,17 +406,17 @@ clean_unknowns <- function(df, std_sp = TRUE) {
     TRUE ~ df$Taxon
   )
   
-  # simplify sp. X -> sp. and spp. X -> spp.
+  # Simplify sp. X -> sp. and spp. X -> spp.
   df$Taxon <- df$Taxon %>%
     stringr::str_replace('sp\\..*', 'sp.') %>%
     stringr::str_replace('spp\\..*', 'spp.')
   
-  # optionally standardize spp. -> sp.
+  # Optionally standardize spp. -> sp.
   if (std_sp) {
     df$Taxon <- stringr::str_replace_all(df$Taxon, 'spp\\.', 'sp.')
   }
   
-  # create log of unique corrections only
+  # Create log of unique corrections only
   log_df <- tibble::tibble(
     OrigTaxon = original_taxon[original_taxon != df$Taxon],
     UpdatedTaxon = df$Taxon[original_taxon != df$Taxon]
@@ -456,7 +454,7 @@ correct_taxon_typos <- function(df) {
   # df$Taxon <- iconv(df$Taxon, from = 'ISO-8859-1', to = 'UTF-8')
   # df$Taxon <- unname(df$Taxon)
   
-  # helper to fix malformed 'cf' and 'sp'
+  # Helper to fix malformed 'cf' and 'sp'
   standardize_cf_sp <- function(taxon) {
     taxon %>%
       str_replace_all('\\bcf[.,]?\\s+', 'cf. ') %>%
@@ -465,19 +463,19 @@ correct_taxon_typos <- function(df) {
       str_trim()
   }
   
-  # store original for logging
+  # Store original for logging
   df <- df %>%
     mutate(.orig_taxon = Taxon)
   
-  # step 1: normalize to ASCII
+  # Step 1: Normalize to ASCII
   df <- df %>%
     mutate(Taxon = stringi::stri_trans_general(Taxon, 'Latin-ASCII'))
   
-  # step 2: standardize cf/sp
+  # Step 2: Standardize cf/sp
   df <- df %>%
     mutate(Taxon = standardize_cf_sp(Taxon))
   
-  # step 3: correct known typos
+  # Step 3: Correct known typos
   correct_taxon <- function(taxon) {
     words <- str_split(taxon, '\\s+')[[1]]
     cf_pos <- which(words == 'cf.')
@@ -508,7 +506,7 @@ correct_taxon_typos <- function(df) {
   df <- df %>%
     mutate(Taxon = map_chr(Taxon, correct_taxon))
   
-  # log corrections
+  # Log corrections
   typo_log <- df %>%
     filter(str_squish(.orig_taxon) != str_squish(Taxon)) %>%
     distinct(OrigTaxon = .orig_taxon, UpdatedTaxon = Taxon) %>%
@@ -557,7 +555,7 @@ update_synonyms <- function(df) {
   
   synonym_map <- setNames(as.character(df_syn$CurrentTaxon), df_syn$PureTaxon)
   
-  # safely traverse the synonym chain
+  # Go down the synonym chain
   newest_taxon <- function(taxon) {
     seen <- character()
     while (!is.na(taxon) && taxon %in% names(synonym_map)) {
@@ -569,7 +567,7 @@ update_synonyms <- function(df) {
     return(taxon)
   }
   
-  # resolve cf. and standard names
+  # Resolve cf. and standard names
   resolve_synonym <- function(taxon) {
     cf_pattern <- '^([\\w-]+)\\s+cf\\.\\s+([\\w-]+)$'
     
@@ -841,15 +839,15 @@ combine_taxons <- function(df, key_cols = c('Date', 'Station'), measurement_cols
   return(df)
 }
 
-# write log file
+# Write log file
 write_log_file <- function(df_log, fp) {
   if (!(nrow(df_log) == 0 && ncol(df_log) == 1)) {
     write_csv(df_log, abs_pesp_path(fp))
   }
 }
 
-# add latlon
-add_latlon <- function(df, fp_stations, log_fp = NULL){
+# Add latlon
+add_latlon <- function(df, fp_stations){
   # Read station coordinates
   df_latlon <- read_quiet_csv(abs_pesp_path(fp_stations)) %>%
     select(c('Station', 'Latitude', 'Longitude'))
@@ -860,8 +858,7 @@ add_latlon <- function(df, fp_stations, log_fp = NULL){
   # Add latitude and longitude
   df <- df %>%
     left_join(df_latlon, by = 'Station')
-  
-  # Print message for added lat/lon
+
   message('Added in latitude and longitude.')
   
   # Log missing stations if any
@@ -869,11 +866,6 @@ add_latlon <- function(df, fp_stations, log_fp = NULL){
     message('Missing latitude/longitude for ', length(missing_stations), ' station(s): ', paste(missing_stations, collapse = ', '))
     df_log <- tibble::tibble(MissingStation = missing_stations) %>% distinct()
     attr(df, 'log') <- list(missing_stations = df_log)
-    
-    # Optionally write the log to a file
-    if (!is.null(log_fp)) {
-      write_log_file(df_log, log_fp)
-    }
   }
   
   return(df)
@@ -881,11 +873,11 @@ add_latlon <- function(df, fp_stations, log_fp = NULL){
 
 # rename cols
 rename_cols <- function(df, rename_map) {
-  # rename columns based on the map
+  # Rename columns based on the map
   df <- df %>%
     dplyr::rename(!!!rename_map)
   
-  # generate message with all rename pairs as bullet points
+  # Generate message with all rename pairs as bullet points
   rename_message <- paste(
     'Renamed columns:',
     paste0('  • ', names(rename_map), ' → ', rename_map, collapse = '\n'),
@@ -897,7 +889,7 @@ rename_cols <- function(df, rename_map) {
   return(df)
 }
 
-# remove old taxa info
+# Remove old taxa info
 remove_taxa_info <- function(df) {
   # Define the taxa columns to remove (case-insensitive)
   taxa_cols <- c('Kingdom', 'Phylum', 'Class', 'AlgalGroup', 'Genus', 'Species')
