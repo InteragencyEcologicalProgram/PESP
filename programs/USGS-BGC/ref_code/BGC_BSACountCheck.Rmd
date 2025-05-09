@@ -35,8 +35,6 @@ ggsave(
   width = 8,
   height = 6
 )
-
-unique(df_phyto$Year)
 ```
 
 ```{r}
@@ -44,6 +42,7 @@ unique(df_phyto$Year)
 df_nmds2 <- create_nmds(df_phyto,
                         group_var = 'Date',
                         nmds_var = 'Cells_per_mL',
+                        taxa_var = 'AlgalGroup',
                         factor_var = 'Year')
 
 # print dataframe
@@ -70,20 +69,6 @@ df_phyto %>%
   group_by(Year) %>%
   summarise(SampleMethods = paste0('  • ', SampleMethod, ' (', n, ')', collapse = '\n')) %>%
   mutate(Summary = paste0('Year ', Year, ':\n', SampleMethods)) %>%
-  pull(Summary) %>%
-  cat(sep = '\n\n')
-```
-
-No.
-
-Sites?
-```{r}
-df_phyto %>%
-  count(Year, Station) %>%
-  arrange(Year, Station) %>%
-  group_by(Year) %>%
-  summarise(Stations = paste0('  • ', Station, ' (', n, ')', collapse = '\n')) %>%
-  mutate(Summary = paste0('Year ', Year, ':\n', Stations)) %>%
   pull(Summary) %>%
   cat(sep = '\n\n')
 ```
@@ -161,6 +146,12 @@ df_phyto_filtered <- df_phyto %>%
     (Year > 2018 & Taxon %in% valid_taxa & Station %in% valid_stations) |
     (Year <= 2018)
   )
+
+df_phyto_filtered_stationonly <- df_phyto %>%
+  filter(
+    (Year > 2018 & Station %in% valid_stations) |
+    (Year <= 2018)
+  )
 ```
 
 ```{r}
@@ -168,6 +159,7 @@ df_phyto_filtered <- df_phyto %>%
 df_nmds4 <- create_nmds(df_phyto_filtered,
                         group_var = 'Date',
                         nmds_var = 'Cells_per_mL',
+                        taxa_var = 'AlgalGroup',
                         factor_var = 'Year')
 
 # print dataframe
@@ -184,58 +176,289 @@ df_nmds4[[2]]
 # )
 ```
 ```{r}
-df_phyto_group <- df_phyto %>%
-  mutate(
-    YearGroup = case_when(
-      Year %in% c(2016, 2017,2018) ~ '2016-2018',
-      Year >= 2019 ~ '2019+'
-    )
-  )
+create_nmds_envfit <- function(df, group_var, nmds_var, taxa_var = 'Taxon', algal_group_var = 'AlgalGroup', factor_var = NULL, show_legend = TRUE, color_palette = NULL, p.max = 0.05, k = 2) {
+  set.seed(42)
+      
+  # Capture symbols
+  group_var <- rlang::ensym(group_var)
+  nmds_var <- rlang::ensym(nmds_var)
+  taxa_var <- rlang::ensym(taxa_var)
+  algal_group_var <- rlang::ensym(algal_group_var)
+  
+  if (!is.null(factor_var)) {
+    factor_var <- rlang::ensym(factor_var)
+  }
+  
+  # Prepare the community matrix (Date x Taxon)
+  df_cells <- df %>%
+    select(!!group_var, !!factor_var, !!taxa_var, !!nmds_var) %>%
+    group_by(!!group_var, !!factor_var, !!taxa_var) %>%
+    summarise(
+      Abundance = mean(.data[[rlang::as_string(nmds_var)]], na.rm = TRUE),
+      .groups = 'drop'
+    ) %>%
+    pivot_wider(names_from = !!taxa_var, values_from = 'Abundance', values_fill = 0)
+  
+  df_cells <<- df %>%
+    select(!!group_var, !!factor_var, !!taxa_var, !!nmds_var) %>%
+    group_by(!!group_var, !!factor_var, !!taxa_var) %>%
+    summarise(
+      Abundance = mean(.data[[rlang::as_string(nmds_var)]], na.rm = TRUE),
+      .groups = 'drop'
+    ) %>%
+    pivot_wider(names_from = !!taxa_var, values_from = 'Abundance', values_fill = 0)
+    
+  # Extract the main community matrix
+  m_com <- df_cells %>%
+    select(-!!group_var, -!!factor_var) %>%
+    as.matrix()
+  
+  # Run NMDS
+  nmds <- NULL
+  invisible(capture.output({
+    nmds <- metaMDS(m_com, distance = 'bray', k = k)
+  }))
+  
+  # Extract NMDS scores and preserve factor levels
+  df_nmds <- as.data.frame(scores(nmds)$sites) %>%
+    mutate(
+      Date = df_cells[[rlang::as_string(group_var)]],
+      Year = df_cells[[rlang::as_string(factor_var)]]
+    ) %>%
+    mutate(Year = as.factor(Year))
 
-taxon_matrix <- df_phyto_group %>%
-  group_by(YearGroup) %>%
-  mutate(DistYears = n_distinct(Year)) %>%
-  ungroup() %>%
-  group_by(YearGroup, AlgalGroup) %>%
-  summarise(
-    AverageAbundance = sum(Cells_per_mL, na.rm = TRUE)/DistYears,
-  )  %>%
-  select(YearGroup, AlgalGroup, AverageAbundance) %>%
-  pivot_wider(names_from = AlgalGroup, values_from = AverageAbundance, values_fill = 0) %>%
-  column_to_rownames('YearGroup')
+  # Prepare AlgalGroup matrix (Date x AlgalGroup)
+  ag_matrix <- df %>%
+    group_by(!!group_var, !!algal_group_var) %>%
+    summarise(Abundance = sum(!!nmds_var, na.rm = TRUE), .groups = 'drop') %>%
+    pivot_wider(names_from = !!algal_group_var, values_from = 'Abundance', values_fill = 0) %>%
+    column_to_rownames(var = rlang::as_string(group_var)) %>%
+    as.matrix()
+  
+  # Ensure row counts match
+  if (nrow(df_nmds) != nrow(ag_matrix)) {
+    stop("Mismatch between NMDS scores and AlgalGroup data. Check your grouping variables.")
+  }
+  
+  # Run envfit
+  envfit_result <- envfit(nmds, ag_matrix, permutations = 999)
+  
+  # Extract significant vectors
+  significant_vectors <- as.data.frame(envfit_result$vectors$arrows) %>%
+    rownames_to_column('AlgalGroup') %>%
+    mutate(R2 = envfit_result$vectors$r, p_value = envfit_result$vectors$pvals) %>%
+    filter(p_value <= p.max)
 
-simper_results <- simper(taxon_matrix, group = rownames(taxon_matrix))
+  # Plot NMDS
+  plt_nmds <- ggplot(df_nmds, aes(x = NMDS1, y = NMDS2)) + 
+    geom_point(aes(fill = !!factor_var), size = 4, shape = 21, color = 'black') +
+    labs(title = paste('NMDS of', as_label(nmds_var), 'by', as_label(group_var))) +
+    theme_bw()
+  
+  if (!is.null(color_palette)) {
+    plt_nmds <- plt_nmds + scale_color_manual(values = color_palette)
+  }
+  
+  if (!show_legend) {
+    plt_nmds <- plt_nmds + theme(legend.position = 'none')
+  }
+  
+  # Add envfit vectors
+  if (nrow(significant_vectors) > 0) {
+    plt_nmds <- plt_nmds +
+    geom_segment(data = significant_vectors,
+                 aes(x = 0, y = 0, xend = NMDS1, yend = NMDS2),
+                 arrow = arrow(length = unit(0.3, 'cm'), type = 'closed'),
+                 color = 'darkgray', linewidth = 1) +
+      geom_text(data = significant_vectors,
+                aes(x = NMDS1, y = NMDS2, label = AlgalGroup), size = 5, nudge_y = 0.05, color = 'black')
+  }
+    
+  return(list(
+    df_nmds = df_nmds,
+    plot = plt_nmds,
+    raw_nmds = nmds,
+    envfit = envfit_result
+  ))
+}
 
-# Extract the results into a clean dataframe
-simper_df <- bind_rows(
-  lapply(simper_results, function(x) {
-    as.data.frame(x) %>%
-      rownames_to_column('AlgalGroup') %>%
-      mutate(Contrast = attr(x, 'contrast'))
-  })
+df_nmds_envfit <- create_nmds_envfit(
+  df = df_phyto_filtered,
+  group_var = 'Date',
+  nmds_var = 'Biovolume_per_mL',
+  taxa_var = 'Taxon',
+  algal_group_var = 'AlgalGroup',
+  factor_var = 'Year',
+  p.max = 0.05,
+  k = 3
 )
 
-# Remove zero-only taxa
-simper_filtered <- simper_df %>%
-  filter(!(ava == 0 & avb == 0)) %>%
-  arrange(desc(cusum))
+# Print the NMDS plot
+print(df_nmds_envfit$plot)
 
-# Print the cleaned results
-simper_filtered
+```
+
+```{r}
+df_nmds_envfit <- create_nmds_envfit(
+  df = df_phyto_filtered_stationonly,
+  group_var = 'Date',
+  nmds_var = 'Cells_per_mL',
+  taxa_var = 'AlgalGroup',
+  algal_group_var = 'AlgalGroup',
+  factor_var = 'Year',
+  p.max = 0.05,
+  k = 2
+)
+
+# Print the NMDS plot
+print(df_nmds_envfit$plot)
+```
+
+```{r}
+df_nmds_envfit <- create_nmds_envfit(
+  df = df_phyto_filtered,
+  group_var = 'Date',
+  nmds_var = 'Cells_per_mL',
+  taxa_var = 'AlgalGroup',
+  algal_group_var = 'AlgalGroup',
+  factor_var = 'Year',
+  p.max = 0.01,
+  k = 3
+)
+
+# Print the NMDS plot
+print(df_nmds_envfit$plot)
+```
+
+```{r}
+# Extract NMDS object
+nmds_obj <- df_nmds_envfit$raw_nmds
+
+# Extract diagnostics
+nmds_stress <- nmds_obj$stress
+nmds_stress
+
+Stress = nmds_stress
+
+stressplot(nmds_obj)
+
+# Get Shepard correlation
+identical(as.matrix(nmds_obj$diss), as.matrix(vegdist(m_com, method = 'bray')))
+```
+
+```{r}
+# Extract NMDS object
+nmds_obj <- df_nmds_envfit$raw_nmds
+
+# Extract diagnostics
+nmds_stress <- nmds_obj$stress
+nmds_stress
+
+stressplot(nmds_obj)
+```
+
+```{r}
+library(goeveg)
+m_com <- nmds_obj$call$comm
+dimcheck_out <- dimcheckMDS(df_cells[2:length(df_cells)], distance = 'bray', k = 6)
 ```
 ```{r}
-top_contributors <- simper_filtered %>%
-  group_by(species) %>%
-  slice_max(order_by = cusum, n = 20)
+print(dimcheck_out)
+```
 
-top_contributors %>%
-  mutate(Taxon = reorder(Taxon, cusum)) %>%
-  ggplot(aes(x = Taxon, y = cusum, fill = species)) +
-  geom_col() +
-  coord_flip() +
-  labs(title = 'Top Taxa Contributing to NMDS Differences',
-       x = 'Taxon',
-       y = 'Cumulative Contribution (%)') +
-  theme_minimal()
+
+```{r}
+# Step 1: Define the groups for the three time periods
+df_grouped <- df_phyto_filtered %>%
+  mutate(Group = case_when(
+    Year >= 2016 & Year <= 2018 ~ '2016-2018',
+    Year >= 2019 & Year <= 2020 ~ '2019-2020',
+    Year >= 2021 & Year <= 2022 ~ '2021-2022',
+    TRUE ~ NA_character_
+  ))
+
+# Step 2: Normalize the data by the number of years in each group
+df_normalized <- df_grouped %>%
+  group_by(Group, Taxon) %>%
+  summarise(
+    Total_Abundance = sum(Cells_per_mL, na.rm = TRUE),
+    .groups = 'drop'
+  ) %>%
+  # Calculate Years_in_group based only on the Group
+  left_join(
+    df_grouped %>%
+      group_by(Group) %>%
+      summarise(Years_in_group = n_distinct(Year), .groups = 'drop'),
+    by = "Group"
+  ) %>%
+  mutate(Normalized_Abundance = Total_Abundance / Years_in_group)
+
+# Step 3: Calculate the difference in abundance between the three groups
+df_comparison <- df_normalized %>%
+  spread(Group, Normalized_Abundance) %>%
+  replace_na(list(`2016-2018` = 0, `2019-2020` = 0, `2021-2022` = 0)) %>%
+  mutate(
+    Abundance_Change_1 = `2019-2020` - `2016-2018`,  # Difference between 2019-2020 and 2016-2018
+    Abundance_Change_2 = `2021-2022` - `2019-2020`,  # Difference between 2021-2022 and 2019-2020
+    Relative_Change_1 = Abundance_Change_1 / `2016-2018`,  # Relative change between 2019-2020 and 2016-2018
+    Relative_Change_2 = Abundance_Change_2 / `2019-2020`  # Relative change between 2021-2022 and 2019-2020
+  )
+
+# Step 4: Rank taxa by impact considering both changes equally
+top_20_taxa <- df_comparison %>%
+  # Create a combined score that prioritizes both changes equally
+  mutate(
+    Combined_Change = abs(Abundance_Change_1) + abs(Abundance_Change_2)  # Combine the absolute changes for both periods
+  ) %>%
+  arrange(desc(Combined_Change)) %>%  # Rank by the combined change score
+  top_n(5, Combined_Change) %>%  # Select the top 20 taxa based on the combined change
+  select(Taxon, `2016-2018`, `2019-2020`, `2021-2022`, Abundance_Change_1, Abundance_Change_2, Relative_Change_1, Relative_Change_2)
+
+
+# Display the top 20 taxa
+top_20_taxa
+
+# Display the result
+top_20_taxa
+```
+
+```{r}
+# Step 1: Get the top 20 taxa from the 'top_20_taxa' dataframe
+top_20_taxa <- unique(top_20_taxa$Taxon)
+
+# Step 2: Filter df_data to include only the taxa in top_20_taxa
+df_filtered <- df_phyto_filtered %>%
+  filter(Taxon %in% top_20_taxa)
+
+df_taxon_count <- df_filtered %>%
+  group_by(Year, AlgalGroup) %>%
+  summarise(Unique_Taxon_Count = n_distinct(Taxon), .groups = 'drop')
+
+# Step 2: Pivot the data to have Years as columns
+df_taxon_count_wide <- df_taxon_count %>%
+  pivot_wider(names_from = Year, values_from = Unique_Taxon_Count, values_fill = list(Unique_Taxon_Count = 0))
+
+# Display the result
+df_taxon_count_wide
+
+df_filtered <- df_filtered %>%
+  mutate(Taxon_AlgalGroup = paste(Taxon, "\n", AlgalGroup))
+
+# Step 3: Summarize the abundance by Taxon and Year
+df_summary <- df_filtered %>%
+  group_by(Year, Taxon_AlgalGroup) %>%
+  summarise(Sum_Abundance = sum(Cells_per_mL, na.rm = TRUE), .groups = 'drop')
+
+# Step 4: Create the bar chart
+# Create the plot with combined legend for Taxon and AlgalGroup
+ggplot(df_summary, aes(x = Year, y = Sum_Abundance, color = Taxon_AlgalGroup, group = Taxon_AlgalGroup)) +
+  geom_point(size = 3) +  # Plot points
+  geom_line() +  # Connect points with lines
+  labs(x = "Year",
+       y = "Total Abundance",
+       color = "Taxon and Algal Group") +  # Custom legend title
+  theme_minimal() +
+  facet_wrap(~ Taxon_AlgalGroup, scales = 'free_y') +
+  theme(legend.position = 'none')
 ```
 

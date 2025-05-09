@@ -476,7 +476,7 @@ df_joined <- bind_rows(df_data_one, df_data_two, df_data_three, df_data_four, df
 ```{r}
 df_data <- correct_taxon_typos(df_joined)
 corrected_typos <- attr(df_data, 'log')$taxon_corrections
-write_log_file(corrected_typos, 'Groups/DWR-NDFS/02 Processed Data/QC files/tables/NDFS_corrected_typos.csv')
+write_log_file(corrected_typos, 'Groups/DWR-NDFS/02 Processed Data/2013-2020/QC files/tables/NDFS_corrected_typos.csv')
 
 print(corrected_typos)
 ```
@@ -488,7 +488,7 @@ df_data <- add_debris_col(df_data)
 
 df_data <- extract_unstandardized_comments(df_data, 'Comments', delimiter = '. ')
 unmatched_comments <- attr(df_data, 'log')$unmatched_comments
-write_log_file(unmatched_comments, 'Groups/DWR-NDFS/02 Processed Data/QC files/tables/NDFS_leftover_comments.csv')
+write_log_file(unmatched_comments, 'Groups/DWR-NDFS/02 Processed Data/2013-2020/QC files/tables/NDFS_leftover_comments.csv')
 
 print(unmatched_comments)
 ```
@@ -497,7 +497,7 @@ print(unmatched_comments)
 ```{r}
 df_data <- clean_unknowns(df_data)
 standardized_unknowns <- attr(df_data, 'log')$clean_unknowns
-write_log_file(standardized_unknowns, 'Groups/DWR-NDFS/02 Processed Data/QC files/tables/NDFS_standardized_unknowns.csv')
+write_log_file(standardized_unknowns, 'Groups/DWR-NDFS/02 Processed Data/2013-2020/QC files/tables/NDFS_standardized_unknowns.csv')
 
 print(standardized_unknowns)
 ```
@@ -506,7 +506,7 @@ print(standardized_unknowns)
 ```{r}
 df_data <- update_synonyms(df_data)
 updated_synonyms <- attr(df_data, 'log')$synonym_updates
-write_log_file(updated_synonyms, 'Groups/DWR-NDFS/02 Processed Data/QC files/tables/NDFS_updated_synonyms.csv')
+write_log_file(updated_synonyms, 'Groups/DWR-NDFS/02 Processed Data/2013-2020/QC files/tables/NDFS_updated_synonyms.csv')
 
 print(updated_synonyms)
 ```
@@ -518,7 +518,7 @@ df_data$Taxon <- unname(df_data$Taxon)
 
 df_data <- higher_lvl_taxa(df_data)
 needs_hierarchy <- attr(df_data, 'log')$unmatched_taxa
-write_log_file(needs_hierarchy, 'Groups/DWR-NDFS/02 Processed Data/QC files/tables/NDFS_needs_hierarchy.csv')
+write_log_file(needs_hierarchy, 'Groups/DWR-NDFS/02 Processed Data/2013-2020/QC files/tables/NDFS_needs_hierarchy.csv')
 
 print(needs_hierarchy)
 ```
@@ -536,7 +536,7 @@ attr(df_data, 'log')$nondistinct_keyrows
 ```{r}
 df_data <- combine_taxons(df_data, key_cols = c('Date', 'Time', 'Station', 'SampleDepth'))
 combined_taxa <- attr(df_data, 'log')$combined_taxa
-write_log_file(combined_taxa, 'Groups/DWR-NDFS/02 Processed Data/QC files/tables/NDFS_combined_taxa.csv')
+write_log_file(combined_taxa, 'Groups/DWR-NDFS/02 Processed Data/2013-2020/QC files/tables/NDFS_combined_taxa.csv')
 
 print(combined_taxa)
 ```
@@ -561,6 +561,11 @@ df_data <- df_data %>%
   select(all_of(keep_cols))
 ```
 
+## Check NAs
 ```{r}
-write_csv(df_data, abs_pesp_path('Groups/DWR-NDFS/02 Processed Data/NDFS_draft.csv'))
+df_data <- check_nas(df_data)
+```
+
+```{r}
+write_csv(df_data, abs_pesp_path('Groups/DWR-NDFS/02 Processed Data/2013-2020/NDFS_draft_16-20.csv'))
 ```

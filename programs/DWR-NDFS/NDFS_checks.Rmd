@@ -13,7 +13,8 @@ source('admin/global_functions/check_funcs.R')
 ```
 
 ```{r}
-df_phyto <- read_quiet_csv(abs_pesp_path('Groups/DWR-NDFS/02 Processed Data/NDFS_draft.csv'))  %>%
+df_phyto <- read_quiet_csv(abs_pesp_path('Groups/DWR-NDFS/03 Final Data/NDFS_draft_all.csv'))  %>%
+  mutate(Date = mdy(Date)) %>%  # Assuming Date is in m/d/y format. Adjust if necessary.
   mutate(Year = year(Date)) %>%
   mutate(StationYear = paste(Year, Station, sep = ' '))
 
@@ -29,7 +30,7 @@ df_nmds1[[1]]
 df_nmds1[[2]]
 
 ggsave(
-  filename = abs_pesp_path('Groups/DWR-NDFS/02 Processed Data/QC files/graphs/NDFS_NMDS_CellspermL_Year.jpg'),
+  filename = abs_pesp_path('Groups/DWR-NDFS/03 Final Data/NDFS_NMDS_CellspermL_Year.jpg'),
   plot = df_nmds1[[2]],
   width = 8,
   height = 6
@@ -50,7 +51,28 @@ df_nmds2[[1]]
 df_nmds2[[2]]
 
 ggsave(
-  filename = abs_pesp_path('Groups/DWR-NDFS/02 Processed Data/QC files/graphs/NDFS_NMDS_CellspermL_Date.jpg'),
+  filename = abs_pesp_path('Groups/DWR-NDFS/03 Final Data/NDFS_NMDS_CellspermL_Date.jpg'),
+  plot = df_nmds2[[2]],
+  width = 8,
+  height = 6
+)
+```
+
+```{r}
+# create NMDS
+df_nmds3 <- create_nmds(df_phyto,
+                        group_var = 'Date',
+                        nmds_var = 'Biovolume_per_mL',
+                        factor_var = 'Year')
+
+# print dataframe
+df_nmds3[[1]]
+
+# print graph
+df_nmds3[[2]]
+
+ggsave(
+  filename = abs_pesp_path('Groups/DWR-NDFS/03 Final Data/NDFS_NMDS_BiovpermL_Date.jpg'),
   plot = df_nmds2[[2]],
   width = 8,
   height = 6

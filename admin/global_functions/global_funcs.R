@@ -193,7 +193,7 @@ from_meta <- function(df, meta_df, column) {
 #' - **TallyNotMet_Under5**: contains "CMT < 5", "CMNT < 5", or similar
 #' - **TallyNotMet**: general phrases like "did not reach", "cannot meet tally", or isolated "CMT"/"CMNT"
 #' - **Degraded**: contains "degraded"
-#' - **PoorlyPreserved**: contains "poor preservation", "weak preservation", "fungus"
+#' - **PoorlyPreserved**: contains "poor preservation", "weak preservation", "fungus", "fungal growth", "mycelial growth"
 #' - **Obscured**: contains "obscured"
 #' - **BrokenDiatoms**: contains "many broken diatoms"
 #' - **MultipleSizes**: same taxon appears more than once in a group but has differing values in other fields
@@ -220,7 +220,7 @@ add_qc_col <- function(df, comment_col = 'Comments', key_cols = c('Date', 'Stati
         grepl('\\bCMT\\b|\\bCMNT\\b', !!comment_col, ignore.case = TRUE) ~ 'TallyNotMet'  # if only CMNT/CMT
       ),
       QC_6 = case_when(grepl('degraded', !!comment_col, ignore.case = TRUE) ~ 'Degraded'),
-      QC_7 = case_when(grepl('poor preservation|poorly preserved|weak preservation|weakly preserved|fungus|PoorlyPreserved', !!comment_col, ignore.case = TRUE) ~ 'PoorlyPreserved'),
+      QC_7 = case_when(grepl('poor preservation|poorly preserved|weak preservation|weakly preserved|fungus|fungal\\s+growth|mycelial\\s+growth|PoorlyPreserved', !!comment_col, ignore.case = TRUE) ~ 'PoorlyPreserved'),
       QC_8 = case_when(grepl('obscured', !!comment_col, ignore.case = TRUE) ~ 'Obscured'),
       QC_9 = case_when(grepl('many broken diatoms|broken diatoms|BrokenDiatoms', !!comment_col, ignore.case = TRUE) ~ 'BrokenDiatoms')
     )
@@ -872,7 +872,19 @@ add_latlon <- function(df, fp_stations){
 }
 
 # rename cols
-rename_cols <- function(df, rename_map) {
+rename_cols <- function(df, rename_map = NULL) {
+  # Define a default rename_map if none is provided
+  if (is.null(rename_map)) {
+    rename_map <- c(
+      'Date' = 'SampleDate',
+      'Time' = 'SampleTime',
+      'Station' = 'StationCode',
+      'SampleDepth' = 'Depth (m)',
+      'GALD' = 'GALD 1',
+      'PhytoForm' = 'Colony/Filament/Individual Group Code'
+    )
+  }
+  
   # Rename columns based on the map
   df <- df %>%
     dplyr::rename(!!!rename_map)
@@ -885,6 +897,63 @@ rename_cols <- function(df, rename_map) {
   )
   
   message(rename_message)
+  
+  return(df)
+}
+
+# Combine cols
+combine_cols <- function(df, combine_map = NULL) {
+  # Define the default combine_map if none is provided
+  if (is.null(combine_map)) {
+    combine_map <- list(
+      'Unit Abundance' = c('Unit Abundance (# of Natural Units)', 'Unit Abundance'),
+      'Total Number of Cells' = c('Total Number of Cells', 'Number of cells per unit')
+    )
+  }
+  
+  combined <- character()  # To store the columns that were combined
+  
+  # Loop over each entry in the combine_map
+  for (new_col in names(combine_map)) {
+    cols_to_combine <- combine_map[[new_col]]
+    
+    # Ensure there are exactly two columns to combine
+    if (length(cols_to_combine) == 2) {
+      # Combine the two columns using coalesce
+      df <- df %>%
+        mutate(
+          !!new_col := coalesce(.data[[cols_to_combine[1]]], .data[[cols_to_combine[2]]])
+        )
+      
+      # Add the new column to the combined list
+      combined <- c(combined, paste(cols_to_combine[1], "and", cols_to_combine[2]))
+      
+      # Remove the columns based on the new column name
+      if (new_col == cols_to_combine[1]) {
+        # If new_col is the first column, remove the second column
+        df <- df %>%
+          select(-all_of(cols_to_combine[2]))
+      } else if (new_col == cols_to_combine[2]) {
+        # If new_col is the second column, remove the first column
+        df <- df %>%
+          select(-all_of(cols_to_combine[1]))
+      } else {
+        # If new_col is neither of the columns, remove both
+        df <- df %>%
+          select(-all_of(cols_to_combine))
+      }
+    }
+  }
+  
+  # Generate message indicating which columns were combined
+  if (length(combined) > 0) {
+    combine_message <- paste(
+      'Combined columns:',
+      paste0('  • ', combined, collapse = '\n'),
+      sep = '\n'
+    )
+    message(combine_message)
+  }
   
   return(df)
 }

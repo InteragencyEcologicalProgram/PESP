@@ -1,0 +1,276 @@
+# Format original NDFS data
+
+**Purpose:** Code to format NDFS data from 2021-2023
+
+**Author:** Perry ([sarah.perry\@water.ca.gov](mailto:sarah.perry@water.ca.gov){.email})
+
+**Date Edited:** 05/08/2025
+
+# Initial Setup
+```{r}
+# Import Packages ---------------------------------------------------------
+library(tidyverse)
+library(fuzzyjoin)
+library(glue)
+library(lubridate)
+library(readxl)
+source('admin/global_functions/global_funcs.R')
+source('admin/global_functions/bsa_funcs.R')
+source('programs/DWR-NDFS/ref_code/ndfs_funcs.R')
+source('admin/global_functions/check_funcs.R')
+```
+
+## Read in Data
+```{r}
+# Define the folder path & list all files
+folder_path <- abs_pesp_path('Groups/DWR-NDFS/01 Raw Data/2021-2023-files')
+
+excel_files <- list.files(folder_path, pattern = '\\.xlsx$', full.names = TRUE)
+
+# Read in data
+excel_data <- lapply(excel_files, function(file) {
+  df <- read_excel(file, col_types = 'text')
+})
+
+# Get all unique column names
+all_columns <- unique(unlist(lapply(excel_data, colnames)))
+
+# Add NA for files where a column is missing
+fill_excel_na <- lapply(excel_data, function(df) {
+  missing_cols <- setdiff(all_columns, colnames(df))
+  df[missing_cols] <- NA
+  df <- df[, all_columns, drop = FALSE]
+  return(df)
+})
+
+# Combine all dataframes
+df_data <- do.call(rbind, fill_excel_na)
+```
+
+## Remove unneeded rows
+```{r}
+df_data <- df_data %>%
+  filter(!is.na(SampleDate) & 
+         !is.na(SampleTime) & 
+         !is.na(StationCode) & 
+         !is.na(Genus) & 
+         !is.na(Species))
+```
+
+## Convert Time back
+```{r}
+df_data$SampleTime <- as.numeric(df_data$SampleTime) * 24
+df_data$SampleTime <- as.POSIXct(df_data$SampleTime * 3600, origin = '1970-01-01', tz = 'UTC') # default Excel time
+df_data$SampleTime <- format(df_data$SampleTime, '%H:%M')
+
+unique_check(df_data, SampleTime)
+```
+
+## Convert Date back
+```{r}
+unique_check(df_data, SampleDate)
+df_data$SampleDate <- as.Date(as.numeric(df_data$SampleDate), origin = '1900-01-01')
+unique_check(df_data, SampleDate)
+```
+
+## Check distinct columns
+```{r}
+df_data <- check_distinct(df_data, type = 'full')
+nondistinct_rows <- attr(df_data, 'log')$nondistinct_allrows
+```
+
+# Add data/metadata
+
+## Combine equivalent columns
+```{r}
+df_data <- combine_cols(df_data)
+```
+
+
+## Rename columns
+```{r}
+df_data <- rename_cols(df_data)
+```
+
+## Calculate measurement columns
+```{r}
+df_data <- calc_data_bsa(df_data)
+```
+
+
+```{r}
+no_code <- df_data %>% filter(is.na(MethodCode))
+phyto_code <- df_data %>% filter(MethodCode == 'Phyto')
+unique(no_code$Station)
+unique(phyto_code$Station)
+
+# Find unique values in both dataframes
+both_stations <- intersect(unique(no_code$Station), unique(phyto_code$Station))
+only_in_no_code <- setdiff(unique(no_code$Station), unique(phyto_code$Station)) 
+only_in_phyto_code <- setdiff(unique(phyto_code$Station), unique(no_code$Station))
+phyto_code_and_actual <- intersect(unique(phyto_code$Station), c('BL5','I80','LIB','LIS','RCS','RD22','RMB','RVB','RYI','SDI','SHR','STTD'))
+actual_not_phyto_code <- setdiff(c('BL5','I80','LIB','LIS','RCS','RD22','RMB','RVB','RYI','SDI','SHR','STTD'), unique(phyto_code$Station)) 
+
+message('Stations in both no_code and phyto_code:')
+print(both_stations)
+
+message('Stations only in no_code:')
+
+message('Stations only in phyto_code:')
+print(only_in_phyto_code)
+
+message('Actual stations in phyto_code:')
+print(phyto_code_and_actual)
+
+message('Actual stations not in phyto_code:')
+print(actual_not_phyto_code)
+```
+
+## Clean PhytoForm column
+```{r}
+df_data <- clean_phytoform_bsa(df_data) %>%
+  mutate(
+    PhytoForm = case_when(
+      PhytoForm == 'f.' ~ 'f',
+      TRUE ~ PhytoForm
+    )
+  )
+
+unique_check(df_data, PhytoForm)
+```
+
+## Add in latlon
+```{r}
+unique_check(df_data, Station)
+
+df_data <- add_latlon(df_data, 'Groups/DWR-NDFS/Metadata/NDFS_Stations.csv')  %>%
+  filter(Station %in% c('BL5','I80','LIB','LIS','RCS','RD22','RMB','RVB','RYI','SDI','SHR','STTD'))
+
+unique_check(df_data, Station)
+```
+
+## Add in depth
+```{r}
+unique_check(df_data, SampleDepth)
+
+df_data <- add_meta_col(df_data, 'North Delta Food Subsidy Study', 'SampleDepth')
+df_data$SampleDepth <- gsub(' meter$', '', df_data$SampleDepth)
+```
+
+## Add in lab
+```{r}
+df_data <- add_meta_col(df_data, 'North Delta Food Subsidy Study', 'Lab')
+unique_check(df_data, 'Lab')
+```
+
+## Add sample method
+```{r}
+df_data <- add_meta_col(df_data, 'North Delta Food Subsidy Study', 'SampleMethod')
+```
+
+## Select relevant columns
+```{r}
+df_data <- df_data %>%
+  select(all_of(c('Date', 'Time', 'Station', 'Latitude', 'Longitude', 'SampleMethod', 'SampleDepth', 'Lab', 'Taxon', 'Units_per_mL', 'Cells_per_mL', 'Biovolume_per_mL', 'PhytoForm', 'Comments')))
+```
+
+# Add Taxonomy (and QC column)
+
+## Correct typos
+```{r}
+df_data <- correct_taxon_typos(df_data)
+corrected_typos <- attr(df_data, 'log')$taxon_corrections
+write_log_file(corrected_typos, 'Groups/DWR-NDFS/02 Processed Data/2021-2023/QC files/tables/NDFS_corrected_typos.csv')
+
+print(corrected_typos)
+```
+
+## Add QC column
+```{r}
+df_data <- add_qc_col(df_data)
+df_data <- add_debris_col(df_data)
+
+df_data <- extract_unstandardized_comments(df_data, 'Comments', delimiter = '. ')
+unmatched_comments <- attr(df_data, 'log')$unmatched_comments
+write_log_file(unmatched_comments, 'Groups/DWR-NDFS/02 Processed Data/2021-2023/QC files/tables/NDFS_leftover_comments.csv')
+
+print(unmatched_comments)
+```
+
+## Check for count issues, add QC code
+```{r}
+df_data <- check_units_cells(df_data)
+cell_issue <- attr(df_data, 'log')$cell_calc_issue
+cell_issue
+write_log_file(cell_issue, 'Groups/DWR-NDFS/02 Processed Data/2021-2023/QC files/tables/NDFS_cell-unit_issue.csv')
+```
+
+## Add dilution QC code
+```{r}
+df_data <- add_dilution_qc(df_data)
+```
+
+
+
+## Standardize unknowns
+```{r}
+df_data <- clean_unknowns(df_data)
+standardized_unknowns <- attr(df_data, 'log')$clean_unknowns
+write_log_file(standardized_unknowns, 'Groups/DWR-NDFS/02 Processed Data/2021-2023/QC files/tables/NDFS_standardized_unknowns.csv')
+
+print(standardized_unknowns)
+```
+
+## Update synonyms
+```{r}
+df_data <- update_synonyms(df_data)
+updated_synonyms <- attr(df_data, 'log')$synonym_updates
+write_log_file(updated_synonyms, 'Groups/DWR-NDFS/02 Processed Data/2021-2023/QC files/tables/NDFS_updated_synonyms.csv')
+
+print(updated_synonyms)
+```
+
+## Add in higher-level taxa
+```{r}
+df_data <- higher_lvl_taxa(df_data)
+needs_hierarchy <- attr(df_data, 'log')$unmatched_taxa
+write_log_file(needs_hierarchy, 'Groups/DWR-NDFS/02 Processed Data/2021-2023/QC files/tables/NDFS_needs_hierarchy.csv')
+
+print(needs_hierarchy)
+```
+
+## Check distinct cols before combining
+```{r}
+df_data <- check_distinct(df_data, type = 'full')
+attr(df_data, 'log')$nondistinct_allrows
+
+df_data <- check_distinct(df_data, type = 'key_cols')
+attr(df_data, 'log')$nondistinct_keyrows
+```
+
+## Combine taxa (multiple sizes, standardized unknowns)
+```{r}
+df_data <- combine_taxons(df_data, key_cols = c('Date', 'Time', 'Station', 'SampleDepth'))
+combined_taxa <- attr(df_data, 'log')$combined_taxa
+write_log_file(combined_taxa, 'Groups/DWR-NDFS/02 Processed Data/2021-2023/QC files/tables/NDFS_combined_taxa.csv')
+
+print(combined_taxa)
+```
+## Check NAs
+```{r}
+df_data <- check_nas(df_data)
+```
+
+# Export
+
+## Subset data
+```{r}
+keep_cols <- c('Date', 'Time', 'Station', 'Latitude', 'Longitude', 'SampleMethod', 'SampleDepth', 'OrigTaxon', 'Taxon', 'Kingdom', 'Phylum', 'Class', 'AlgalGroup', 'Genus', 'Species', 'Lab', 'Units_per_mL', 'Cells_per_mL', 'Biovolume_per_mL', 'QualityCheck', 'Debris') 
+
+df_data <- df_data %>%
+  select(all_of(keep_cols))
+```
+
+```{r}
+write_csv(df_data, abs_pesp_path('Groups/DWR-NDFS/02 Processed Data/2021-2023/NDFS_draft_21-23.csv'))
+```

@@ -1,31 +1,6 @@
 
 # Check Variables ---------------------------------------------------------
 
-# # check station names
-
-check_stations <- function(col_data, col_check){
-  
-  ls_ex_stations <- unique(col_data)[!(unique(col_data) %in% c(col_check))]
-  
-  df_ex_stations <- data.frame('extra stations' = ls_ex_stations)
-  
-  if (length(ls_ex_stations) > 0){
-    warning(glue('Station(s) found that are not in the official list: {toString(ls_ex_stations)}.\nEither update official list or fix station name(s).'))
-  } else {
-    message('All station names in given station list.')
-  }
-  
-  return(df_ex_stations)
-}
-
-# # check methods
-
-check_methods <- function(df){
-  ls_methods <- unique(df$SampleMethod)
-  
-  message(message(glue::glue('Currect collection type methods: {toString(ls_methods)}')))
-}
-
 # # check distinct rows
 check_distinct <- function(df, return_df = FALSE, coerce = TRUE,
                            type = c('full', 'key_measure_cols', 'key_cols'),
@@ -130,15 +105,15 @@ extract_unstandardized_comments <- function(df, comment_col, delimiter = ' ') {
   comment_col <- rlang::ensym(comment_col)
   
   # normalize common delimiters to regex equivalents
-  if (!is.null(delimiter) && delimiter != "") {
+  if (!is.null(delimiter) && delimiter != '') {
     delimiter <- dplyr::case_when(
-      delimiter == ". "  ~ "\\.\\s*",
-      delimiter == "."   ~ "\\.",
-      delimiter == ", "  ~ ",\\s*",
-      delimiter == ","   ~ ",",
-      delimiter == "; "  ~ ";\\s*",
-      delimiter == ";"   ~ ";",
-      delimiter == " - " ~ "\\s+-\\s*",
+      delimiter == '. '  ~ '\\.\\s*',
+      delimiter == '.'   ~ '\\.',
+      delimiter == ', '  ~ ',\\s*',
+      delimiter == ','   ~ ',',
+      delimiter == '; '  ~ ';\\s*',
+      delimiter == ';'   ~ ';',
+      delimiter == ' - ' ~ '\\s+-\\s*',
       TRUE               ~ delimiter
     )
   }
@@ -159,6 +134,8 @@ extract_unstandardized_comments <- function(df, comment_col, delimiter = ' ') {
     'poor preservation', 'poorly preserved', 'PoorlyPreserved',
     'weak preservation', 'weakly preserved',
     'fungus',
+    'fungal growth',
+    'mycelial growth',
     'obscured',
     'many broken diatoms', 'broken diatoms', 'BrokenDiatoms',
     'high detritus', 'high sediment',
@@ -171,9 +148,9 @@ extract_unstandardized_comments <- function(df, comment_col, delimiter = ' ') {
   
   # compile regex pattern
   known_pattern <- paste0(
-    "(", 
-    paste0(stringr::str_replace_all(known_phrases, "(\\W)", "\\\\\\1"), collapse = "|"), 
-    ")"
+    '(', 
+    paste0(stringr::str_replace_all(known_phrases, '(\\W)', '\\\\\\1'), collapse = '|'), 
+    ')'
   )
   
   raw_comments <- df %>%
@@ -184,25 +161,25 @@ extract_unstandardized_comments <- function(df, comment_col, delimiter = ' ') {
   cleaned_comments <- stringr::str_remove_all(raw_comments, regex(known_pattern, ignore_case = TRUE))
   
   # isolate unmatched fragments
-  if (!is.null(delimiter) && delimiter != "") {
+  if (!is.null(delimiter) && delimiter != '') {
     unmatched <- cleaned_comments %>%
       map(~ stringr::str_split(.x, delimiter)[[1]]) %>%
       unlist() %>%
       stringr::str_trim() %>%
       stringr::str_remove('\\.$') %>%
-      discard(~ .x == "" || is.na(.x))
+      discard(~ .x == '' || is.na(.x))
   } else {
     unmatched <- cleaned_comments %>%
       stringr::str_trim() %>%
-      discard(~ .x == "" || is.na(.x))
+      discard(~ .x == '' || is.na(.x))
   }
   
   unmatched_df <- unique(unmatched) %>%
     tibble::tibble(Unmatched = .)
   
   if (nrow(unmatched_df) > 0) {
-    message("Unique unstandardized comments: ", nrow(unmatched_df))
-    attr(df, "log")$unmatched_comments <- unmatched_df
+    message('Unique unstandardized comments: ', nrow(unmatched_df))
+    attr(df, 'log')$unmatched_comments <- unmatched_df
   }
   
   return(df)
@@ -355,6 +332,36 @@ create_nmds <- function(df, group_var, nmds_var, taxa_var = 'Taxon', factor_var 
   ))
 }
 
+check_units_cells <- function(df) {
+  if ('Units_per_mL' %in% colnames(df) && 'Cells_per_mL' %in% colnames(df)) {
+    
+    # Check that Cells_per_mL >= Units_per_mL for every row pair
+    count_issues <- df %>%
+      filter(Cells_per_mL < Units_per_mL)
+    
+    if (nrow(count_issues) == 0) {
+      message('(Correct) Cells_per_mL is greater than or equal to Units_per_mL for all rows.')
+    } else {
+      log_df <- count_issues
+      message('(Warning) Found ', nrow(count_issues), ' row where Cells_per_mL is less than Units_per_mL.')
+      
+      # Add the QC code 'CountIssues' to the QualityCheck column
+      df <- df %>%
+        mutate(QualityCheck = case_when(
+          row_number() %in% rownames(count_issues) & QualityCheck != 'NoCode' ~ paste(QualityCheck, 'CountIssues'),
+          row_number() %in% rownames(count_issues) & QualityCheck == 'NoCode' ~ 'CountIssues',
+          TRUE ~ QualityCheck
+        ))
+      
+      attr(df, 'log') <- list(cell_calc_issue = log_df)
+    }
+  } else {
+    message('One or both of the required columns ("Units_per_mL", "Cells_per_mL") are missing.')
+  }
+  
+  return(df)
+}
+
 
 
 # Plot BSA Check ----------------------------------------------------------
@@ -456,11 +463,13 @@ check_nas <- function(df, exclude_cols = 'OrigTaxon') {
   if (length(na_cols_partial) > 0) {
     message('Missing values found in ', length(na_cols_partial), ' column(s): ', paste(na_cols_partial, collapse = ', '))
   } else {
-    message('No missing values found (excluding ', paste(exclude_cols, collapse = ', '), ')')
+    message('No missing values found (excluding ', paste(exclude_cols, collapse = ', '), ').')
   }
   
   if (length(na_cols_full) > 0) {
     message('All values are missing in ', length(na_cols_full), ' column(s): ', paste(na_cols_full, collapse = ', '))
+  } else {
+    message('No column has all missing values.')
   }
   
   # Attach log to df

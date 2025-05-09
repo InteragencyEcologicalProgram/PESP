@@ -65,7 +65,7 @@ rename_cols_bsa <- function(df){
 
 #' calc reporting units
 calc_data_bsa <- function(df,
-                          unit_col = 'Unit Abundance (# of Natural Units)',
+                          unit_col = 'Unit Abundance',
                           cell_col = 'Total Number of Cells',
                           calc_cols = c('Units', 'Cells', 'Biovolume')) {
   
@@ -77,6 +77,12 @@ calc_data_bsa <- function(df,
   if (length(factor_col) == 0) {
     stop('Factor column not found')
   }
+  
+  # Make sure all relevant cols are numeric
+  df <- df %>%
+    dplyr::mutate(across(all_of(c(unit_col, cell_col)), as.numeric),
+                  across(contains('Biovolume'), as.numeric),
+                  Factor = as.numeric(.data[[factor_col]])) 
   
   if ('Units' %in% calc_cols) {
     df <- df %>%
