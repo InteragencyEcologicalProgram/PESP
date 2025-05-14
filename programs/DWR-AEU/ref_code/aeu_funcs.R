@@ -13,7 +13,28 @@ add_dilution_qc <- function(df){
 }
 
 subset_cols_aeu <- function(df){
-  keep_cols <- c('Date', 'Time', 'Station', 'Latitude', 'Longitude', 'SampleMethod', 'SampleDepth', 'OrigTaxon', 'Taxon', 'Kingdom', 'Phylum', 'Class', 'AlgalGroup', 'Genus', 'Species', 'Lab', 'Units_per_mL', 'Cells_per_mL', 'Biovolume_per_mL', 'QualityCheck', 'Debris') 
+  keep_cols <- c('Date',
+                 'Time',
+                 'Station',
+                 'Latitude',
+                 'Longitude',
+                 'SampleMethod',
+                 'SampleDepth',
+                 'OrigTaxon',
+                 'Taxon',
+                 'Kingdom',
+                 'Phylum',
+                 'Class',
+                 'AlgalGroup',
+                 'Genus',
+                 'Species',
+                 'Lab',
+                 'Cells_per_mL',
+                 'Units_per_mL',
+                 'Biovolume_per_mL',
+                 'QualityCheck',
+                 'Debris',
+                 'Notes') 
   
   df <- df %>%
     select(all_of(keep_cols))

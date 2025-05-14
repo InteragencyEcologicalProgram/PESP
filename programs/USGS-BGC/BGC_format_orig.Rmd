@@ -84,6 +84,7 @@ print(corrected_typos)
 ```{r}
 df_data <- add_qc_col(df_data, key_cols = c('Date', 'Time', 'Station', 'SampleMethod'))
 df_data <- add_debris_col(df_data)
+df_data <- add_notes_col(df_data)
 
 df_data <- extract_unstandardized_comments(df_data, 'Comments', delimiter = '. ')
 unmatched_comments <- attr(df_data, 'log')$unmatched_comments
@@ -118,6 +119,7 @@ write_log_file(needs_hierarchy, 'Groups/USGS-BGC/02 Processed Data/QC files/tabl
 
 print(needs_hierarchy)
 ```
+
 ## Subset columns
 ```{r}
 df_data <- subset_cols_bgc(df_data)

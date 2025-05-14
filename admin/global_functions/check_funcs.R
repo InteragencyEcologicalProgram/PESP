@@ -137,13 +137,18 @@ extract_unstandardized_comments <- function(df, comment_col, delimiter = ' ') {
     'fungal growth',
     'mycelial growth',
     'obscured',
+    'girdle','girdle view',
+    'cyst',
+    'mucilaginous detritus',
+    'ciliates','ciliates observed',
     'many broken diatoms', 'broken diatoms', 'BrokenDiatoms',
     'high detritus', 'high sediment',
     'moderate detritus', 'moderate sediment','moderat sediment',
     'low detritus', 'low sediment',
     'light detritus', 'light sediment',
     'heavy detritus', 'heavy sediment',
-    'Good'
+    'Good',
+    'and'
   )
   
   # compile regex pattern
@@ -167,6 +172,7 @@ extract_unstandardized_comments <- function(df, comment_col, delimiter = ' ') {
       unlist() %>%
       stringr::str_trim() %>%
       stringr::str_remove('\\.$') %>%
+      stringr::str_remove('\\;$') %>%
       discard(~ .x == '' || is.na(.x))
   } else {
     unmatched <- cleaned_comments %>%

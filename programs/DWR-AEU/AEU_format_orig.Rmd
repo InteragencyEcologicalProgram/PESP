@@ -58,8 +58,6 @@ df_data <- rename_cols(df_data, rename_map)
 ```{r}
 df_data <- remove_taxa_info(df_data)
 ```
-
-
 ## Calculate measurement columns
 ```{r}
 df_data <- calc_data_bsa(df_data, unit_col = 'unit_abundance', cell_col = 'total_cells')
@@ -106,6 +104,7 @@ print(corrected_typos)
 ```{r}
 df_data <- add_qc_col(df_data)
 df_data <- add_debris_col(df_data)
+df_data <- add_notes_col(df_data)
 
 df_data <- extract_unstandardized_comments(df_data, 'Comments', delimiter = '. ')
 unmatched_comments <- attr(df_data, 'log')$unmatched_comments
@@ -160,6 +159,9 @@ print(combined_taxa)
 ```
 
 # Finish formatting
+```{r}
+unique(df_data$Notes)
+```
 
 ## Subset columns
 ```{r}

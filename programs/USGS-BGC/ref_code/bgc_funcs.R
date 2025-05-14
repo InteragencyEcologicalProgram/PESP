@@ -30,7 +30,26 @@ clean_cols_bgc <- function(df) {
 
 # # Main Function ---------------------------------------------------------
 subset_cols_bgc <- function(df){
-  keep_cols <- c('Date', 'Time', 'Station', 'Latitude', 'Longitude', 'SampleMethod', 'SampleDepth', 'OrigTaxon', 'Taxon', 'Kingdom', 'Phylum', 'Class', 'AlgalGroup', 'Genus', 'Species', 'Lab', 'Cells_per_mL', 'Biovolume_per_mL', 'QualityCheck') 
+  keep_cols <- c('Date',
+                 'Time',
+                 'Station',
+                 'Latitude',
+                 'Longitude',
+                 'SampleMethod',
+                 'SampleDepth',
+                 'OrigTaxon',
+                 'Taxon',
+                 'Kingdom',
+                 'Phylum',
+                 'Class',
+                 'AlgalGroup',
+                 'Genus',
+                 'Species',
+                 'Lab',
+                 'Cells_per_mL',
+                 'Biovolume_per_mL',
+                 'QualityCheck',
+                 'Notes') 
   
   df <- df %>%
     select(all_of(keep_cols))

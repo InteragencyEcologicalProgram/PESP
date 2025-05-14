@@ -40,8 +40,9 @@ df_frp <- df_frp %>%
 df_frp <- df_frp %>%
   rename(Comments = QualityCheck)
 
-df_frp <- add_qc_col(df_frp, comment_col = Comments, key_cols = 'SampleID_frp', taxa_col = 'OriginalTaxon')
-df_frp <- add_debris_col(df_frp, comment_col = Comments)
+df_frp <- add_qc_col(df_frp, key_cols = 'SampleID_frp', taxa_col = 'OriginalTaxon')
+df_frp <- add_debris_col(df_frp)
+df_frp <- add_notes_col(df_frp)
 
 df_frp <- extract_unstandardized_comments(df_frp, 'Comments', delimiter = '. ')
 attr(df_frp, 'log')$unmatched_comments
@@ -116,12 +117,12 @@ attr(df_frp, 'log')$combined_taxa
 ```{r}
 df_frp <- df_frp %>%
   mutate(Taxonomy_PESP = paste(Kingdom,Phylum,Class,Genus,Species, sep='/')) %>%
-  select(-c(Kingdom,Phylum,Class,AlgalGroup,Genus,Species,CurrentTaxon,TrueTaxon,OrigTaxon,Taxonomy_EMP,Taxon)) %>%
+  select(-c(Kingdom,Phylum,Class,AlgalGroup,Genus,Species,TrueTaxon,OrigTaxon,Taxonomy_EMP,Taxon)) %>%
   relocate(Taxonomy_PESP, .after = Taxonomy_FRP)
 ```
 
 ## Write csv
 ```{r}
-write_csv(df_frp, abs_pesp_path('Groups/CDFW-FRP/02 Processed Data/FRP_PESP_updated.csv'), na = '')
+# write_csv(df_frp, abs_pesp_path('Groups/CDFW-FRP/02 Processed Data/FRP_PESP_updated.csv'), na = '')
 ```
 

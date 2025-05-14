@@ -1,0 +1,224 @@
+# Format original LTS data
+
+**Purpose:** Code to format LTS data for original PESP upload.
+
+**Author:** Perry ([sarah.perry\@water.ca.gov](mailto:sarah.perry@water.ca.gov){.email})
+
+# Initial Setup
+
+```{r, message=FALSE, warning=FALSE}
+# Import Packages ---------------------------------------------------------
+library(tidyverse)
+library(fuzzyjoin)
+library(glue)
+library(lubridate)
+
+source('admin/global_functions/global_funcs.R')
+source('programs/USBR-LTS/ref_code/lts_funcs.R')
+source('admin/global_functions/bsa_funcs.R')
+source('admin/global_functions/check_funcs.R')
+```
+
+## Read in Data
+```{r}
+# specify the file path
+data_path <- abs_pesp_path('Groups/USBR-LTS/01 Raw Data/LTS_Phytoplankton2017-2022.csv')
+
+# new data to format and append
+df_data <- read_quiet_csv(data_path) %>%
+  filter(Keep == 1) %>%
+  select(-Keep) %>%
+  rename(SiteDepth = Depth)
+```
+
+## Check multiple Sortable ID rows
+```{r}
+df_data <- sortable_check_lts(df_data)
+multi_ids <- attr(df_data, 'log')$sortable_check
+write_log_file(multi_ids, 'Groups/USBR-LTS/02 Processed Data/QC files/tables/LTS_multiple_ids.csv')
+
+print(multi_ids)
+```
+
+
+```{r}
+# Create & Fix Time; Add missing code for Latitude/Longitude
+df_data <- df_data %>%
+  mutate(
+    Time = as.character(format(as.POSIXct(DateTime, format = '%m/%d/%Y %H:%M'), '%H:%M')),
+    Time = case_when(Time == '00:00' ~ NA_character_,
+                     TRUE ~ Time),
+    Latitude = case_when(is.na(Latitude) ~ paste0('missing_', as.character(Sortable_ID)),
+                         TRUE ~ as.character(Latitude)),
+    Longitude = case_when(is.na(Longitude) ~ paste0('missing_', as.character(Sortable_ID)),
+                         TRUE ~ as.character(Longitude))
+  )
+
+# Columns to exclude
+exclude_cols <- c('Temperature', 'Conductivity', 'Turbidity', 'pH', 'Salinity', 
+                  'DO', 'Chl_a', 'Secchi', 'Chl_a_fluor', 'NO3', 'NH4', 'PO4', 'DOC')
+
+# Identify taxa columns by excluding metadata and excluded columns
+metadata_cols <- c('ICF_ID', 'Sortable_ID', 'Year', 'Date', 'Time', 'DateTime', 'SiteDepth',
+                   'SiteID', 'Habitat', 'Strata', 'ActionYear', 'Latitude', 
+                   'Longitude', 'SiteCount')
+
+
+
+df_data <- df_data %>%
+  select(-all_of(exclude_cols)) %>%
+  pivot_longer(cols = -all_of(metadata_cols), names_to = 'Genus', values_to = 'Cells_per_mL') %>%
+  filter(Cells_per_mL != 0) %>%
+  mutate(Genus = case_when(
+      grepl('_unid$', Genus) ~ paste0('cf. ', sub('_unid$', '', Genus)),
+      TRUE ~ Genus),
+      Taxon = paste(Genus, 'sp.'),
+      Cells_per_mL = signif(Cells_per_mL, 4)
+  )
+
+df_data$Date <- as.Date(df_data$Date,'%m/%d/%Y')
+```
+
+
+## Check distinct columns
+```{r}
+df_data <- check_distinct(df_data, type = 'full')
+nondistinct_rows <- attr(df_data, 'log')$nondistinct_allrows
+write_log_file(nondistinct_rows, 'Groups/USBR-LTS/02 Processed Data/QC files/tables/LTS_nondistinct_rows.csv')
+
+# remove duplicates
+# df_data <- df_data %>% distinct()
+
+print(nondistinct_rows)
+```
+
+## Remove old taxa info
+```{r}
+df_data <- remove_taxa_info(df_data)
+```
+```{r}
+df_data <- add_meta_col(df_data, 'LTS Lower Trophic Study', 'SampleDepth')
+
+df_data <- add_meta_col(df_data, 'LTS Lower Trophic Study', 'Lab')
+
+df_data <- add_meta_col(df_data, 'LTS Lower Trophic Study', 'SampleMethod')
+```
+# Add Taxonomy
+
+## Correct typos
+```{r}
+df_data <- correct_taxon_typos(df_data)
+corrected_typos <- attr(df_data, 'log')$taxon_corrections
+write_log_file(corrected_typos, 'Groups/USBR-LTS/02 Processed Data/QC files/tables/LTS_corrected_typos.csv')
+
+print(corrected_typos)
+```
+
+## Standardize unknowns
+```{r}
+df_data <- clean_unknowns(df_data)
+standardized_unknowns <- attr(df_data, 'log')$clean_unknowns
+write_log_file(standardized_unknowns, 'Groups/USBR-LTS/02 Processed Data/QC files/tables/LTS_standardized_unknowns.csv')
+
+print(standardized_unknowns)
+```
+
+## Update synonyms
+```{r}
+df_data <- update_synonyms(df_data)
+updated_synonyms <- attr(df_data, 'log')$synonym_updates
+write_log_file(updated_synonyms, 'Groups/USBR-LTS/02 Processed Data/QC files/tables/LTS_updated_synonyms.csv')
+
+print(updated_synonyms)
+```
+
+## Add in higher-level taxa
+```{r}
+df_data <- higher_lvl_taxa(df_data)
+needs_hierarchy <- attr(df_data, 'log')$unmatched_taxa
+write_log_file(needs_hierarchy, 'Groups/USBR-LTS/02 Processed Data/QC files/tables/LTS_needs_hierarchy.csv')
+
+print(needs_hierarchy)
+```
+
+## Combine taxa when both old and new taxa names exist
+```{r}
+df_data <- combine_taxa_lts(df_data)
+taxa_lts_combined <- attr(df_data, 'log')$combine_taxa_lts
+
+print(taxa_lts_combined)
+```
+
+## Check distinct cols before combining
+```{r}
+df_data <- check_distinct(df_data, type = 'full')
+attr(df_data, 'log')$nondistinct_allrows
+
+df_data <- check_distinct(df_data, type = 'key_cols', key_cols = c('Sortable_ID', 'Date', 'Time'), measurement_cols = c('Cells_per_mL'))
+attr(df_data, 'log')$nondistinct_keyrows
+```
+
+## Combine taxa (multiple sizes, standardized unknowns)
+```{r}
+df_data <- combine_taxons(df_data, key_cols = c('Sortable_ID', 'Date', 'Time'), measurement_cols = c('Cells_per_mL'))
+combined_taxa <- attr(df_data, 'log')$combined_taxa
+write_log_file(combined_taxa, 'Groups/USBR-LTS/02 Processed Data/QC files/tables/LTS_combined_taxa.csv')
+
+print(combined_taxa)
+```
+
+# Finish formatting
+
+## Reorder/Subset columns
+```{r}
+df_data <- reorder_cols_lts(df_data)
+```
+
+## Format SampleDepth
+```{r}
+df_data <- df_data %>% mutate(SampleDepth = as.numeric(str_remove(SampleDepth, ' meter')))
+```
+
+## Format SigFigs for Cells per mL
+```{r}
+df_data <- df_data %>% mutate(Cells_per_mL = signif(Cells_per_mL, 4))
+```
+
+## Set missing LatLons back to NA
+```{r}
+df_data <- df_data %>%
+  mutate(Latitude = ifelse(grepl('missing', Latitude, ignore.case = TRUE), NA, Latitude),
+         Longitude = ifelse(grepl('missing', Longitude, ignore.case = TRUE), NA, Longitude))
+```
+
+## Checks
+```{r}
+# check for NAs
+df_data <- check_nas(df_data)
+na_check <- attr(df_data, 'log')$na_check
+
+print(na_check)
+```
+
+## Write missing latlons
+```{r}
+df_data <- missing_latlon_lts(df_data)
+missing_latlon <- attr(df_data, 'log')$missing_latlon
+write_log_file(missing_latlon, 'Groups/USBR-LTS/02 Processed Data/QC files/tables/LTS_missing_latlon.csv')
+
+print(missing_latlon)
+```
+
+## Write missing times
+```{r}
+df_data <- missing_time_lts(df_data)
+missing_time <- attr(df_data, 'log')$missing_time
+write_log_file(missing_time, 'Groups/USBR-LTS/02 Processed Data/QC files/tables/LTS_missing_times.csv')
+
+print(missing_time)
+```
+
+# Export
+```{r}
+write_csv(df_data, abs_pesp_path('Groups/USBR-LTS/02 Processed Data/LTS_draft.csv'))
+```

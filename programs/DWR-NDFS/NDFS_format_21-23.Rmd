@@ -189,6 +189,7 @@ print(corrected_typos)
 ```{r}
 df_data <- add_qc_col(df_data)
 df_data <- add_debris_col(df_data)
+df_data <- add_notes_col(df_data)
 
 df_data <- extract_unstandardized_comments(df_data, 'Comments', delimiter = '. ')
 unmatched_comments <- attr(df_data, 'log')$unmatched_comments
@@ -265,7 +266,7 @@ df_data <- check_nas(df_data)
 
 ## Subset data
 ```{r}
-keep_cols <- c('Date', 'Time', 'Station', 'Latitude', 'Longitude', 'SampleMethod', 'SampleDepth', 'OrigTaxon', 'Taxon', 'Kingdom', 'Phylum', 'Class', 'AlgalGroup', 'Genus', 'Species', 'Lab', 'Units_per_mL', 'Cells_per_mL', 'Biovolume_per_mL', 'QualityCheck', 'Debris') 
+keep_cols <- c('Date', 'Time', 'Station', 'Latitude', 'Longitude', 'SampleMethod', 'SampleDepth', 'OrigTaxon', 'Taxon', 'Kingdom', 'Phylum', 'Class', 'AlgalGroup', 'Genus', 'Species', 'Lab', 'Cells_per_mL', 'Units_per_mL', 'Biovolume_per_mL', 'QualityCheck', 'Debris','Notes') 
 
 df_data <- df_data %>%
   select(all_of(keep_cols))

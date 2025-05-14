@@ -146,26 +146,26 @@ get_edi_file = function(pkg_id, fnames){
 #' into the main dataframe based on matching dates.
 #'
 #' @param df the main dataframe with a 'Date' column
-#' @param meta_df A metadata dataframe with 'Starting Date' and optionally 'Ending Date' columns, 
+#' @param df_meta A metadata dataframe with 'Starting Date' and optionally 'Ending Date' columns, 
 #'        plus one or more columns to join
-#' @param column A string specifying the name of the column in `meta_df` to join into `df`.
+#' @param column A string specifying the name of the column in `df_meta` to join into `df`.
 #'
-#' @return A dataframe that contains the original `df` with additional columns from `meta_df`
+#' @return A dataframe that contains the original `df` with additional columns from `df_meta`
 #'         joined by matching date ranges
 #'
 #' @importFrom dplyr mutate select left_join
 #' @importFrom tidyr unnest
 #' @importFrom purrr map2
 #' @export
-from_meta <- function(df, meta_df, column) {
-  meta_df <- meta_df %>%
+from_meta <- function(df, df_meta, column) {
+  df_meta <- df_meta %>%
     mutate(start = `Starting Date`,
            end = if_else(is.na(`Ending Date`), Sys.Date(), `Ending Date`)) %>%
     mutate(Date = map2(start, end, ~ seq(from = .x, to = .y, by = 'day'))) %>%
     unnest(cols = Date) %>%
     select(Date, all_of(column))
   
-  df_export <- left_join(df, meta_df, by = 'Date')
+  df_export <- left_join(df, df_meta, by = 'Date')
   
   return(df_export)
 }
@@ -205,41 +205,51 @@ from_meta <- function(df, meta_df, column) {
 #' @importFrom rlang ensym !!
 #' @export
 add_qc_col <- function(df, comment_col = 'Comments', key_cols = c('Date', 'Station'), taxa_col = 'Taxon') {
-  comment_col <- rlang::ensym(comment_col)
+  comment_col <- if (!is.null(comment_col)) rlang::ensym(comment_col) else NULL
   group_cols <- c(key_cols, taxa_col)
   
-  # Flag known QC issues from comment text
-  df <- df %>%
-    mutate(
-      QC_1 = case_when(grepl('\\bdelete\\b', !!comment_col, ignore.case = TRUE) ~ 'BadData'),
-      QC_2 = case_when(grepl('cross contamination', !!comment_col, ignore.case = TRUE) ~ 'CrossContamination'),
-      QC_4 = case_when(grepl('CNMT>5|CNMT\\s>5|CNMT\\s>\\s5|CMT>5|CMT\\s>5|CMT\\s>\\s5|CMNT>5|CMNT\\s>5|CMNT\\s>\\s5', !!comment_col, ignore.case = TRUE) ~ 'TallyNotMet_Over5'),
-      QC_5 = case_when(grepl('CNMT<5|CNMT\\s<5|CNMT\\s<\\s5|CMT<5|CMT\\s<5|CMT\\s<\\s5|CMNT<5|CMNT\\s<5|CMNT\\s<\\s5', !!comment_col, ignore.case = TRUE) ~ 'TallyNotMet_Under5'),
-      QC_3 = case_when(
-        grepl('did not reach|cannot meet tally|cannot meet natural unit|LessThan400Cells', !!comment_col, ignore.case = TRUE) ~ 'TallyNotMet',
-        grepl('\\bCMT\\b|\\bCMNT\\b', !!comment_col, ignore.case = TRUE) ~ 'TallyNotMet'  # if only CMNT/CMT
-      ),
-      QC_6 = case_when(grepl('degraded', !!comment_col, ignore.case = TRUE) ~ 'Degraded'),
-      QC_7 = case_when(grepl('poor preservation|poorly preserved|weak preservation|weakly preserved|fungus|fungal\\s+growth|mycelial\\s+growth|PoorlyPreserved', !!comment_col, ignore.case = TRUE) ~ 'PoorlyPreserved'),
-      QC_8 = case_when(grepl('obscured', !!comment_col, ignore.case = TRUE) ~ 'Obscured'),
-      QC_9 = case_when(grepl('many broken diatoms|broken diatoms|BrokenDiatoms', !!comment_col, ignore.case = TRUE) ~ 'BrokenDiatoms')
-    )
-  
-  # Handle combined case of both Over5 and Under5 being flagged
-  df <- df %>%
-    mutate(
-      both_4_5 = !is.na(QC_4) & !is.na(QC_5),
-      QC_3 = ifelse(both_4_5, 'TallyNotMet', QC_3),
-      QC_4 = ifelse(both_4_5, NA_character_, QC_4),
-      QC_5 = ifelse(both_4_5, NA_character_, QC_5)
-    ) %>%
-    select(-both_4_5)
+  # Add QC flags
+  if (!is.null(comment_col)) {
+    df <- df %>%
+      mutate(
+        QC_1 = case_when(grepl('\\bdelete\\b', !!comment_col, ignore.case = TRUE) ~ 'BadData'),
+        QC_2 = case_when(grepl('cross contamination', !!comment_col, ignore.case = TRUE) ~ 'CrossContamination'),
+        QC_4 = case_when(grepl('CNMT>5|CNMT\\s>5|CNMT\\s>\\s5|CMT>5|CMT\\s>5|CMT\\s>\\s5|CMNT>5|CMNT\\s>5|CMNT\\s>\\s5', !!comment_col, ignore.case = TRUE) ~ 'TallyNotMet_Over5'),
+        QC_5 = case_when(grepl('CNMT<5|CNMT\\s<5|CNMT\\s<\\s5|CMT<5|CMT\\s<5|CMT\\s<\\s5|CMNT<5|CMNT\\s<5|CMNT\\s<\\s5', !!comment_col, ignore.case = TRUE) ~ 'TallyNotMet_Under5'),
+        QC_3 = case_when(
+          grepl('did not reach|cannot meet tally|cannot meet natural unit|LessThan400Cells', !!comment_col, ignore.case = TRUE) ~ 'TallyNotMet',
+          grepl('\\bCMT\\b|\\bCMNT\\b', !!comment_col, ignore.case = TRUE) ~ 'TallyNotMet'
+        ),
+        QC_6 = case_when(grepl('degraded', !!comment_col, ignore.case = TRUE) ~ 'Degraded'),
+        QC_7 = case_when(grepl('poor preservation|poorly preserved|weak preservation|weakly preserved|fungus|fungal\\s+growth|mycelial\\s+growth|PoorlyPreserved', !!comment_col, ignore.case = TRUE) ~ 'PoorlyPreserved'),
+        QC_8 = case_when(grepl('obscured', !!comment_col, ignore.case = TRUE) ~ 'Obscured'),
+        QC_9 = case_when(grepl('many broken diatoms|broken diatoms|BrokenDiatoms', !!comment_col, ignore.case = TRUE) ~ 'BrokenDiatoms'),
+        QC_10 = case_when(grepl('mucilaginous|mucilaginous detritus', !!comment_col, ignore.case = TRUE) ~ 'MucilaginousDetritus')
+      )
+    
+    # Handle combined case of both Over5 and Under5 being flagged
+    df <- df %>%
+      mutate(
+        both_4_5 = !is.na(QC_4) & !is.na(QC_5),
+        QC_3 = ifelse(both_4_5, 'TallyNotMet', QC_3),
+        QC_4 = ifelse(both_4_5, NA_character_, QC_4),
+        QC_5 = ifelse(both_4_5, NA_character_, QC_5)
+      ) %>%
+      select(-both_4_5)
+    
+  } else {
+    # Default to 'Unknown' if no comment_col
+    df <- df %>%
+      mutate(
+        QC_1 = 'Unknown'
+      )
+  }
   
   # Identify taxa with multiple entries per group that differ in any field
   df <- df %>%
     group_by(across(all_of(group_cols))) %>%
     mutate(
-      QC_10 = {
+      QC_11 = {
         non_group_cols <- setdiff(names(pick(everything())), group_cols)
         if (n() > 1 && any(sapply(pick(everything())[non_group_cols], function(x) length(unique(x)) > 1))) {
           'MultipleSizes'
@@ -253,11 +263,24 @@ add_qc_col <- function(df, comment_col = 'Comments', key_cols = c('Date', 'Stati
   # Collapse all QC columns into a single string, default to 'NoCode' if all are NA
   df <- df %>%
     unite(QualityCheck, starts_with('QC'), remove = TRUE, na.rm = TRUE, sep = ' ') %>%
-    mutate(QualityCheck = case_when(QualityCheck == '' ~ 'NoCode',
-                                    TRUE ~ QualityCheck))
+    mutate(
+      QualityCheck = case_when(
+        # if only "Unknown" present (one or more times), reduce to single "Unknown"
+        grepl('^\\s*(Unknown\\s*)+$', QualityCheck) ~ 'Unknown',
+        
+        # if "Unknown" is present but mixed with other codes, remove the "Unknown"
+        grepl('\\bUnknown\\b', QualityCheck) ~ gsub('\\bUnknown\\b', '', QualityCheck) %>% trimws(),
+        
+        # if empty, set to "NoCode"
+        QualityCheck == '' ~ 'NoCode',
+        
+        TRUE ~ QualityCheck
+      )
+    )
   
   return(df)
 }
+
 
 #' @title Add Debris Category Based on Comments
 #'
@@ -279,22 +302,122 @@ add_qc_col <- function(df, comment_col = 'Comments', key_cols = c('Date', 'Stati
 #' @importFrom dplyr mutate case_when
 #' @importFrom tidyr unite
 #' @importFrom rlang ensym !!
-add_debris_col <- function(df, comment_col = 'Comments'){
-  comment_col <- rlang::ensym(comment_col) 
-  
-  df <- df %>%
-    mutate(
-      Db_1 = case_when(
-        grepl('high detritus|high sediment|heavy detritus|heavy sediment', !!comment_col, ignore.case = TRUE) ~ 'High',
-        grepl('moderate detritus|moderate sediment|moderat sediment', !!comment_col, ignore.case = TRUE) ~ 'Moderate',
-        grepl('low detritus|low sediment|light detritus|light sediment', !!comment_col, ignore.case = TRUE) ~ 'Low',
-        TRUE ~ 'Unknown'
+add_debris_col <- function(df, comment_col = 'Comments') {
+  if (is.null(comment_col)) {
+    df <- df %>%
+      mutate(Debris = 'Unknown')
+  } else {
+    comment_col <- rlang::ensym(comment_col)
+    
+    df <- df %>%
+      mutate(
+        Db_1 = case_when(
+          grepl('high detritus|high sediment|heavy detritus|heavy sediment', !!comment_col, ignore.case = TRUE) ~ 'High',
+          grepl('moderate detritus|moderate sediment|moderat sediment', !!comment_col, ignore.case = TRUE) ~ 'Moderate',
+          grepl('low detritus|low sediment|light detritus|light sediment', !!comment_col, ignore.case = TRUE) ~ 'Low',
+          TRUE ~ NA_character_
+        )
+      ) %>%
+      unite(Debris, starts_with('Db'), remove = TRUE, na.rm = TRUE, sep = ' ') %>%
+      mutate(
+        Debris = case_when(
+          Debris == '' ~ 'Unknown',
+          TRUE ~ Debris
+        )
       )
-    ) %>%
-    unite(Debris, starts_with('Db'), remove = TRUE, na.rm = TRUE, sep = ' ')
+  }
   
   return(df)
 }
+
+add_notes_col <- function(df, comment_col = 'Comments', taxa_col = 'Taxon') {
+  comment_col <- if (!is.null(comment_col)) rlang::ensym(comment_col) else NULL
+  taxa_col <- rlang::ensym(taxa_col)
+  
+  # Preserve the original Taxon for logging
+  df <- df %>%
+    mutate(.orig_taxon = !!taxa_col)
+  
+  # Add notes based on Taxon and Comments columns
+  if (!is.null(comment_col)) {
+    # If comment_col is not NULL, evaluate normally
+    df <- df %>%
+      mutate(
+        # Detect cyst for Note_1
+        Note_1 = case_when(
+          grepl('\\bcyst\\b|\\(cyst\\)', .orig_taxon, ignore.case = TRUE) ~ 'Cyst',
+          grepl('\\bcyst\\b|\\(cyst\\)', !!comment_col, ignore.case = TRUE) ~ 'Cyst',
+          TRUE ~ NA_character_
+        ),
+        
+        # Add other notes
+        Note_2 = case_when(
+          is.na(!!comment_col) ~ NA_character_,
+          grepl('\\bcilliates\\b', !!comment_col, ignore.case = TRUE) ~ 'Cilliates',
+          TRUE ~ NA_character_
+        ),
+        
+        Note_3 = case_when(
+          is.na(!!comment_col) ~ NA_character_,
+          grepl('\\bgirdle\\s*view\\b|\\bgirdle\\b', !!comment_col, ignore.case = TRUE) ~ 'GirdleView',
+          TRUE ~ NA_character_
+        )
+      )
+  } else {
+    # If comment_col is NULL, all notes are 'Unknown'
+    df <- df %>%
+      mutate(
+        Note_1 = case_when(
+          grepl('\\bcyst\\b|\\(cyst\\)', .orig_taxon, ignore.case = TRUE) ~ 'Cyst',
+          TRUE ~ NA_character_
+        ),
+        Note_2 = 'Unknown',
+        Note_3 = 'Unknown'
+      )
+  }
+  
+  # Remove cyst from Taxon
+  df <- df %>%
+    mutate(
+      !!taxa_col := gsub('\\s*\\(cyst\\)\\s*|\\s*\\bcyst\\b\\s*', ' ', !!taxa_col, ignore.case = TRUE) %>% trimws()
+    )
+  
+  # Log cyst corrections
+  cyst_log <- df %>%
+    filter(str_squish(.orig_taxon) != str_squish(!!taxa_col)) %>%
+    distinct(OldTaxon = .orig_taxon, UpdatedTaxon = as.character(!!taxa_col)) %>%
+    arrange(OldTaxon)
+  
+  if (nrow(cyst_log) > 0) {
+    message('Total cyst taxon corrections: ', nrow(cyst_log))
+  } else {
+    message('No cyst taxon corrections found.')
+  }
+  
+  # Remove temp column
+  df <- df %>% select(-.orig_taxon)
+  
+  # Combine notes
+  df <- df %>%
+    unite(Notes, starts_with('Note'), remove = TRUE, na.rm = TRUE, sep = ' ') %>%
+    mutate(
+      Notes = case_when(
+        grepl('^\\s*(Unknown\\s*)+$', Notes) ~ 'Unknown',
+        
+        grepl('\\bUnknown\\b', Notes) ~ gsub('\\bUnknown\\b', '', Notes) %>% trimws(),
+        
+        Notes == '' ~ 'NoNote',
+        
+        TRUE ~ Notes
+      )
+    )
+  
+  # Attach the log
+  attr(df, 'log') <- list(cyst_taxa = cyst_log)
+  
+  return(df)
+}
+
 
 #' @title Add Metadata Column from Program-Specific Sheet
 #'
@@ -417,14 +540,14 @@ clean_unknowns <- function(df, std_sp = TRUE) {
   }
   
   # Create log of unique corrections only
-  log_df <- tibble::tibble(
+  df_log <- tibble::tibble(
     OrigTaxon = original_taxon[original_taxon != df$Taxon],
     UpdatedTaxon = df$Taxon[original_taxon != df$Taxon]
   ) %>%
     distinct()
   
-  message('Unique unknown taxon standardized: ', nrow(log_df))
-  attr(df, 'log') <- list(clean_unknowns = log_df)
+  message('Unique unknown taxon standardized: ', nrow(df_log))
+  attr(df, 'log') <- list(clean_unknowns = df_log)
   return(df)
 }
 
@@ -832,7 +955,7 @@ combine_taxons <- function(df, key_cols = c('Date', 'Station'), measurement_cols
     slice(1) %>%
     ungroup()
   
-  # Print combination message
+  # Print message
   message('Taxon rows combined: ', nrow(combine_log))
   attr(df, 'log') <- list(combined_taxa = combine_log)
   
@@ -892,7 +1015,7 @@ rename_cols <- function(df, rename_map = NULL) {
   # Generate message with all rename pairs as bullet points
   rename_message <- paste(
     'Renamed columns:',
-    paste0('  • ', names(rename_map), ' → ', rename_map, collapse = '\n'),
+    paste0('  • ', rename_map, ' → ', names(rename_map), collapse = '\n'),
     sep = '\n'
   )
   

@@ -1,0 +1,394 @@
+# Format original Bay Program data
+
+**Purpose:** Code to format Bay Program data for original PESP upload.
+
+**Author:** Perry ([sarah.perry\@water.ca.gov](mailto:sarah.perry@water.ca.gov){.email})
+
+# Initial Setup
+```{r, message=FALSE, warning=FALSE}
+# Import Packages ---------------------------------------------------------
+library(tidyverse)
+library(fuzzyjoin)
+library(glue)
+library(lubridate)
+
+source('admin/global_functions/global_funcs.R')
+source('programs/USGS-BP/ref_code/bp_funcs.R')
+source('admin/global_functions/bsa_funcs.R')
+source('admin/global_functions/check_funcs.R')
+```
+
+# Dufford File
+## Read in data
+```{r}
+# specify the file path
+data_path_one <- abs_pesp_path('Groups/USGS-BP/01 Raw Data/PhytoUSGSDufford_April1992-March2014.csv')
+
+# new data to format and append
+df_data_one <- read_quiet_csv(data_path_one)
+```
+
+## Check distinct columns
+```{r}
+df_data_one <- check_distinct(df_data_one, type = 'full')
+nondistinct_rows <- attr(df_data_one, 'log')$nondistinct_allrows
+```
+
+## Rename columns
+```{r}
+rename_map <- c(
+  'Taxon' = 'Current Species ID',
+  'Station' = 'Station ID',
+  'Cells_per_mL' = 'Density (cells/mL)',
+  'Biovolume_per_mL' = 'Biovolume (cubic micrometers/mL)',
+  'Depth_m' = 'Depth (m)'
+)
+
+df_data_one <- rename_cols(df_data_one, rename_map)
+```
+
+## Parse Date
+```{r}
+df_data_one$Date <- lubridate::parse_date_time(df_data_one$Date, orders = c('mdy','dmy','ymd'))
+```
+
+## Remove old taxa info
+```{r}
+df_data_one <- remove_taxa_info(df_data_one)
+```
+
+## Add in lat/lons
+```{r}
+df_data_one <- df_data_one %>%
+  mutate(Station = as.character(Station),
+         Station = 
+           case_when(Station == '34' & Date <= '2016-01-21' ~ '34_old',
+                     Station == '34' & Date >= '2016-02-02' ~ '34_new',
+                     TRUE ~ Station)
+         )
+
+df_data_one <- add_latlon(df_data_one, 'Groups/USGS-BP/Metadata/Stations-SFBay.csv')
+```
+
+## Add metadata columns
+```{r}
+df_data_one <- add_meta_col(df_data_one, 'SF Bay Water Quality Program', 'Lab')
+
+df_data_one <- add_meta_col(df_data_one, 'SF Bay Water Quality Program', 'SampleMethod')
+```
+
+# Add Taxonomy (and QC column)
+
+## Correct typos
+```{r}
+df_data_one <- correct_taxon_typos(df_data_one)
+corrected_typos <- attr(df_data_one, 'log')$taxon_corrections
+write_log_file(corrected_typos, 'Groups/USGS-BP/02 Processed Data/QC files/tables/BP_Dufford_corrected_typos.csv')
+
+print(corrected_typos)
+```
+
+## Standardize unknowns
+```{r}
+df_data_one <- clean_unknowns(df_data_one)
+standardized_unknowns <- attr(df_data_one, 'log')$clean_unknowns
+write_log_file(standardized_unknowns, 'Groups/USGS_BP/02 Processed Data/QC files/tables/BP_Dufford_standardized_unknowns.csv')
+
+print(standardized_unknowns)
+```
+
+## Update synonyms
+```{r}
+df_data_one <- update_synonyms(df_data_one)
+updated_synonyms <- attr(df_data_one, 'log')$synonym_updates
+write_log_file(updated_synonyms, 'Groups/USGS-BP/02 Processed Data/QC files/tables/BP_Dufford_updated_synonyms.csv')
+
+print(updated_synonyms)
+```
+
+## Add in higher-level taxa
+```{r}
+df_data_one <- higher_lvl_taxa(df_data_one)
+needs_hierarchy <- attr(df_data_one, 'log')$unmatched_taxa
+write_log_file(needs_hierarchy, 'Groups/USGS-BP/02 Processed Data/QC files/tables/BP_Dufford_needs_hierarchy.csv')
+
+print(needs_hierarchy)
+```
+
+## Add QC and Debris columns
+```{r}
+df_data_one <- df_data_one %>%
+  mutate(QualityCheck = 'LackInfo',
+         Debris = 'LackInfo')
+```
+
+# BSA File
+## Read in data
+```{r}
+# specify the file path
+data_path <- abs_pesp_path('Groups/USGS-BP/01 Raw Data/PhytoUSGSBSA_Jan2014-April2023_notes.csv')
+
+# new data to format and append
+df_data_two <- read_quiet_csv(data_path)
+```
+
+## Check distinct columns
+```{r}
+df_data_two <- check_distinct(df_data_two, type = 'full')
+nondistinct_rows <- attr(df_data_two, 'log')$nondistinct_allrows
+```
+## Rename columns
+```{r}
+rename_map <- c(
+  'Taxon' = 'Current Species ID',
+  'Station' = 'Station ID',
+  'Cells_per_mL' = 'Density (cells/mL)',
+  'Biovolume_per_mL' = 'Biovolume (cubic micrometers/mL)',
+  'Depth_m' = 'Depth (m)',
+  'Comments' = 'Notes'
+)
+
+df_data_two <- rename_cols(df_data_two, rename_map)
+```
+
+## Parse Date
+```{r}
+df_data_two$Date <- lubridate::parse_date_time(df_data_two$Date, orders = c('mdy','dmy','ymd'))
+```
+
+## Remove old taxa info
+```{r}
+df_data_two <- remove_taxa_info(df_data_two)
+```
+
+## Add in lat/lons
+```{r}
+df_data_two <- df_data_two %>%
+  mutate(Station = as.character(Station),
+         Station = 
+           case_when(Station == '34' & Date <= '2016-01-21' ~ '34_old',
+                     Station == '34' & Date >= '2016-02-02' ~ '34_new',
+                     TRUE ~ Station)
+         )
+
+df_data_two <- add_latlon(df_data_two, 'Groups/USGS-BP/Metadata/Stations-SFBay.csv')
+```
+
+## Add metadata columns
+```{r}
+df_data_two <- add_meta_col(df_data_two, 'SF Bay Water Quality Program', 'Lab')
+
+df_data_two <- add_meta_col(df_data_two, 'SF Bay Water Quality Program', 'SampleMethod')
+```
+
+# Add Taxonomy (and QC column)
+
+## Correct typos
+```{r}
+df_data_two <- correct_taxon_typos(df_data_two)
+corrected_typos <- attr(df_data_two, 'log')$taxon_corrections
+write_log_file(corrected_typos, 'Groups/USGS-BP/02 Processed Data/QC files/tables/BP_BSA_corrected_typos.csv')
+
+print(corrected_typos)
+```
+
+## Add QC column
+```{r}
+df_data_two <- add_qc_col(df_data_two)
+df_data_two <- add_debris_col(df_data_two)
+
+df_data_two <- extract_unstandardized_comments(df_data_two, 'Comments', delimiter = '. ')
+unmatched_comments <- attr(df_data_two, 'log')$unmatched_comments
+write_log_file(unmatched_comments, 'Groups/USGS-BP/02 Processed Data/QC files/tables/BP_BSA_leftover_comments.csv')
+
+print(unmatched_comments)
+```
+
+## Standardize unknowns
+```{r}
+df_data_two <- clean_unknowns(df_data_two)
+standardized_unknowns <- attr(df_data_two, 'log')$clean_unknowns
+write_log_file(standardized_unknowns, 'Groups/USGS_BP/02 Processed Data/QC files/tables/BP_BSA_standardized_unknowns.csv')
+
+print(standardized_unknowns)
+```
+
+## Update synonyms
+```{r}
+df_data_two <- update_synonyms(df_data_two)
+updated_synonyms <- attr(df_data_two, 'log')$synonym_updates
+write_log_file(updated_synonyms, 'Groups/USGS-BP/02 Processed Data/QC files/tables/BP_BSA_updated_synonyms.csv')
+
+print(updated_synonyms)
+```
+
+## Add in higher-level taxa
+```{r}
+df_data_two <- higher_lvl_taxa(df_data_two)
+needs_hierarchy <- attr(df_data_two, 'log')$unmatched_taxa
+write_log_file(needs_hierarchy, 'Groups/USGS-BP/02 Processed Data/QC files/tables/BP_BSA_needs_hierarchy.csv')
+
+print(needs_hierarchy)
+```
+
+# Tow File
+## Read in Data
+```{r}
+# specify the file path
+data_path <- abs_pesp_path('Groups/USGS-BP/01 Raw Data/PhytoUSGS_Net_Oct2017-Nov2022_notes.csv')
+
+# new data to format and append
+df_data_three <- read_quiet_csv(data_path)
+```
+
+## Check distinct columns
+```{r}
+df_data_three <- check_distinct(df_data_three, type = 'full')
+nondistinct_rows <- attr(df_data_three, 'log')$nondistinct_allrows
+```
+## Rename columns
+```{r}
+rename_map <- c(
+  'Taxon' = 'Current Species ID',
+  'Station' = 'Station ID',
+  'Cells_per_mL' = 'Density (cells/mL)',
+  'Biovolume_per_mL' = 'Biovolume (cubic micrometers/mL)',
+  'Comments' = 'Notes',
+  'TowLength_m' = 'Tow Length (m)',
+  'NetRadius_cm' = 'Net Radius (cm)',
+  'TowVolFiltered_m' = 'Tow Vol Filtered (L)'
+)
+
+df_data_three <- rename_cols(df_data_three, rename_map)
+```
+
+## Parse Date
+```{r}
+df_data_three$Date <- lubridate::parse_date_time(df_data_three$Date, orders = c('mdy','dmy','ymd'))
+```
+
+## Remove old taxa info
+```{r}
+df_data_three <- remove_taxa_info(df_data_three)
+```
+
+## Add in lat/lons
+```{r}
+df_data_three <- df_data_three %>%
+  mutate(Station = as.character(Station),
+         Station = 
+           case_when(Station == '34' & Date <= '2016-01-21' ~ '34_old',
+                     Station == '34' & Date >= '2016-02-02' ~ '34_new',
+                     TRUE ~ Station)
+         )
+
+df_data_three <- add_latlon(df_data_three, 'Groups/USGS-BP/Metadata/Stations-SFBay.csv')
+```
+
+TODO: FIX SAMPLE METHOD (DONT DO THIS WAY)
+
+## Add metadata columns
+```{r}
+df_data_three <- add_meta_col(df_data_three, 'SF Bay Water Quality Program', 'Lab')
+
+df_data_three <- add_meta_col(df_data_three, 'SF Bay Water Quality Program', 'SampleMethod')
+```
+
+# Add Taxonomy (and QC column)
+
+## Correct typos
+```{r}
+df_data_three <- correct_taxon_typos(df_data_three)
+corrected_typos <- attr(df_data_three, 'log')$taxon_corrections
+write_log_file(corrected_typos, 'Groups/USGS-BP/02 Processed Data/QC files/tables/BP_Tow_corrected_typos.csv')
+
+print(corrected_typos)
+```
+
+## Add QC column
+```{r}
+df_data_three <- add_qc_col(df_data_three)
+df_data_three <- add_debris_col(df_data_three)
+
+df_data_three <- extract_unstandardized_comments(df_data_three, 'Comments', delimiter = '. ')
+unmatched_comments <- attr(df_data_three, 'log')$unmatched_comments
+write_log_file(unmatched_comments, 'Groups/USGS-BP/02 Processed Data/QC files/tables/BP_Tow_leftover_comments.csv')
+
+print(unmatched_comments)
+```
+
+## Standardize unknowns
+```{r}
+df_data_three <- clean_unknowns(df_data_three)
+standardized_unknowns <- attr(df_data_three, 'log')$clean_unknowns
+write_log_file(standardized_unknowns, 'Groups/USGS_BP/02 Processed Data/QC files/tables/BP_Tow_standardized_unknowns.csv')
+
+print(standardized_unknowns)
+```
+
+## Update synonyms
+```{r}
+df_data_three <- update_synonyms(df_data_three)
+updated_synonyms <- attr(df_data_three, 'log')$synonym_updates
+write_log_file(updated_synonyms, 'Groups/USGS-BP/02 Processed Data/QC files/tables/BP_Tow_updated_synonyms.csv')
+
+print(updated_synonyms)
+```
+
+## Add in higher-level taxa
+```{r}
+df_data_three <- higher_lvl_taxa(df_data_three)
+needs_hierarchy <- attr(df_data_three, 'log')$unmatched_taxa
+write_log_file(needs_hierarchy, 'Groups/USGS-BP/02 Processed Data/QC files/tables/BP_Tow_needs_hierarchy.csv')
+
+print(needs_hierarchy)
+```
+
+# Final formatting
+## Combine files
+```{r}
+df_data <- bind_rows(df_data_one, df_data_two, df_data_three)
+```
+
+## Check distinct cols before combining rows
+```{r}
+df_data <- check_distinct(df_data, type = 'full')
+attr(df_data, 'log')$nondistinct_allrows
+
+df_data <- check_distinct(df_data, type = 'key_cols', key_cols = c('Station','Date','Depth_m'), measurement_cols = c('Biovolume_per_mL','Cells_per_mL'))
+attr(df_data, 'log')$nondistinct_keyrows
+```
+
+## Subset relevant columns
+```{r}
+df_data <- subset_cols_bp(df_data)
+```
+
+## Combine taxa (multiple sizes, standardized unknowns)
+```{r}
+df_data <- combine_taxons(df_data, key_cols = c('Station','Date','Depth_m'), measurement_cols = c('Biovolume_per_mL','Cells_per_mL'))
+combined_taxa <- attr(df_data, 'log')$combined_taxa
+write_log_file(combined_taxa, 'Groups/USGS-BP/02 Processed Data/QC files/tables/BP_All_combined_taxa.csv')
+
+print(combined_taxa)
+```
+
+TODO: add multiple sizes QC for ones without Notes column
+
+## Checks
+```{r}
+# check for NAs
+df_data <- check_nas(df_data)
+na_check <- attr(df_data, 'log')$na_check
+
+print(na_check)
+```
+
+## Export
+```{r}
+df_joined <- df_joined %>%
+  arrange(Date, Station, Taxon) %>%
+  mutate(Date = as.Date(Date))
+
+write_csv(df_joined, 'programs/USGS-BP/data/BP_Phyto_Data.csv')
+```
