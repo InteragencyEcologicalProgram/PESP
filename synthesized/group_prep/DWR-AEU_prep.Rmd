@@ -1,0 +1,70 @@
+# Prep AEU Data
+
+**Purpose:** Prep AEU data for PESP merge.
+
+**Author:** Perry ([sarah.perry\@water.ca.gov](mailto:sarah.perry@water.ca.gov){.email})
+
+# Initial Setup
+```{r, message=FALSE, warning=FALSE}
+# Import Packages ---------------------------------------------------------
+library(tidyverse)
+library(fuzzyjoin)
+library(glue)
+library(lubridate)
+
+source('admin/global_functions/global_funcs.R')
+source('admin/global_functions/syn_funcs.R')
+source('admin/global_functions/bsa_funcs.R')
+source('admin/global_functions/check_funcs.R')
+```
+
+# Read in data
+```{r}
+# specify the file path
+data_path_aeu <- abs_pesp_path('Groups/DWR-AEU/02 Processed Data/AEU_draft.csv')
+
+# new data to format and append
+df_aeu <- read_quiet_csv(data_path_aeu)
+```
+
+# Clean data
+
+## Convert Time (if needed)
+TODO: come back to this when metadata is in
+
+## Add in Metadata
+```{r}
+# Survey
+df_aeu <- add_meta_col(df_aeu, 'DWR-YBFMP', 'Survey')
+
+# Sample Method
+df_aeu <- add_meta_col(df_aeu, 'DWR-YBFMP', 'SampleMethod')
+
+# Magnification
+df_aeu <- df_aeu %>%
+  mutate(Magnification = NA_character_) # TODO: fix when metadata is in
+
+# Depth Type
+df_aeu <- add_meta_col(df_aeu, 'DWR-YBFMP', 'DepthType')
+
+# Sample Scheme
+df_aeu <- add_meta_col(df_aeu, 'DWR-YBFMP', 'SampleScheme')
+```
+
+
+## Add extra columns
+```{r}
+df_aeu <- df_aeu %>% 
+  mutate(TowNetRadius = NA)
+```
+
+## Subset relevant columns
+```{r}
+df_aeu <- subset_cols(df_aeu, remove_cols = c('Location','GALD','PhytoForm'))
+```
+
+## Save .Rdata
+```{r}
+save(df_aeu, file = 'synthesized/group_prep/group_data/CDFW-aeu.Rdata')
+```
+

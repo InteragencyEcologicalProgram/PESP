@@ -24,7 +24,7 @@ subset_cols_bp <- function(df) {
     'Date', 'Station', 'Latitude', 'Longitude', 'Depth_m', 'TowLength_m', 'NetRadius_cm', 
     'TowVolFiltered_m', 'SampleMethod', 'Lab', 'OrigTaxon', 'Taxon', 
     'Kingdom', 'Phylum', 'Class', 'AlgalGroup', 'Genus', 'Species', 
-    'Cells_per_mL', 'Biovolume_per_mL', 'QualityCheck', 'Debris'
+    'Cells_per_mL', 'Biovolume_per_mL', 'QualityCheck', 'Debris', 'Notes'
   )
   
   # Identify dropped columns

@@ -68,13 +68,17 @@ df_data_one <- df_data_one %>%
          )
 
 df_data_one <- add_latlon(df_data_one, 'Groups/USGS-BP/Metadata/Stations-SFBay.csv')
+
+df_data_one <- df_data_one %>%
+  mutate(Station =
+           case_when(Station == '34_old' | Station == '34_new' ~ '34',
+                     TRUE ~ Station))
 ```
 
 ## Add metadata columns
 ```{r}
-df_data_one <- add_meta_col(df_data_one, 'SF Bay Water Quality Program', 'Lab')
-
-df_data_one <- add_meta_col(df_data_one, 'SF Bay Water Quality Program', 'SampleMethod')
+df_data_one <- df_data_one %>% mutate(Lab = 'Dick Dufford',
+                                      SampleMethod = 'variable')
 ```
 
 # Add Taxonomy (and QC column)
@@ -92,10 +96,18 @@ print(corrected_typos)
 ```{r}
 df_data_one <- clean_unknowns(df_data_one)
 standardized_unknowns <- attr(df_data_one, 'log')$clean_unknowns
-write_log_file(standardized_unknowns, 'Groups/USGS_BP/02 Processed Data/QC files/tables/BP_Dufford_standardized_unknowns.csv')
+write_log_file(standardized_unknowns, 'Groups/USGS-BP/02 Processed Data/QC files/tables/BP_Dufford_standardized_unknowns.csv')
 
 print(standardized_unknowns)
 ```
+
+## Add QC column
+```{r}
+df_data_one <- add_qc_col(df_data_one, comment_col = NULL)
+df_data_two <- add_debris_col(df_data_one, comment_col = NULL)
+df_data_two <- add_notes_col(df_data_one, comment_col = NULL)
+```
+
 
 ## Update synonyms
 ```{r}
@@ -115,13 +127,6 @@ write_log_file(needs_hierarchy, 'Groups/USGS-BP/02 Processed Data/QC files/table
 print(needs_hierarchy)
 ```
 
-## Add QC and Debris columns
-```{r}
-df_data_one <- df_data_one %>%
-  mutate(QualityCheck = 'LackInfo',
-         Debris = 'LackInfo')
-```
-
 # BSA File
 ## Read in data
 ```{r}
@@ -137,6 +142,7 @@ df_data_two <- read_quiet_csv(data_path)
 df_data_two <- check_distinct(df_data_two, type = 'full')
 nondistinct_rows <- attr(df_data_two, 'log')$nondistinct_allrows
 ```
+
 ## Rename columns
 ```{r}
 rename_map <- c(
@@ -176,9 +182,9 @@ df_data_two <- add_latlon(df_data_two, 'Groups/USGS-BP/Metadata/Stations-SFBay.c
 
 ## Add metadata columns
 ```{r}
-df_data_two <- add_meta_col(df_data_two, 'SF Bay Water Quality Program', 'Lab')
-
-df_data_two <- add_meta_col(df_data_two, 'SF Bay Water Quality Program', 'SampleMethod')
+# CHECK METHODS
+df_data_two <- df_data_two %>% mutate(Lab = 'BSA',
+                                      SampleMethod = 'pump')
 ```
 
 # Add Taxonomy (and QC column)
@@ -196,6 +202,7 @@ print(corrected_typos)
 ```{r}
 df_data_two <- add_qc_col(df_data_two)
 df_data_two <- add_debris_col(df_data_two)
+df_data_two <- add_notes_col(df_data_two)
 
 df_data_two <- extract_unstandardized_comments(df_data_two, 'Comments', delimiter = '. ')
 unmatched_comments <- attr(df_data_two, 'log')$unmatched_comments
@@ -208,7 +215,7 @@ print(unmatched_comments)
 ```{r}
 df_data_two <- clean_unknowns(df_data_two)
 standardized_unknowns <- attr(df_data_two, 'log')$clean_unknowns
-write_log_file(standardized_unknowns, 'Groups/USGS_BP/02 Processed Data/QC files/tables/BP_BSA_standardized_unknowns.csv')
+write_log_file(standardized_unknowns, 'Groups/USGS-BP/02 Processed Data/QC files/tables/BP_BSA_standardized_unknowns.csv')
 
 print(standardized_unknowns)
 ```
@@ -246,6 +253,7 @@ df_data_three <- read_quiet_csv(data_path)
 df_data_three <- check_distinct(df_data_three, type = 'full')
 nondistinct_rows <- attr(df_data_three, 'log')$nondistinct_allrows
 ```
+
 ## Rename columns
 ```{r}
 rename_map <- c(
@@ -285,13 +293,10 @@ df_data_three <- df_data_three %>%
 df_data_three <- add_latlon(df_data_three, 'Groups/USGS-BP/Metadata/Stations-SFBay.csv')
 ```
 
-TODO: FIX SAMPLE METHOD (DONT DO THIS WAY)
-
 ## Add metadata columns
 ```{r}
-df_data_three <- add_meta_col(df_data_three, 'SF Bay Water Quality Program', 'Lab')
-
-df_data_three <- add_meta_col(df_data_three, 'SF Bay Water Quality Program', 'SampleMethod')
+df_data_three <- df_data_three %>% mutate(Lab = 'BSA',
+                                      SampleMethod = 'net tow')
 ```
 
 # Add Taxonomy (and QC column)
@@ -309,6 +314,7 @@ print(corrected_typos)
 ```{r}
 df_data_three <- add_qc_col(df_data_three)
 df_data_three <- add_debris_col(df_data_three)
+df_data_three <- add_notes_col(df_data_three)
 
 df_data_three <- extract_unstandardized_comments(df_data_three, 'Comments', delimiter = '. ')
 unmatched_comments <- attr(df_data_three, 'log')$unmatched_comments
@@ -321,7 +327,7 @@ print(unmatched_comments)
 ```{r}
 df_data_three <- clean_unknowns(df_data_three)
 standardized_unknowns <- attr(df_data_three, 'log')$clean_unknowns
-write_log_file(standardized_unknowns, 'Groups/USGS_BP/02 Processed Data/QC files/tables/BP_Tow_standardized_unknowns.csv')
+write_log_file(standardized_unknowns, 'Groups/USGS-BP/02 Processed Data/QC files/tables/BP_Tow_standardized_unknowns.csv')
 
 print(standardized_unknowns)
 ```
@@ -350,6 +356,15 @@ print(needs_hierarchy)
 df_data <- bind_rows(df_data_one, df_data_two, df_data_three)
 ```
 
+## Change back Station 34
+```{r}
+df_data <- df_data %>%
+  mutate(Station = 
+           case_when(Station == '34_new' | Station == '34_old' ~'34',
+                     TRUE ~ Station)
+         )
+```
+
 ## Check distinct cols before combining rows
 ```{r}
 df_data <- check_distinct(df_data, type = 'full')
@@ -364,6 +379,7 @@ attr(df_data, 'log')$nondistinct_keyrows
 df_data <- subset_cols_bp(df_data)
 ```
 
+
 ## Combine taxa (multiple sizes, standardized unknowns)
 ```{r}
 df_data <- combine_taxons(df_data, key_cols = c('Station','Date','Depth_m'), measurement_cols = c('Biovolume_per_mL','Cells_per_mL'))
@@ -372,8 +388,6 @@ write_log_file(combined_taxa, 'Groups/USGS-BP/02 Processed Data/QC files/tables/
 
 print(combined_taxa)
 ```
-
-TODO: add multiple sizes QC for ones without Notes column
 
 ## Checks
 ```{r}
@@ -386,9 +400,9 @@ print(na_check)
 
 ## Export
 ```{r}
-df_joined <- df_joined %>%
+df_data <- df_data %>%
   arrange(Date, Station, Taxon) %>%
   mutate(Date = as.Date(Date))
 
-write_csv(df_joined, 'programs/USGS-BP/data/BP_Phyto_Data.csv')
+write_csv(df_data, abs_pesp_path('Groups/USGS-BP/02 Processed Data/BP_draft.csv'))
 ```

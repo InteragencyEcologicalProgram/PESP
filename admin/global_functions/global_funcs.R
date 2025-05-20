@@ -41,15 +41,13 @@ read_quiet_csv <- function(fp){
 #'
 #' @export
 abs_pesp_path <- function(fp_rel = NULL) {
-  fp_full <- 'California Department of Water Resources/Phytoplankton synthesis - Documents/'
+  base_path <- file.path(Sys.getenv('USERPROFILE'), 'California Department of Water Resources', 'Phytoplankton synthesis - Documents')
   
   if (is.null(fp_rel)) {
-    fp_abs <- normalizePath(file.path(Sys.getenv('USERPROFILE'), fp_full), mustWork = FALSE)
+    return(base_path)
   } else {
-    fp_abs <- normalizePath(file.path(Sys.getenv('USERPROFILE'), fp_full, fp_rel), mustWork = FALSE)
+    return(file.path(base_path, fp_rel))
   }
-  
-  return(fp_abs)
 }
 
 #' @title Read Phyto Taxonomy File
@@ -82,10 +80,10 @@ read_phyto_taxa <- function(){
 #' @importFrom dplyr subset
 read_meta_file <- function(program_name){
   df <-
-    readxl::read_xlsx(abs_pesp_path('Reference Documents/GroupMetadata.xlsx'), skip = 3)
+    readxl::read_xlsx(abs_pesp_path('Reference Documents/GroupMetadata.xlsx'), skip = 2)
   
   df <- df %>%
-    subset(Program == program_name) 
+    subset(Survey == program_name) 
   
   df$`Ending Date`[is.na(df$`Ending Date`)] <- Sys.Date()
   
@@ -244,17 +242,23 @@ add_qc_col <- function(df, comment_col = 'Comments', key_cols = c('Date', 'Stati
         QC_1 = 'Unknown'
       )
   }
-  
+
   # Identify taxa with multiple entries per group that differ in any field
   df <- df %>%
     group_by(across(all_of(group_cols))) %>%
     mutate(
       QC_11 = {
-        non_group_cols <- setdiff(names(pick(everything())), group_cols)
-        if (n() > 1 && any(sapply(pick(everything())[non_group_cols], function(x) length(unique(x)) > 1))) {
-          'MultipleSizes'
-        } else {
+        # check for "sp" or "spp" in taxa columns
+        if (any(grepl('\\bsp\\b|\\bspp\\b', .data[[taxa_col]], ignore.case = TRUE))) {
           NA_character_
+        } else {
+          # check for multiple sizes in non-group columns
+          non_group_cols <- setdiff(names(pick(everything())), group_cols)
+          if (n() > 1 && any(sapply(pick(everything())[non_group_cols], function(x) length(unique(x)) > 1))) {
+            'MultipleSizes'
+          } else {
+            NA_character_
+          }
         }
       }
     ) %>%
@@ -343,21 +347,28 @@ add_notes_col <- function(df, comment_col = 'Comments', taxa_col = 'Taxon') {
     # If comment_col is not NULL, evaluate normally
     df <- df %>%
       mutate(
-        # Detect cyst for Note_1
+        # Detect cyst
         Note_1 = case_when(
           grepl('\\bcyst\\b|\\(cyst\\)', .orig_taxon, ignore.case = TRUE) ~ 'Cyst',
           grepl('\\bcyst\\b|\\(cyst\\)', !!comment_col, ignore.case = TRUE) ~ 'Cyst',
           TRUE ~ NA_character_
         ),
         
-        # Add other notes
+        # Detect secondary
         Note_2 = case_when(
-          is.na(!!comment_col) ~ NA_character_,
-          grepl('\\bcilliates\\b', !!comment_col, ignore.case = TRUE) ~ 'Cilliates',
+          grepl('\\bsecondary\\b|\\(secondary\\)', .orig_taxon, ignore.case = TRUE) ~ 'Secondary',
+          grepl('\\bsecondary\\b|\\(secondary\\)', !!comment_col, ignore.case = TRUE) ~ 'Secondary',
           TRUE ~ NA_character_
         ),
         
+        # Add other notes
         Note_3 = case_when(
+          is.na(!!comment_col) ~ NA_character_,
+          grepl('\\bciliates\\b', !!comment_col, ignore.case = TRUE) ~ 'Ciliates',
+          TRUE ~ NA_character_
+        ),
+        
+        Note_4 = case_when(
           is.na(!!comment_col) ~ NA_character_,
           grepl('\\bgirdle\\s*view\\b|\\bgirdle\\b', !!comment_col, ignore.case = TRUE) ~ 'GirdleView',
           TRUE ~ NA_character_
@@ -371,8 +382,12 @@ add_notes_col <- function(df, comment_col = 'Comments', taxa_col = 'Taxon') {
           grepl('\\bcyst\\b|\\(cyst\\)', .orig_taxon, ignore.case = TRUE) ~ 'Cyst',
           TRUE ~ NA_character_
         ),
-        Note_2 = 'Unknown',
-        Note_3 = 'Unknown'
+        Note_3 = case_when(
+          grepl('\\bsecondary\\b|\\(secondary\\)', .orig_taxon, ignore.case = TRUE) ~ 'Secondary',
+          TRUE ~ NA_character_
+        ),
+        Note_4 = 'Unknown',
+        Note_5 = 'Unknown'
       )
   }
   
@@ -380,6 +395,9 @@ add_notes_col <- function(df, comment_col = 'Comments', taxa_col = 'Taxon') {
   df <- df %>%
     mutate(
       !!taxa_col := gsub('\\s*\\(cyst\\)\\s*|\\s*\\bcyst\\b\\s*', ' ', !!taxa_col, ignore.case = TRUE) %>% trimws()
+    ) %>%
+    mutate(
+      !!taxa_col := gsub('\\s*\\(secondary\\)\\s*|\\s*\\bsecondary\\b\\s*', ' ', !!taxa_col, ignore.case = TRUE) %>% trimws()
     )
   
   # Log cyst corrections
@@ -389,9 +407,9 @@ add_notes_col <- function(df, comment_col = 'Comments', taxa_col = 'Taxon') {
     arrange(OldTaxon)
   
   if (nrow(cyst_log) > 0) {
-    message('Total cyst taxon corrections: ', nrow(cyst_log))
+    message('Total cyst/secondary taxon corrections: ', nrow(cyst_log))
   } else {
-    message('No cyst taxon corrections found.')
+    message('No cyst/secondary taxon corrections found.')
   }
   
   # Remove temp column
@@ -1020,6 +1038,40 @@ rename_cols <- function(df, rename_map = NULL) {
   )
   
   message(rename_message)
+  
+  return(df)
+}
+
+# subset cols
+subset_cols <- function(df, subset_map = NULL, remove_cols = NULL) {
+  # Define a default subset_map if none is provided
+  if (is.null(subset_map)) {
+    subset_map <- c(
+      'Survey','Date','Time','SampleScheme','Location','Station','Latitude','Longitude','SampleMethod',
+      'SampleDepth','DepthType','TowNetRadius','Lab','Magnification','OrigTaxon',
+      'Cells_per_mL','Units_per_mL','Biovolume_per_mL',
+      'GALD','PhytoForm','QualityCheck','Debris','Notes'
+    )
+  }
+  
+  # Remove specified columns from the subset_map if provided
+  if (!is.null(remove_cols)) {
+    subset_map <- setdiff(subset_map, remove_cols)
+  }
+  
+  # Identify dropped columns
+  dropped_cols <- setdiff(names(df), subset_map)
+  
+  # Reorder and select only the desired columns
+  df <- df %>%
+    select(all_of(subset_map))
+  
+  # Print a message if any columns were dropped
+  if (length(dropped_cols) > 0) {
+    message('Dropped columns: ', paste(dropped_cols, collapse = ', '))
+  } else {
+    message('No columns were dropped.')
+  }
   
   return(df)
 }

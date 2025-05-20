@@ -123,6 +123,6 @@ df_frp <- df_frp %>%
 
 ## Write csv
 ```{r}
-# write_csv(df_frp, abs_pesp_path('Groups/CDFW-FRP/02 Processed Data/FRP_PESP_updated.csv'), na = '')
+write_csv(df_frp, abs_pesp_path('Groups/CDFW-FRP/02 Processed Data/FRP_PESP_updated.csv'), na = '')
 ```
 

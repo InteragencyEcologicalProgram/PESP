@@ -1,0 +1,90 @@
+# Prep FRP Data
+
+**Purpose:** Prep FRP data for PESP merge.
+
+**Author:** Perry ([sarah.perry\@water.ca.gov](mailto:sarah.perry@water.ca.gov){.email})
+
+# Initial Setup
+```{r, message=FALSE, warning=FALSE}
+# Import Packages ---------------------------------------------------------
+library(tidyverse)
+library(fuzzyjoin)
+library(glue)
+library(lubridate)
+
+source('admin/global_functions/global_funcs.R')
+source('admin/global_functions/syn_funcs.R')
+source('admin/global_functions/bsa_funcs.R')
+source('admin/global_functions/check_funcs.R')
+```
+
+# Read in data
+```{r}
+# specify the file path
+data_path_frp <- abs_pesp_path('Groups/CDFW-FRP/02 Processed Data/FRP_PESP_updated.csv')
+
+# new data to format and append
+df_frp <- read_quiet_csv(data_path_frp)
+```
+
+# Clean data
+
+## Rename columns
+```{r}
+rename_map <- c(
+  'Station' = 'VisitNo',
+  'Latitude' = 'LatitudeStart',
+  'Longitude' = 'LongitudeStart',
+  'Time' = 'StartTime',
+  'SampleDepth' = 'DepthOfSample',
+  'Lab' = 'LAB_NAME',
+  'OrigTaxon'= 'OriginalTaxon',
+  'Cells_per_mL' = 'Cells_permL',
+  'Units_per_mL' = 'Units_permL',
+  'Biovolume_per_mL' = 'Biov_permL'
+)
+
+df_frp <- rename_cols(df_frp, rename_map)
+```
+
+## Convert Time (if needed)
+TODO: come back to this when metadata is in
+
+## Add in Metadata
+```{r}
+# Survey
+df_frp <- add_meta_col(df_frp, 'CDFW-FRP', 'Survey')
+
+# Sample Method
+df_frp <- df_frp %>%
+  mutate(SampleMethod = NA_character_) # TODO: fix when metadata is in
+
+# Magnification
+df_frp <- df_frp %>%
+  mutate(Magnification = NA_character_) # TODO: fix when metadata is in
+
+# Depth Type
+df_frp <- df_frp %>%
+  mutate(DepthType = NA_character_) # TODO: fix when metadata is in
+
+# Sample Scheme
+df_frp <- add_meta_col(df_frp, 'CDFW-FRP', 'SampleScheme')
+```
+
+## Add extra columns
+```{r}
+df_frp <- df_frp %>% 
+  mutate(TowNetRadius = NA)
+```
+
+
+## Subset relevant columns
+```{r}
+df_frp <- subset_cols(df_frp)
+```
+
+# Save .Rdata
+```{r}
+save(df_frp, file = 'synthesized/group_prep/group_data/CDFW-FRP.Rdata')
+```
+
