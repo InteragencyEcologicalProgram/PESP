@@ -1048,7 +1048,7 @@ subset_cols <- function(df, subset_map = NULL, remove_cols = NULL) {
   if (is.null(subset_map)) {
     subset_map <- c(
       'Survey','Date','Time','SampleScheme','Location','Station','Latitude','Longitude','SampleMethod',
-      'SampleDepth','DepthType','TowNetRadius','Lab','Magnification','OrigTaxon',
+      'SampleDepth','DepthType','TowNetRadius','Lab','Magnification','OrigTaxon','Taxon',
       'Cells_per_mL','Units_per_mL','Biovolume_per_mL',
       'GALD','PhytoForm','QualityCheck','Debris','Notes'
     )

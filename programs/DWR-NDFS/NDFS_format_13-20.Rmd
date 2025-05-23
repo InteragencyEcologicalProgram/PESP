@@ -95,7 +95,7 @@ unique_check(df_data_one, SampleDepth)
 
 ## Add in lab
 ```{r}
-df_data_one <- add_meta_col(df_data_one, 'North Delta Food Subsidy Study', 'Lab')
+df_data_one <- add_meta_col(df_data_one, 'DWR-NDFS', 'Lab')
 unique_check(df_data_one, 'Lab')
 ```
 
@@ -178,7 +178,7 @@ unique_check(df_data_two, SampleDepth)
 
 ## Add in lab
 ```{r}
-df_data_two <- add_meta_col(df_data_two, 'North Delta Food Subsidy Study', 'Lab')
+df_data_two <- add_meta_col(df_data_two, 'DWR-NDFS', 'Lab')
 unique_check(df_data_two, 'Lab')
 ```
 
@@ -270,7 +270,7 @@ unique_check(df_data_three, SampleDepth)
 
 ## Add in lab
 ```{r}
-df_data_three <- add_meta_col(df_data_three, 'North Delta Food Subsidy Study', 'Lab')
+df_data_three <- add_meta_col(df_data_three, 'DWR-NDFS', 'Lab')
 unique_check(df_data_three, 'Lab')
 ```
 
@@ -369,7 +369,7 @@ unique_check(df_data_four, SampleDepth)
 
 ## Add in lab
 ```{r}
-df_data_four <- add_meta_col(df_data_four, 'North Delta Food Subsidy Study', 'Lab')
+df_data_four <- add_meta_col(df_data_four, 'DWR-NDFS', 'Lab')
 unique_check(df_data_four, 'Lab')
 ```
 
@@ -448,8 +448,7 @@ unique_check(df_data_five, SampleDepth)
 
 ## Add in lab
 ```{r}
-df_data_five <- add_meta_col(df_data_five, 'North Delta Food Subsidy Study', 'Lab')
-unique_check(df_data_five, 'Lab')
+df_data_five <- df_data_five %>% mutate(Lab = 'BSA')
 ```
 
 ## Standardize Time
@@ -546,7 +545,7 @@ print(combined_taxa)
 
 ## Add sample method
 ```{r}
-df_data <- add_meta_col(df_data, 'North Delta Food Subsidy Study', 'SampleMethod')
+df_data <- add_meta_col(df_data, 'DWR-NDFS', 'SampleMethod')
 ```
 
 ## Add dilution QC code

@@ -153,19 +153,19 @@ unique_check(df_data, Station)
 ```{r}
 unique_check(df_data, SampleDepth)
 
-df_data <- add_meta_col(df_data, 'North Delta Food Subsidy Study', 'SampleDepth')
+df_data <- add_meta_col(df_data, 'DWR-NDFS', 'SampleDepth')
 df_data$SampleDepth <- gsub(' meter$', '', df_data$SampleDepth)
 ```
 
 ## Add in lab
 ```{r}
-df_data <- add_meta_col(df_data, 'North Delta Food Subsidy Study', 'Lab')
+df_data <- add_meta_col(df_data, 'DWR-NDFS', 'Lab')
 unique_check(df_data, 'Lab')
 ```
 
 ## Add sample method
 ```{r}
-df_data <- add_meta_col(df_data, 'North Delta Food Subsidy Study', 'SampleMethod')
+df_data <- add_meta_col(df_data, 'DWR-NDFS', 'SampleMethod')
 ```
 
 ## Select relevant columns

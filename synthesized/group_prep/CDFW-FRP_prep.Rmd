@@ -38,7 +38,7 @@ rename_map <- c(
   'Time' = 'StartTime',
   'SampleDepth' = 'DepthOfSample',
   'Lab' = 'LAB_NAME',
-  'OrigTaxon'= 'OriginalTaxon',
+  'Taxon'= 'OriginalTaxon',
   'Cells_per_mL' = 'Cells_permL',
   'Units_per_mL' = 'Units_permL',
   'Biovolume_per_mL' = 'Biov_permL'
@@ -74,7 +74,8 @@ df_frp <- add_meta_col(df_frp, 'CDFW-FRP', 'SampleScheme')
 ## Add extra columns
 ```{r}
 df_frp <- df_frp %>% 
-  mutate(TowNetRadius = NA)
+  mutate(TowNetRadius = NA,
+         OrigTaxon = NA)
 ```
 
 

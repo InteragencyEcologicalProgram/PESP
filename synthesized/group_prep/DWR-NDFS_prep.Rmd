@@ -1,6 +1,6 @@
-# Prep AEU Data
+# Prep NDFS Data
 
-**Purpose:** Prep AEU data for PESP merge.
+**Purpose:** Prep NDFS data for PESP merge.
 
 **Author:** Perry ([sarah.perry\@water.ca.gov](mailto:sarah.perry@water.ca.gov){.email})
 
@@ -21,10 +21,10 @@ source('admin/global_functions/check_funcs.R')
 # Read in data
 ```{r}
 # specify the file path
-data_path_aeu <- abs_pesp_path('Groups/DWR-AEU/02 Processed Data/AEU_draft.csv')
+data_path_NDFS <- abs_pesp_path('Groups/DWR-NDFS/03 Final Data/NDFS_draft_all.csv')
 
 # new data to format and append
-df_aeu <- read_quiet_csv(data_path_aeu)
+df_ndfs <- read_quiet_csv(data_path_NDFS)
 ```
 
 # Clean data
@@ -35,36 +35,36 @@ TODO: come back to this when metadata is in
 ## Add in Metadata
 ```{r}
 # Survey
-df_aeu <- add_meta_col(df_aeu, 'DWR-YBFMP', 'Survey')
+df_ndfs <- add_meta_col(df_ndfs, 'DWR-NDFS', 'Survey')
 
 # Sample Method
-df_aeu <- add_meta_col(df_aeu, 'DWR-YBFMP', 'SampleMethod')
+df_ndfs <- add_meta_col(df_ndfs, 'DWR-NDFS', 'SampleMethod')
 
 # Magnification
-df_aeu <- df_aeu %>%
+df_ndfs <- df_ndfs %>%
   mutate(Magnification = NA_character_) # TODO: fix when metadata is in
 
 # Depth Type
-df_aeu <- add_meta_col(df_aeu, 'DWR-YBFMP', 'DepthType')
+df_ndfs <- add_meta_col(df_ndfs, 'DWR-NDFS', 'DepthType')
 
 # Sample Scheme
-df_aeu <- add_meta_col(df_aeu, 'DWR-YBFMP', 'SampleScheme')
+df_ndfs <- add_meta_col(df_ndfs, 'DWR-NDFS', 'SampleScheme')
 ```
+
 
 ## Add extra columns
 ```{r}
-df_aeu <- df_aeu %>% 
+df_ndfs <- df_ndfs %>% 
   mutate(TowNetRadius = NA)
 ```
 
 ## Subset relevant columns
 ```{r}
-df_aeu <- subset_cols(df_aeu, remove_cols = c('Location','GALD','PhytoForm'))
+df_ndfs <- subset_cols(df_ndfs, remove_cols = c('Location','GALD','PhytoForm'))
 ```
 
 ## Save .Rdata
 ```{r}
-save(df_aeu, file = 'synthesized/group_prep/group_data/DWR-AEU.Rdata')
+save(df_ndfs, file = 'synthesized/group_prep/group_data/DWR-NDFS.Rdata')
 ```
-
 
