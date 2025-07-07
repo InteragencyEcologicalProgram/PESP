@@ -11,17 +11,12 @@ clean_cols_bgc <- function(df) {
       'Replicate' = case_when(
         replicate == 'y' ~ TRUE,
         replicate == 'n' ~ FALSE
-      ),
-      'SampleMethod' = case_when(
-        SampleMethod == 'Grab sample' ~ 'Unknown',
-        TRUE ~ SampleMethod
       )
     ) %>%
     filter(!(Station == 'WLS')) # remove station with no data
   
   message(
     '- standardizing Date, Time, and Replicate\n',
-    '- set Unknown SampleMethod to Grab Sample\n',
     '- removed rows with Station == WLS'
   )
   
@@ -55,4 +50,35 @@ subset_cols_bgc <- function(df){
     select(all_of(keep_cols))
   
   return(df) 
+}
+
+# remove the duplicate rows that only differ by a method based on csv
+filter_methods_bgc <- function(df, df_corrections) {
+  df_corrections <- read_quiet_csv(abs_pesp_path('Groups/USGS-BGC/Metadata/BGC_sample_method_corrections.csv'))
+  
+  # construct key
+  df$key <- paste(df$datetime_pst, df$site_abbrev)
+  df_corrections$key <- paste(df_corrections$datetime_pst, df_corrections$site_abbrev)
+  
+  corrections_lookup <- df_corrections[, c('key', 'sampler')]
+  
+  df$has_correction <- df$key %in% corrections_lookup$key
+  df <- merge(df, corrections_lookup, by = 'key', all.x = TRUE, suffixes = c('', '_corr'))
+  
+  to_keep <- !df$has_correction | df$sampler == df$sampler_corr
+  
+  df_filtered <- df[to_keep, ]
+  
+  # create log
+  df_log <- df[!to_keep, c('datetime_pst', 'site_abbrev', 'sampler')]
+  df_log <- unique(df_log)
+  
+  # cleanup
+  df_filtered$key <- NULL
+  df_filtered$has_correction <- NULL
+  df_filtered$sampler_corr <- NULL
+  
+  attr(df_filtered, 'log') <- list(removed_method_rows = df_log)
+  
+  return(df_filtered)
 }

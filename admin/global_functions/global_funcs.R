@@ -23,8 +23,8 @@
 #'
 #' @importFrom readr read_csv
 #' @export
-read_quiet_csv <- function(fp){
-  df <- suppressWarnings(readr::read_csv(fp, show_col_types = FALSE))
+read_quiet_csv <- function(fp, ...){
+  df <- suppressWarnings(readr::read_csv(fp, show_col_types = FALSE, ...))
   
   return(df)
 }
@@ -325,7 +325,7 @@ add_debris_col <- function(df, comment_col = 'Comments') {
       unite(Debris, starts_with('Db'), remove = TRUE, na.rm = TRUE, sep = ' ') %>%
       mutate(
         Debris = case_when(
-          Debris == '' ~ 'Unknown',
+          Debris == '' ~ 'None',
           TRUE ~ Debris
         )
       )
@@ -454,7 +454,7 @@ add_notes_col <- function(df, comment_col = 'Comments', taxa_col = 'Taxon') {
 #' @importFrom rlang enquo as_name
 #' @importFrom dplyr pull
 #' @export
-add_meta_col <- function(df, program, col_name){
+add_meta_col <- function(df, program, col_name, match_cols = NULL){
   # Read in metadata sheet
   df_meta <- read_meta_file(program)
   col_str <- rlang::as_name(rlang::enquo(col_name))
@@ -462,6 +462,19 @@ add_meta_col <- function(df, program, col_name){
   # Check if col_name exists in df_meta
   if (!col_str %in% colnames(df_meta)) {
     stop(paste('Column', col_str, 'not found in metadata file for program', program))
+  }
+  
+  # Check if match_cols exist in both dataframes
+  if (!is.null(match_cols)) {
+    missing_in_df <- match_cols[!match_cols %in% colnames(df)]
+    missing_in_meta <- match_cols[!match_cols %in% colnames(df_meta)]
+    
+    if (length(missing_in_df) > 0) {
+      stop(paste('Matching columns not found in df:', paste(missing_in_df, collapse = ', ')))
+    }
+    if (length(missing_in_meta) > 0) {
+      stop(paste('Matching columns not found in metadata:', paste(missing_in_meta, collapse = ', ')))
+    }
   }
   
   # Convert date columns to Date type for comparison
@@ -496,23 +509,54 @@ add_meta_col <- function(df, program, col_name){
   # Collect messages
   messages <- c(paste0('added ', col_str, ':'))
   
-  # Apply metadata values based on date ranges
+  # Apply metadata values based on date ranges and additional matching columns
   for (i in seq_len(nrow(df_meta))) {
     meta_row <- df_meta[i, ]
     start_date <- meta_row$`Starting Date`
     end_date <- meta_row$`Ending Date`
     value <- meta_row[[col_str]]
     
-    # Apply to matching rows in df
+    # Start with date-based matching
     matching_rows <- df$Date >= start_date & df$Date <= end_date
+    
+    # Add additional column matching criteria
+    if (!is.null(match_cols)) {
+      for (match_col in match_cols) {
+        meta_value <- meta_row[[match_col]]
+        # Only apply additional filter if metadata has a non-NA value for this column
+        if (!is.na(meta_value)) {
+          matching_rows <- matching_rows & (df[[match_col]] == meta_value)
+        }
+      }
+    }
+    
+    # Apply to matching rows in df
     df[[col_str]][matching_rows] <- value
     
-    # Format date range for message
-    messages <- c(messages, paste0('  • ', format(start_date, '%m/%d/%Y'), ' - ', format(end_date, '%m/%d/%Y'), ': ', value))
+    # Format message with matching criteria
+    date_range <- paste0(format(start_date, '%m/%d/%Y'), ' - ', format(end_date, '%m/%d/%Y'))
+    
+    if (!is.null(match_cols)) {
+      additional_criteria <- c()
+      for (match_col in match_cols) {
+        meta_value <- meta_row[[match_col]]
+        if (!is.na(meta_value)) {
+          additional_criteria <- c(additional_criteria, paste0(match_col, '=', meta_value))
+        }
+      }
+      if (length(additional_criteria) > 0) {
+        criteria_str <- paste0(' (', paste(additional_criteria, collapse = ', '), ')')
+      } else {
+        criteria_str <- ''
+      }
+    } else {
+      criteria_str <- ''
+    }
+    
+    messages <- c(messages, paste0('  • ', date_range, criteria_str, ': ', value))
   }
   
   message(paste(messages, collapse = '\n'))
-
   return(df)
 }
 
@@ -990,7 +1034,7 @@ write_log_file <- function(df_log, fp) {
 # Add latlon
 add_latlon <- function(df, fp_stations){
   # Read station coordinates
-  df_latlon <- read_quiet_csv(abs_pesp_path(fp_stations)) %>%
+  df_latlon <- read_quiet_csv(abs_pesp_path(fp_stations), col_types = cols(Station = col_character())) %>%
     select(c('Station', 'Latitude', 'Longitude'))
   
   # Identify stations in df that are missing from df_latlon
@@ -1049,6 +1093,7 @@ subset_cols <- function(df, subset_map = NULL, remove_cols = NULL) {
     subset_map <- c(
       'Survey','Date','Time','SampleScheme','Location','Station','Latitude','Longitude','SampleMethod',
       'SampleDepth','DepthType','TowNetRadius','Lab','Magnification','OrigTaxon','Taxon',
+      'Kingdom','Phylum','Class','AlgalGroup','Genus','Species',
       'Cells_per_mL','Units_per_mL','Biovolume_per_mL',
       'GALD','PhytoForm','QualityCheck','Debris','Notes'
     )

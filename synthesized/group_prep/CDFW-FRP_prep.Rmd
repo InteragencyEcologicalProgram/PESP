@@ -50,22 +50,34 @@ df_frp <- rename_cols(df_frp, rename_map)
 ## Convert Time (if needed)
 TODO: come back to this when metadata is in
 
+## Add DepthType
+
+```{r}
+df_frp <- df_frp %>%
+  mutate(DepthType =
+           case_when(Substrate == 'epiphytic' ~ 'surface',
+                     Substrate == 'pelagic' ~ 'near surface',
+                     Substrate == 'benthic' ~ 'bottom'),
+         SampleMethod =
+           case_when(Substrate == 'epiphytic' ~ 'putty knife',
+                     Substrate == 'pelagic' & Date < '2023-07-01' ~ 'unspecified surface grab',
+                     Substrate == 'pelagic' & Date >= '2023-07-01' ~ 'Van Dorn',
+                     Substrate == 'benthic' ~ 'syringe'),
+         SampleDepth =
+           case_when(SampleMethod == 'Van Dorn' ~ 0.5,
+                     SampleDepth == 0 | SampleDepth == 0.0 ~ NA,
+                     TRUE ~ SampleDepth)
+         )
+```
+
+
 ## Add in Metadata
 ```{r}
 # Survey
 df_frp <- add_meta_col(df_frp, 'CDFW-FRP', 'Survey')
 
-# Sample Method
-df_frp <- df_frp %>%
-  mutate(SampleMethod = NA_character_) # TODO: fix when metadata is in
-
 # Magnification
-df_frp <- df_frp %>%
-  mutate(Magnification = NA_character_) # TODO: fix when metadata is in
-
-# Depth Type
-df_frp <- df_frp %>%
-  mutate(DepthType = NA_character_) # TODO: fix when metadata is in
+df_frp <- add_meta_col(df_frp, 'CDFW-FRP', 'Magnification')
 
 # Sample Scheme
 df_frp <- add_meta_col(df_frp, 'CDFW-FRP', 'SampleScheme')
@@ -75,7 +87,35 @@ df_frp <- add_meta_col(df_frp, 'CDFW-FRP', 'SampleScheme')
 ```{r}
 df_frp <- df_frp %>% 
   mutate(TowNetRadius = NA,
-         OrigTaxon = NA)
+         OrigTaxon = Taxon)
+```
+
+
+## Add PESP Taxon
+## Standardize unknowns
+
+```{r}
+df_frp <- clean_unknowns(df_frp)
+standardized_unknowns <- attr(df_frp, 'log')$clean_unknowns
+
+print(standardized_unknowns)
+```
+
+## Update synonyms
+
+```{r}
+df_frp <- update_synonyms(df_frp)
+updated_synonyms <- attr(df_frp, 'log')$synonym_updates
+print(updated_synonyms)
+```
+
+## Add in higher-level taxa
+
+```{r}
+df_frp <- higher_lvl_taxa(df_frp)
+needs_hierarchy <- attr(df_frp, 'log')$unmatched_taxa
+
+print(needs_hierarchy)
 ```
 
 

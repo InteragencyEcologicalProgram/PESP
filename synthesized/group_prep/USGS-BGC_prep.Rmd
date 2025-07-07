@@ -1,0 +1,85 @@
+# Prep AEU Data
+
+**Purpose:** Prep AEU data for PESP merge.
+
+**Author:** Perry ([sarah.perry\@water.ca.gov](mailto:sarah.perry@water.ca.gov){.email})
+
+# Initial Setup
+```{r, message=FALSE, warning=FALSE}
+# Import Packages ---------------------------------------------------------
+library(tidyverse)
+library(fuzzyjoin)
+library(glue)
+library(lubridate)
+
+source('admin/global_functions/global_funcs.R')
+source('admin/global_functions/syn_funcs.R')
+source('admin/global_functions/bsa_funcs.R')
+source('admin/global_functions/check_funcs.R')
+```
+
+# Read in data
+```{r}
+# specify the file path
+data_path_aeu <- abs_pesp_path('Groups/USGS-BGC/02 Processed Data/BGC_draft.csv')
+
+# new data to format and append
+df_bgc <- read_quiet_csv(data_path_aeu)
+```
+
+# Clean data
+
+## Convert Time (if needed)
+TODO: come back to this when metadata is in
+
+## Add in Metadata
+```{r}
+# Survey
+df_bgc <- add_meta_col(df_bgc, 'USGS-BGC', 'Survey')
+
+# Magnification
+df_bgc <- df_bgc %>%
+  mutate(Magnification = NA_character_) # TODO: fix when metadata is in
+
+# Depth Type
+df_bgc <- add_meta_col(df_bgc, 'USGS-BGC', 'DepthType')
+
+# Sample Scheme
+df_bgc <- add_meta_col(df_bgc, 'USGS-BGC', 'SampleScheme')
+
+# Update Sample Methods
+rename_map <- c(
+  'centrifugal pump' = 'Submersible centrifugal pump',
+  'Van Dorn' = 'Van Dorn sampler',
+  'unspecified grab sample' = 'Grab sample',
+  'diaphragm pump' = 'Diaphragm pump and churn',
+  'phytoplankton net tow' ='Phytoplankton net',
+)
+
+df_bgc <- rename_values(df_bgc, 'SampleMethod', rename_map)
+```
+
+
+```{r}
+# Upd
+df_bgc <- 
+```
+
+
+## Add extra columns
+```{r}
+df_bgc <- df_bgc %>% 
+  mutate(TowNetRadius = NA)
+```
+
+## Subset relevant columns
+```{r}
+df_bgc <- subset_cols(df_bgc, remove_cols = c('Location','GALD','PhytoForm'))
+```
+
+## Save .Rdata
+```{r}
+save(df_bgc, file = 'synthesized/group_prep/group_data/USGS-BGC.Rdata')
+```
+
+

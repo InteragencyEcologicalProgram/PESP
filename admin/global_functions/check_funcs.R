@@ -271,6 +271,70 @@ check_nodata <- function(df) {
 # Check Plots -------------------------------------------------------------
 
 # # Plot NMDS
+calc_nmds <- function(df, group_var, nmds_var, taxa_var = 'Taxon', factor_var = NULL, seed = 42) {
+  set.seed(seed)
+  
+  group_sym <- rlang::sym(group_var)
+  nmds_sym <- rlang::sym(nmds_var)
+  taxa_sym <- rlang::sym(taxa_var)
+  
+  if (!is.null(factor_var)) {
+    factor_syms <- rlang::syms(factor_var)
+    
+    df_cells <- df %>%
+      select(!!group_sym, !!!factor_syms, !!taxa_sym, !!nmds_sym) %>%
+      group_by(!!group_sym, !!!factor_syms, !!taxa_sym) %>%
+      reframe(!!nmds_var := mean(!!nmds_sym, na.rm = TRUE)) %>%
+      pivot_wider(names_from = !!taxa_sym, values_from = !!nmds_sym)
+    
+    meta <- df_cells %>% select(!!group_sym, !!!factor_syms)
+    
+    # build vector of columns to drop safely
+    drop_cols <- c(group_var, factor_var)
+    m_com <- df_cells %>% select(-all_of(drop_cols))
+    
+  } else {
+    df_cells <- df %>%
+      select(!!group_sym, !!taxa_sym, !!nmds_sym) %>%
+      group_by(!!group_sym, !!taxa_sym) %>%
+      reframe(!!nmds_var := mean(!!nmds_sym, na.rm = TRUE)) %>%
+      pivot_wider(names_from = !!taxa_sym, values_from = !!nmds_sym)
+    
+    meta <- df_cells %>% select(!!group_sym)
+    m_com <- df_cells %>% select(-!!group_sym)
+  }
+  
+  m_com[is.na(m_com)] <- 0
+  
+  nmds <- suppressMessages(metaMDS(as.matrix(m_com), distance = 'bray'))
+  scores_df <- as.data.frame(scores(nmds)$sites)
+  result <- bind_cols(scores_df, meta)
+  
+  return(list(
+    df_nmds = result,
+    raw_nmds = nmds
+  ))
+}
+
+plot_nmds <- function(df_nmds, fill_var, show_legend = TRUE, color_palette = NULL, title = NULL) {
+  fill_sym <- rlang::sym(fill_var)
+  
+  plt <- ggplot(df_nmds, aes(x = NMDS1, y = NMDS2, fill = !!fill_sym)) +
+    geom_point(size = 4, shape = 21, color = '#000000') +
+    theme_bw() +
+    labs(title = title)
+  
+  if (!is.null(color_palette)) {
+    plt <- plt + scale_fill_manual(values = color_palette)
+  }
+  
+  if (!show_legend) {
+    plt <- plt + theme(legend.position = 'none')
+  }
+  
+  return(plt)
+}
+
 create_nmds <- function(df, group_var, nmds_var, taxa_var = 'Taxon', factor_var = NULL, show_legend = TRUE, color_palette = NULL) {
   set.seed(42)
 

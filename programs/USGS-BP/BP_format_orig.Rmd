@@ -78,7 +78,10 @@ df_data_one <- df_data_one %>%
 ## Add metadata columns
 ```{r}
 df_data_one <- df_data_one %>% mutate(Lab = 'Dick Dufford',
-                                      SampleMethod = 'variable')
+                                      SampleMethod = case_when(
+                                        Depth_m <= 2 ~ 'centrifugal pump',
+                                        Depth_m > 2 ~ 'Van Dorn')
+                                      )
 ```
 
 # Add Taxonomy (and QC column)
@@ -104,8 +107,8 @@ print(standardized_unknowns)
 ## Add QC column
 ```{r}
 df_data_one <- add_qc_col(df_data_one, comment_col = NULL)
-df_data_two <- add_debris_col(df_data_one, comment_col = NULL)
-df_data_two <- add_notes_col(df_data_one, comment_col = NULL)
+df_data_one <- add_debris_col(df_data_one, comment_col = NULL)
+df_data_one <- add_notes_col(df_data_one, comment_col = NULL)
 ```
 
 
@@ -182,9 +185,8 @@ df_data_two <- add_latlon(df_data_two, 'Groups/USGS-BP/Metadata/Stations-SFBay.c
 
 ## Add metadata columns
 ```{r}
-# CHECK METHODS
 df_data_two <- df_data_two %>% mutate(Lab = 'BSA',
-                                      SampleMethod = 'pump')
+                                      SampleMethod = 'vacuum pump')
 ```
 
 # Add Taxonomy (and QC column)
@@ -296,7 +298,7 @@ df_data_three <- add_latlon(df_data_three, 'Groups/USGS-BP/Metadata/Stations-SFB
 ## Add metadata columns
 ```{r}
 df_data_three <- df_data_three %>% mutate(Lab = 'BSA',
-                                      SampleMethod = 'net tow')
+                                      SampleMethod = 'phytoplankton net tow')
 ```
 
 # Add Taxonomy (and QC column)

@@ -10,27 +10,31 @@ library(vegan)
 library(lubridate)
 source('admin/global_functions/global_funcs.R')
 source('admin/global_functions/check_funcs.R')
+set.seed(42)
 ```
 
 ```{r}
-df_phyto <- read_quiet_csv(abs_pesp_path('Groups/USGS-BP/02 Processed Data/BP_draft.csv')) %>%
-  mutate(Year = year(Date)) %>%
-  mutate(StationYear = paste(Year, Station, sep = ' '))
+df_phyto <- read_quiet_csv(abs_pesp_path('Groups/USGS-BP/02 Processed Data/BP_draft_all.csv')) %>%
+  mutate(
+    Date = parse_date_time(Date, orders = c('ymd', 'dmy')),
+    Year = factor(year(Date))
+  )
 
 # create NMDS
-df_nmds1 <- create_nmds(df_phyto,
-                       group_var = 'Year',
-                       nmds_var = 'Biovolume_per_mL')
+df_nmds1 <- calc_nmds(df_phyto,
+                      group_var = 'Year',
+                      nmds_var = 'Biovolume_per_mL')
 
 # print dataframe
 df_nmds1[[1]]
 
-# print graph
-df_nmds1[[2]]
+# print plot
+plt_nmds1 <- plot_nmds(df_nmds1[[1]], fill_var = 'Year')
+plt_nmds1
 
 ggsave(
   filename = abs_pesp_path('Groups/USGS-BP/02 Processed Data/QC files/graphs/BP_NMDS_BiovolumepermL_Year.jpg'),
-  plot = df_nmds1[[2]],
+  plot = plt_nmds1,
   width = 8,
   height = 6
 )
@@ -38,20 +42,18 @@ ggsave(
 
 ```{r}
 # create NMDS
-df_nmds2 <- create_nmds(df_phyto,
-                        group_var = 'Date',
-                        nmds_var = 'Biovolume_per_mL',
-                        factor_var = 'Year')
+df_nmds2 <- calc_nmds(df_phyto,
+                      group_var = 'Date',
+                      factor_var = c('Year','SampleMethod','Lab'),
+                      nmds_var = 'Biovolume_per_mL')
 
-# print dataframe
-df_nmds2[[1]]
-
-# print graph
-df_nmds2[[2]]
+# print plot
+plt_nmds2 <- plot_nmds(df_nmds2[[1]], fill_var = 'Year')
+plt_nmds2
 
 ggsave(
   filename = abs_pesp_path('Groups/USGS-BP/02 Processed Data/QC files/graphs/BP_NMDS_BiovolumepermL_Date.jpg'),
-  plot = df_nmds2[[2]],
+  plot = plt_nmds2,
   width = 8,
   height = 6
 )
@@ -59,40 +61,25 @@ ggsave(
 
 ```{r}
 # create NMDS
-df_nmds2 <- create_nmds(df_phyto,
-                        group_var = 'Date',
-                        nmds_var = 'Biovolume_per_mL',
-                        factor_var = 'SampleMethod')
-
-# print dataframe
-df_nmds2[[1]]
-
-# print graph
-df_nmds2[[2]]
+plt_nmds3 <- plot_nmds(df_nmds2[[1]], fill_var = 'SampleMethod')
+plt_nmds3
 
 ggsave(
   filename = abs_pesp_path('Groups/USGS-BP/02 Processed Data/QC files/graphs/BP_NMDS_BiovolumepermL_Method.jpg'),
-  plot = df_nmds2[[2]],
+  plot = plt_nmds3,
   width = 8,
   height = 6
 )
 ```
+
 ```{r}
-# create NMDS
-df_nmds2 <- create_nmds(df_phyto,
-                        group_var = 'Date',
-                        nmds_var = 'Biovolume_per_mL',
-                        factor_var = 'Lab')
-
-# print dataframe
-df_nmds2[[1]]
-
-# print graph
-df_nmds2[[2]]
+# print plot
+plt_nmds4 <- plot_nmds(df_nmds2[[1]], fill_var = 'Lab')
+plt_nmds4
 
 ggsave(
   filename = abs_pesp_path('Groups/USGS-BP/02 Processed Data/QC files/graphs/BP_NMDS_BiovolumepermL_Lab.jpg'),
-  plot = df_nmds2[[2]],
+  plot = plt_nmds4,
   width = 8,
   height = 6
 )
