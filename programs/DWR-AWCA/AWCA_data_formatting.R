@@ -16,6 +16,7 @@
 #load packages---------
 library(tidyverse)
 library(lubridate)
+source('admin/global_functions/global_funcs.R')
 
 #read in data----------
 
@@ -98,8 +99,8 @@ phyto_format <- phyto_stn %>%
 #write formatted data file
 #write_csv(phyto_format, "./programs/AWCA/AWCA_phyto.csv")
 
-
-
+# write to SharePoint
+# write_csv(phyto_format, abs_pesp_path('Groups/DWR-AWCA/02 Program Data/AWCA_program_draft.csv'))
 
 
 

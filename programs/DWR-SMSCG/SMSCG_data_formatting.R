@@ -12,6 +12,7 @@
 #load packages---------
 library(tidyverse)
 library(lubridate)
+source('admin/global_functions/global_funcs.R')
 
 #read in data----------
 
@@ -109,4 +110,5 @@ phyto_format <- phyto_stn %>%
 #write formatted data file
 #write_csv(phyto_format, "./programs/SMSCG/SMSCG_phyto.csv")
 
-
+# write to SharePoint
+# write_csv(phyto_format, abs_pesp_path('Groups/DWR-SMSCG/02 Program Data/SMSCG_program_draft.csv'))
