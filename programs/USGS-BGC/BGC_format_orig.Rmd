@@ -47,7 +47,7 @@ nondistinct_rows <- attr(df_data, 'log')$nondistinct_allrows
 ```{r}
 rename_map <- c(
   'Taxon' = 'species',
-  'Station' = 'site_no',
+  'Station' = 'site_abbrev',
   'Biovolume_per_mL' = 'biovolume_um3_per_ml',
   'Cells_per_mL' ='cells_per_ml',
   'SampleMethod' = 'sampler',
@@ -81,15 +81,25 @@ df_data <- add_meta_col(df_data, 'USGS-BGC', 'SampleDepth')
 
 df_data <- add_meta_col(df_data, 'USGS-BGC', 'Lab')
 ```
+## Update station names
+```{r}
+df_data <- update_stations_bgc(df_data)
+df_data <- df_data %>% mutate(Station = str_trim(Station))
+
+df_data <- df_data %>%
+  mutate(
+    Station = case_when(Station == 'SFEI18' ~ 'PETER18',
+              TRUE ~ Station)
+  )
+```
+
 ## Add lat/lons
 ```{r}
 # remove them as they need updating
-df_test <- df_data %>% select(-c(Latitude, Longitude))
+df_data <- df_data %>% select(-c(Latitude, Longitude))
 
-df_test <- add_latlon(df_test, 'Groups/USGS-BGC/Metadata/Stations-BGC.csv')
+df_data <- add_latlon(df_data, 'Groups/USGS-BGC/Metadata/Stations-BGC.csv')
 ```
-
-
 # Add Taxonomy (and QC column)
 
 ## Correct typos
@@ -117,7 +127,7 @@ print(unmatched_comments)
 
 ## Standardize unknowns
 ```{r}
-df_data <- clean_unknowns(df_data)
+df_data <- clean_unknowns(df_data, std_sp = TRUE)
 standardized_unknowns <- attr(df_data, 'log')$clean_unknowns
 write_log_file(standardized_unknowns, 'Groups/USGS-BGC/02 Processed Data/QC files/tables/BGC_standardized_unknowns.csv')
 
@@ -135,7 +145,7 @@ print(updated_synonyms)
 
 ## Add in higher-level taxa
 ```{r}
-df_data <- higher_lvl_taxa(df_data)
+df_data <- higher_lvl_taxa(df_data, std_type = 'program')
 needs_hierarchy <- attr(df_data, 'log')$unmatched_taxa
 write_log_file(needs_hierarchy, 'Groups/USGS-BGC/02 Processed Data/QC files/tables/BGC_needs_hierarchy.csv')
 
@@ -154,17 +164,9 @@ attr(df_data, 'log')$nondistinct_allrows
 
 df_data <- check_distinct(df_data, type = 'key_measure_cols', key_cols = c('Station','Date', 'Time'), measurement_cols = c('Biovolume_per_mL','Cells_per_mL'))
 nondistinct_rows <- attr(df_data, 'log')$nondistinct_keymeasurerows
-write_log_file(nondistinct_rows, 'Groups/USGS-BGC/02 Processed Data/QC files/tables/BGC_nondistinct_rows.csv')
+# write_log_file(nondistinct_rows, 'Groups/USGS-BGC/02 Processed Data/QC files/tables/BGC_nondistinct_rows.csv')
 
 nondistinct_rows
-
-# Remove rows with "Submersible centrifugal pump" or "'Peristaltic pump" as SampleMethod that aren't distinct
-df_data <- df_data %>%
-  anti_join(
-    nondistinct_rows %>%
-      filter(SampleMethod == c('Submersible centrifugal pump','Peristaltic pump')),
-    by = c('Station', 'Date', 'Time')
-  )
 
 df_data <- check_distinct(df_data, type = 'key_measure_cols', key_cols = c('Station','Date', 'Time'), measurement_cols = c('Biovolume_per_mL','Cells_per_mL'))
 ```
@@ -211,6 +213,10 @@ unique_check(df_data, SampleMethod)
 ## Check stations
 ```{r}
 unique_check(df_data, Station)
+```
+```{r}
+df_data <- df_data %>%
+  rename('site_abbrev' = 'Station')
 ```
 
 ## Export

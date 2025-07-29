@@ -1,0 +1,403 @@
+# Check FRP data
+
+**Purpose:** Code to check FRP data for errors
+
+**Author:** Perry ([sarah.perry\@water.ca.gov](mailto:sarah.perry@water.ca.gov){.email})
+
+```{r}
+library(tidyverse)
+library(vegan)
+library(lubridate)
+source('admin/global_functions/global_funcs.R')
+source('admin/global_functions/check_funcs.R')
+set.seed(42)
+```
+
+```{r}
+load('synthesized/group_prep/group_data/CDFW-FRP.RData')
+
+# format main dataframe (species unit)
+df_phyto <- df_frp %>%
+  mutate(
+    Date = parse_date_time(Date, orders = c('ymd', 'dmy')),
+    Year = factor(year(Date)),
+    Binary = 1
+  )
+
+# format df (genus unit)
+df_genus <- df_phyto %>%
+  group_by(Date, Year, Station, Genus, SampleMethod, Magnification) %>%
+  summarize(Biovolume_per_mL = sum(Biovolume_per_mL),
+            Cells_per_mL = sum(Cells_per_mL),
+            Units_per_mL = sum(Units_per_mL),
+            .groups = 'drop') %>%
+  mutate(Binary = 1)
+```
+
+# NMDS by Species and Date
+
+### Biovol
+```{r}
+# create NMDS
+df_bv <- calc_nmds(df_phyto,
+                      group_var = 'Date',
+                      avg_var = 'Station',
+                      factor_var = c('Year','SampleMethod','Magnification'),
+                      nmds_var = 'Biovolume_per_mL')
+
+# print plot
+plt_nmds <- plot_nmds(df_bv$df_nmds, df_bv$meta_vars, fill_var = 'Year')
+plt_nmds
+
+ggsave(
+  filename = abs_pesp_path('Groups/CDFW-FRP/02 Synth Data/QC files/graphs/FRP-Synth_Species_Biovol_Year.jpg'),
+  plot = plt_nmds,
+  width = 8,
+  height = 6
+)
+
+# print plot
+plt_nmds <- plot_nmds(df_bv$df_nmds, df_bv$meta_vars, fill_var = 'SampleMethod')
+plt_nmds
+
+ggsave(
+  filename = abs_pesp_path('Groups/CDFW-FRP/02 Synth Data/QC files/graphs/FRP-Synth_Species_Biovol_SampMethod.jpg'),
+  plot = plt_nmds,
+  width = 8,
+  height = 6
+)
+
+# print plot
+plt_nmds <- plot_nmds(df_bv$df_nmds, df_bv$meta_vars, fill_var = 'Magnification')
+plt_nmds
+
+ggsave(
+  filename = abs_pesp_path('Groups/CDFW-FRP/02 Synth Data/QC files/graphs/FRP-Synth_Species_Biovol_Mag.jpg'),
+  plot = plt_nmds,
+  width = 8,
+  height = 6
+)
+```
+
+### Units
+```{r}
+# create NMDS
+df_unit <- calc_nmds(df_phyto,
+                      group_var = 'Date',
+                      avg_var = 'Station',
+                      factor_var = c('Year','SampleMethod','Magnification'),
+                      nmds_var = 'Units_per_mL')
+
+# print plot
+plt_nmds <- plot_nmds(df_unit$df_nmds, df_unit$meta_vars, fill_var = 'Year')
+plt_nmds
+
+ggsave(
+  filename = abs_pesp_path('Groups/CDFW-FRP/02 Synth Data/QC files/graphs/FRP-Synth_Species_Units_Year.jpg'),
+  plot = plt_nmds,
+  width = 8,
+  height = 6
+)
+
+# print plot
+plt_nmds <- plot_nmds(df_unit$df_nmds, df_unit$meta_vars, fill_var = 'SampleMethod')
+plt_nmds
+
+ggsave(
+  filename = abs_pesp_path('Groups/CDFW-FRP/02 Synth Data/QC files/graphs/FRP-Synth_Species_Units_SampMethod.jpg'),
+  plot = plt_nmds,
+  width = 8,
+  height = 6
+)
+
+# print plot
+plt_nmds <- plot_nmds(df_unit$df_nmds, df_unit$meta_vars, fill_var = 'Magnification')
+plt_nmds
+
+ggsave(
+  filename = abs_pesp_path('Groups/CDFW-FRP/02 Synth Data/QC files/graphs/FRP-Synth_Species_Units_Mag.jpg'),
+  plot = plt_nmds,
+  width = 8,
+  height = 6
+)
+```
+
+### Cells
+```{r}
+# create NMDS
+df_cell <- calc_nmds(df_phyto,
+                      group_var = 'Date',
+                      avg_var = 'Station',
+                      factor_var = c('Year','SampleMethod','Magnification'),
+                      nmds_var = 'Cells_per_mL')
+
+# print plot
+plt_nmds <- plot_nmds(df_cell$df_nmds, df_cell$meta_vars, fill_var = 'Year')
+plt_nmds
+
+ggsave(
+  filename = abs_pesp_path('Groups/CDFW-FRP/02 Synth Data/QC files/graphs/FRP-Synth_Species_Cells_Year.jpg'),
+  plot = plt_nmds,
+  width = 8,
+  height = 6
+)
+
+# print plot
+plt_nmds <- plot_nmds(df_cell$df_nmds, df_cell$meta_vars, fill_var = 'SampleMethod')
+plt_nmds
+
+ggsave(
+  filename = abs_pesp_path('Groups/CDFW-FRP/02 Synth Data/QC files/graphs/FRP-Synth_Species_Cells_SampMethod.jpg'),
+  plot = plt_nmds,
+  width = 8,
+  height = 6
+)
+
+# print plot
+plt_nmds <- plot_nmds(df_cell$df_nmds, df_cell$meta_vars, fill_var = 'Magnification')
+plt_nmds
+
+ggsave(
+  filename = abs_pesp_path('Groups/CDFW-FRP/02 Synth Data/QC files/graphs/FRP-Synth_Species_Cells_Mag.jpg'),
+  plot = plt_nmds,
+  width = 8,
+  height = 6
+)
+```
+
+### PA
+```{r}
+# create NMDS
+df_pa <- calc_nmds(df_phyto,
+                      group_var = 'Date',
+                      avg_var = 'Station',
+                      factor_var = c('Year','SampleMethod','Magnification'),
+                      nmds_var = 'Binary',
+                      distance = 'jaccard')
+
+# print plot
+plt_nmds <- plot_nmds(df_pa$df_nmds, df_pa$meta_vars, fill_var = 'Year')
+plt_nmds
+
+ggsave(
+  filename = abs_pesp_path('Groups/CDFW-FRP/02 Synth Data/QC files/graphs/FRP-Synth_Species_PA_Year.jpg'),
+  plot = plt_nmds,
+  width = 8,
+  height = 6
+)
+
+# print plot
+plt_nmds <- plot_nmds(df_pa$df_nmds, df_pa$meta_vars, fill_var = 'SampleMethod')
+plt_nmds
+
+ggsave(
+  filename = abs_pesp_path('Groups/CDFW-FRP/02 Synth Data/QC files/graphs/FRP-Synth_Species_PA_SampMethod.jpg'),
+  plot = plt_nmds,
+  width = 8,
+  height = 6
+)
+
+# print plot
+plt_nmds <- plot_nmds(df_pa$df_nmds, df_pa$meta_vars, fill_var = 'Magnification')
+plt_nmds
+
+ggsave(
+  filename = abs_pesp_path('Groups/CDFW-FRP/02 Synth Data/QC files/graphs/FRP-Synth_Species_PA_Mag.jpg'),
+  plot = plt_nmds,
+  width = 8,
+  height = 6
+)
+```
+
+# NMDS by Genus and Date
+
+### Biovol
+```{r}
+# create NMDS
+df_bv <- calc_nmds(df_genus,
+                      taxa_var = 'Genus',                    
+                      group_var = 'Date',
+                      avg_var = 'Station',
+                      factor_var = c('Year','SampleMethod','Magnification'),
+                      nmds_var = 'Biovolume_per_mL')
+
+# print plot
+plt_nmds <- plot_nmds(df_bv$df_nmds, df_bv$meta_vars, fill_var = 'Year')
+plt_nmds
+
+ggsave(
+  filename = abs_pesp_path('Groups/CDFW-FRP/02 Synth Data/QC files/graphs/FRP-Synth_Genus_Biovol_Year.jpg'),
+  plot = plt_nmds,
+  width = 8,
+  height = 6
+)
+
+# print plot
+plt_nmds <- plot_nmds(df_bv$df_nmds, df_bv$meta_vars, fill_var = 'SampleMethod')
+plt_nmds
+
+ggsave(
+  filename = abs_pesp_path('Groups/CDFW-FRP/02 Synth Data/QC files/graphs/FRP-Synth_Genus_Biovol_SampMethod.jpg'),
+  plot = plt_nmds,
+  width = 8,
+  height = 6
+)
+
+# print plot
+plt_nmds <- plot_nmds(df_bv$df_nmds, df_bv$meta_vars, fill_var = 'Magnification')
+plt_nmds
+
+ggsave(
+  filename = abs_pesp_path('Groups/CDFW-FRP/02 Synth Data/QC files/graphs/FRP-Synth_Genus_Biovol_Mag.jpg'),
+  plot = plt_nmds,
+  width = 8,
+  height = 6
+)
+```
+
+### Units
+```{r}
+# create NMDS
+df_unit <- calc_nmds(df_genus,
+                      taxa_var = 'Genus',                    
+                      group_var = 'Date',
+                      avg_var = 'Station',
+                      factor_var = c('Year','SampleMethod','Magnification'),
+                      nmds_var = 'Units_per_mL')
+
+# print plot
+plt_nmds <- plot_nmds(df_unit$df_nmds, df_unit$meta_vars, fill_var = 'Year')
+plt_nmds
+
+ggsave(
+  filename = abs_pesp_path('Groups/CDFW-FRP/02 Synth Data/QC files/graphs/FRP-Synth_Genus_Units_Year.jpg'),
+  plot = plt_nmds,
+  width = 8,
+  height = 6
+)
+
+# print plot
+plt_nmds <- plot_nmds(df_unit$df_nmds, df_unit$meta_vars, fill_var = 'SampleMethod')
+plt_nmds
+
+ggsave(
+  filename = abs_pesp_path('Groups/CDFW-FRP/02 Synth Data/QC files/graphs/FRP-Synth_Genus_Units_SampMethod.jpg'),
+  plot = plt_nmds,
+  width = 8,
+  height = 6
+)
+
+# print plot
+plt_nmds <- plot_nmds(df_unit$df_nmds, df_unit$meta_vars, fill_var = 'Magnification')
+plt_nmds
+
+ggsave(
+  filename = abs_pesp_path('Groups/CDFW-FRP/02 Synth Data/QC files/graphs/FRP-Synth_Genus_Units_Mag.jpg'),
+  plot = plt_nmds,
+  width = 8,
+  height = 6
+)
+```
+
+### Cells
+```{r}
+# create NMDS
+df_cell <- calc_nmds(df_genus,
+                      taxa_var = 'Genus',                    
+                      group_var = 'Date',
+                      avg_var = 'Station',
+                      factor_var = c('Year','SampleMethod','Magnification'),
+                      nmds_var = 'Cells_per_mL')
+
+# print plot
+plt_nmds <- plot_nmds(df_cell$df_nmds, df_cell$meta_vars, fill_var = 'Year')
+plt_nmds
+
+ggsave(
+  filename = abs_pesp_path('Groups/CDFW-FRP/02 Synth Data/QC files/graphs/FRP-Synth_Genus_Cells_Year.jpg'),
+  plot = plt_nmds,
+  width = 8,
+  height = 6
+)
+
+# print plot
+plt_nmds <- plot_nmds(df_cell$df_nmds, df_cell$meta_vars, fill_var = 'SampleMethod')
+plt_nmds
+
+ggsave(
+  filename = abs_pesp_path('Groups/CDFW-FRP/02 Synth Data/QC files/graphs/FRP-Synth_Genus_Cells_SampMethod.jpg'),
+  plot = plt_nmds,
+  width = 8,
+  height = 6
+)
+
+# print plot
+plt_nmds <- plot_nmds(df_cell$df_nmds, df_cell$meta_vars, fill_var = 'Magnification')
+plt_nmds
+
+ggsave(
+  filename = abs_pesp_path('Groups/CDFW-FRP/02 Synth Data/QC files/graphs/FRP-Synth_Genus_Cells_Mag.jpg'),
+  plot = plt_nmds,
+  width = 8,
+  height = 6
+)
+```
+
+### PA
+```{r}
+# create NMDS
+df_pa <- calc_nmds(df_genus,
+                      taxa_var = 'Genus',                    
+                      group_var = 'Date',
+                      avg_var = 'Station',
+                      factor_var = c('Year','SampleMethod','Magnification'),
+                      nmds_var = 'Binary',
+                      distance = 'jaccard')
+
+# print plot
+plt_nmds <- plot_nmds(df_pa$df_nmds, df_pa$meta_vars, fill_var = 'Year')
+plt_nmds
+
+ggsave(
+  filename = abs_pesp_path('Groups/CDFW-FRP/02 Synth Data/QC files/graphs/FRP-Synth_Genus_PA_Year.jpg'),
+  plot = plt_nmds,
+  width = 8,
+  height = 6
+)
+
+# print plot
+plt_nmds <- plot_nmds(df_pa$df_nmds, df_pa$meta_vars, fill_var = 'SampleMethod')
+plt_nmds
+
+ggsave(
+  filename = abs_pesp_path('Groups/CDFW-FRP/02 Synth Data/QC files/graphs/FRP-Synth_Genus_PA_SampMethod.jpg'),
+  plot = plt_nmds,
+  width = 8,
+  height = 6
+)
+
+# print plot
+plt_nmds <- plot_nmds(df_pa$df_nmds, df_pa$meta_vars, fill_var = 'Magnification')
+plt_nmds
+
+ggsave(
+  filename = abs_pesp_path('Groups/CDFW-FRP/02 Synth Data/QC files/graphs/FRP-Synth_Genus_PA_Mag.jpg'),
+  plot = plt_nmds,
+  width = 8,
+  height = 6
+)
+```
+
+# Check Counts
+```{r}
+plt_count <- check_station_count(df_phyto)
+
+plt_count
+
+ggsave(
+  filename = abs_pesp_path('Groups/CDFW-FRP/02 Synth Data/QC files/graphs/FRP-Synth_HM_StationNumber.jpg'),
+  plot = plt_count,
+  width = 8,
+  height = 5
+)
+``

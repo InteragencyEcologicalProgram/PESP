@@ -1,0 +1,179 @@
+# Prep AWCA Data
+
+**Purpose:** Prep AWCA data for PESP merge.
+
+**Author:** Perry ([sarah.perry\@water.ca.gov](mailto:sarah.perry@water.ca.gov){.email})
+
+# Initial Setup
+```{r, message=FALSE, warning=FALSE}
+# Import Packages ---------------------------------------------------------
+library(tidyverse)
+library(fuzzyjoin)
+library(glue)
+library(lubridate)
+
+source('admin/global_functions/global_funcs.R')
+source('admin/global_functions/syn_funcs.R')
+source('admin/global_functions/bsa_funcs.R')
+source('admin/global_functions/check_funcs.R')
+```
+
+# Read in data
+```{r}
+# specify the file path
+data_path_awca <- abs_pesp_path('Groups/DWR-AWCA/02 Processed Data/AWCA_phytoplankton_formatted_2023-08-11.csv')
+
+# new data to format and append
+df_awca <- read_quiet_csv(data_path_awca)
+```
+
+# Clean data
+
+## Rename columns
+```{r}
+rename_map <- c(
+  'Station' = 'station',
+  'Datetime' = 'date_time_pdt',
+  'GALD' = 'gald',
+  'PhytoForm' = 'phyto_form',
+  'Cells_per_mL' = 'cells_per_ml',
+  'Units_per_mL' = 'organisms_per_ml',
+  'Biovolume_per_mL' = 'biovolume_cubic_micron_per_ml',
+  'QualityCheck' = 'quality_check',
+  'Debris' = 'debris'
+)
+
+df_awca <- rename_cols(df_awca, rename_map)
+
+df_awca <- df_awca %>%
+  mutate(
+    Taxon = case_when(
+      !is.na(taxon_original) ~ taxon_original,
+      TRUE ~ taxon_current
+    )
+  )
+```
+
+## Extract Location
+```{r}
+df_awca <- df_awca %>%
+  mutate(Location = str_extract(Station, '^[^_]+'))
+```
+
+## Remove treated stations
+```{r}
+treated <- c('DI','LH')
+
+df_awca <- df_awca %>%
+  filter(!(Location %in% treated))
+```
+
+## Format Datetime
+```{r}
+df_awca <- df_awca %>%
+  mutate(
+    Date = as.Date(Datetime),
+    Time = format(Datetime, '%H:%M')
+  )
+```
+
+## Add Lat/Lon
+```{r}
+df_awca <- add_latlon(df_awca, 'Groups/DWR-AWCA/Metadata/Stations-AWCA.csv')
+```
+
+## Add in Metadata
+```{r}
+# Survey
+df_awca <- add_meta_col(df_awca, 'DWR-AWCA', 'Survey')
+
+# Magnification
+df_awca <- add_meta_col(df_awca, 'DWR-AWCA', 'Magnification')
+
+# Sample Scheme
+df_awca <- add_meta_col(df_awca, 'DWR-AWCA', 'SampleScheme')
+
+# Sample Method
+df_awca <- add_meta_col(df_awca, 'DWR-AWCA', 'SampleMethod')
+
+# Depth Type
+df_awca <- add_meta_col(df_awca, 'DWR-AWCA', 'DepthType')
+
+# Sample Depth
+df_awca <- add_meta_col(df_awca, 'DWR-AWCA', 'SampleDepth')
+
+#Lab
+df_awca <- add_meta_col(df_awca, 'DWR-AWCA', 'Lab')
+
+# Notes
+df_awca <- df_awca %>% mutate(Notes = 'Unknown')
+
+# Count Method
+df_awca <- add_meta_col(df_awca, 'DWR-AWCA', 'CountMethodSample')
+
+df_awca <- df_awca %>%
+  mutate(CountMethodTaxa = CountMethodSample) # must be the same
+```
+
+## Add extra columns
+```{r}
+df_awca <- df_awca %>% 
+  mutate(TowNetRadius = NA,
+         OrigTaxon = Taxon)
+```
+
+## Remove old taxa info
+```{r}
+df_awca <- remove_taxa_info(df_awca)
+```
+
+## Add PESP Taxon
+## Correct typos
+```{r}
+df_awca <- correct_taxon_typos(df_awca)
+corrected_typos <- attr(df_awca, 'log')$taxon_corrections
+
+print(corrected_typos)
+```
+
+### Standardize unknowns
+```{r}
+df_awca <- clean_unknowns(df_awca, std_sp = TRUE)
+standardized_unknowns <- attr(df_awca, 'log')$clean_unknowns
+
+print(standardized_unknowns)
+```
+
+### Update synonyms
+```{r}
+df_awca <- update_synonyms(df_awca)
+updated_synonyms <- attr(df_awca, 'log')$synonym_updates
+print(updated_synonyms)
+```
+
+### Add in higher-level taxa
+```{r}
+df_awca <- higher_lvl_taxa(df_awca, std_type = 'pesp')
+needs_hierarchy <- attr(df_awca, 'log')$unmatched_taxa
+
+print(needs_hierarchy)
+```
+
+## Subset relevant columns
+```{r}
+df_awca <- subset_cols(df_awca)
+
+df_awca <- df_awca %>%
+  arrange(Date, Time) %>%
+  mutate(
+    Cells_per_mL = round(Cells_per_mL, 2),
+    Units_per_mL = round(Units_per_mL, 2),
+    Biovolume_per_mL = round(Biovolume_per_mL, 2)
+  )
+```
+
+# Save .Rdata
+```{r}
+save(df_awca, file = 'synthesized/group_prep/group_data/DWR-AWCA.Rdata')
+```
+

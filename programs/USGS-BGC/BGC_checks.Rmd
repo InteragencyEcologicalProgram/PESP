@@ -14,48 +14,248 @@ source('admin/global_functions/check_funcs.R')
 
 ```{r}
 df_phyto <- read_quiet_csv(abs_pesp_path('Groups/USGS-BGC/02 Processed Data/BGC_draft.csv')) %>%
-  mutate(Year = year(Date)) %>%
-  mutate(StationYear = paste(Year, Station, sep = ' '))
+  mutate(Year = as.factor(year(Date)),
+         Binary = 1,
+         Event = paste(Date, site_abbrev, sep = '_')) %>%
+  rename('Station' = 'site_abbrev') %>%
+  mutate(SampleMethod = 
+           case_when(
+             SampleMethod == 'Diaphragm pump and churn' ~ 'Diaphragm pump',
+             TRUE ~ SampleMethod
+           )
+         )
 
+# format df (genus unit)
+df_genus <- df_phyto %>%
+  group_by(Date, Year, Station, Genus, SampleMethod, Event) %>%
+  summarize(Biovolume_per_mL = sum(Biovolume_per_mL),
+            Cells_per_mL = sum(Cells_per_mL),
+            .groups = 'drop') %>%
+  mutate(Binary = 1)
+```
+
+# NMDS by Species
+
+### Biovol
+```{r}
 # create NMDS
-df_nmds1 <- create_nmds(df_phyto,
-                       group_var = 'Year',
-                       nmds_var = 'Cells_per_mL',
-                       taxa_var = 'AlgalGroup')
+df_nmds_bv <- calc_nmds(df_phyto,
+                      group_var = 'Event',
+                      factor_var = c('Year','SampleMethod'),
+                      nmds_var = 'Biovolume_per_mL')
 
-# print dataframe
-df_nmds1[[1]]
-
-# print graph
-df_nmds1[[2]]
+# print plot
+plt_nmds <- plot_nmds(df_nmds_bv$df_nmds, df_nmds_bv$meta_vars, fill_var = 'Year')
+plt_nmds
 
 ggsave(
-  filename = abs_pesp_path('Groups/USGS-BGC/02 Processed Data/QC files/graphs/BGC_NMDS_CellspermL_Year.jpg'),
-  plot = df_nmds1[[2]],
+  filename = abs_pesp_path('Groups/USGS-BGC/02 Processed Data/QC files/graphs/BGC_NMDS_Species_Biovolume_Year.jpg'),
+  plot = plt_nmds,
   width = 8,
   height = 6
+)
+
+# print plot
+plt_nmds <- plot_nmds(df_nmds_bv$df_nmds, df_nmds_bv$meta_vars, fill_var = 'SampleMethod')
+plt_nmds
+
+ggsave(
+  filename = abs_pesp_path('Groups/USGS-BGC/02 Processed Data/QC files/graphs/BGC_NMDS_Species_Biovolume_SampleMethod.jpg'),
+  plot = plt_nmds,
+  width = 8,
+  height = 6
+)
+```
+
+### Cells
+```{r}
+# create NMDS
+df_nmds_cell <- calc_nmds(df_phyto,
+                      group_var = 'Event',
+                      factor_var = c('Year','SampleMethod'),
+                      nmds_var = 'Cells_per_mL')
+
+# print plot
+plt_nmds <- plot_nmds(df_nmds_cell$df_nmds, df_nmds_cell$meta_vars, fill_var = 'Year')
+plt_nmds
+
+ggsave(
+  filename = abs_pesp_path('Groups/USGS-BGC/02 Processed Data/QC files/graphs/BGC_NMDS_Species_Cells_Year.jpg'),
+  plot = plt_nmds,
+  width = 8,
+  height = 6
+)
+
+# print plot
+plt_nmds <- plot_nmds(df_nmds_cell$df_nmds, df_nmds_cell$meta_vars, fill_var = 'SampleMethod')
+plt_nmds
+
+ggsave(
+  filename = abs_pesp_path('Groups/USGS-BGC/02 Processed Data/QC files/graphs/BGC_NMDS_Species_Cells_SampleMethod.jpg'),
+  plot = plt_nmds,
+  width = 8,
+  height = 6
+)
+```
+
+### PA
+```{r}
+# create NMDS
+df_nmds_pa <- calc_nmds(df_phyto,
+                      group_var = 'Event',
+                      factor_var = c('Year','SampleMethod'),
+                      nmds_var = 'Binary',
+                      distance = 'jaccard')
+
+# print plot
+plt_nmds <- plot_nmds(df_nmds_pa$df_nmds, df_nmds_pa$meta_vars, fill_var = 'Year')
+plt_nmds
+
+ggsave(
+  filename = abs_pesp_path('Groups/USGS-BGC/02 Processed Data/QC files/graphs/BGC_NMDS_Species_PA_Year.jpg'),
+  plot = plt_nmds,
+  width = 8,
+  height = 6
+)
+
+# print plot
+plt_nmds <- plot_nmds(df_nmds_pa$df_nmds, df_nmds_pa$meta_vars, fill_var = 'SampleMethod')
+plt_nmds
+
+ggsave(
+  filename = abs_pesp_path('Groups/USGS-BGC/02 Processed Data/QC files/graphs/BGC_NMDS_Species_PA_SampleMethod.jpg'),
+  plot = plt_nmds,
+  width = 8,
+  height = 6
+)
+```
+
+# NMDS by Genus and Date
+
+### Biovol
+```{r}
+# create NMDS
+df_nmds_bv <- calc_nmds(df_genus,
+                      taxa_var = 'Genus',                    
+                      group_var = 'Event',
+                      factor_var = c('Year','SampleMethod'),
+                      nmds_var = 'Biovolume_per_mL')
+
+# print plot
+plt_nmds <- plot_nmds(df_nmds_bv$df_nmds, df_nmds_bv$meta_vars, fill_var = 'Year')
+plt_nmds
+
+ggsave(
+  filename = abs_pesp_path('Groups/USGS-BGC/02 Processed Data/QC files/graphs/BGC_NMDS_Genus_Biovolume_Year.jpg'),
+  plot = plt_nmds,
+  width = 8,
+  height = 6
+)
+
+# print plot
+plt_nmds <- plot_nmds(df_nmds_bv$df_nmds, df_nmds_bv$meta_vars, fill_var = 'SampleMethod')
+plt_nmds
+
+ggsave(
+  filename = abs_pesp_path('Groups/USGS-BGC/02 Processed Data/QC files/graphs/BGC_NMDS_Genus_Biovolume_SampleMethod.jpg'),
+  plot = plt_nmds,
+  width = 8,
+  height = 6
+)
+```
+
+### Cells
+```{r}
+# create NMDS
+df_nmds_cell <- calc_nmds(df_genus,
+                      taxa_var = 'Genus',                    
+                      group_var = 'Event',
+                      factor_var = c('Year','SampleMethod'),
+                      nmds_var = 'Cells_per_mL')
+
+# print plot
+plt_nmds <- plot_nmds(df_nmds_cell$df_nmds, df_nmds_cell$meta_vars, fill_var = 'Year')
+plt_nmds
+
+ggsave(
+  filename = abs_pesp_path('Groups/USGS-BGC/02 Processed Data/QC files/graphs/BGC_NMDS_Genus_Cells_Year.jpg'),
+  plot = plt_nmds,
+  width = 8,
+  height = 6
+)
+
+# print plot
+plt_nmds <- plot_nmds(df_nmds_cell$df_nmds, df_nmds_cell$meta_vars, fill_var = 'SampleMethod')
+plt_nmds
+
+ggsave(
+  filename = abs_pesp_path('Groups/USGS-BGC/02 Processed Data/QC files/graphs/BGC_NMDS_Genus_Cells_SampleMethod.jpg'),
+  plot = plt_nmds,
+  width = 8,
+  height = 6
+)
+```
+
+### PA
+```{r}
+# create NMDS
+df_nmds_pa <- calc_nmds(df_genus,
+                      taxa_var = 'Genus',                    
+                      group_var = 'Event',
+                      factor_var = c('Year','SampleMethod'),
+                      nmds_var = 'Binary',
+                      distance = 'jaccard')
+
+# print plot
+plt_nmds <- plot_nmds(df_nmds_pa$df_nmds, df_nmds_pa$meta_vars, fill_var = 'Year')
+plt_nmds
+
+ggsave(
+  filename = abs_pesp_path('Groups/USGS-BGC/02 Processed Data/QC files/graphs/BGC_NMDS_Genus_PA_Year.jpg'),
+  plot = plt_nmds,
+  width = 8,
+  height = 6
+)
+
+# print plot
+plt_nmds <- plot_nmds(df_nmds_pa$df_nmds, df_nmds_pa$meta_vars, fill_var = 'SampleMethod')
+plt_nmds
+
+ggsave(
+  filename = abs_pesp_path('Groups/USGS-BGC/02 Processed Data/QC files/graphs/BGC_NMDS_Genus_PA_SampleMethod.jpg'),
+  plot = plt_nmds,
+  width = 8,
+  height = 6
+)
+```
+
+# Check Counts
+```{r}
+plt_count <- check_station_count(df_phyto)
+
+plt_count
+
+ggsave(
+  filename = abs_pesp_path('Groups/USGS-BGC/02 Processed Data/QC files/graphs/BGC_Heatmap_StationNumber.jpg'),
+  plot = plt_count,
+  width = 8,
+  height = 5
 )
 ```
 
 ```{r}
-# create NMDS
-df_nmds2 <- create_nmds(df_phyto,
-                        group_var = 'Date',
-                        nmds_var = 'Cells_per_mL',
-                        taxa_var = 'AlgalGroup',
-                        factor_var = 'Year')
+df_phyto <- df_phyto %>%
+  rename('Station2' = 'Station',
+         'Station' = 'site_no')
 
-# print dataframe
-df_nmds2[[1]]
+plt_freq <- check_sampling_freq(df_phyto)
 
-# print graph
-df_nmds2[[2]]
+plt_freq
 
 ggsave(
-  filename = abs_pesp_path('Groups/USGS-BGC/02 Processed Data/QC files/graphs/BGC_NMDS_CellspermL_Date.jpg'),
-  plot = df_nmds2[[2]],
+  filename = abs_pesp_path('Groups/USGS-BGC/02 Processed Data/QC files/graphs/BGC_Heatmap_SampFreq.jpg'),
+  plot = plt_freq,
   width = 8,
-  height = 6
+  height = 10
 )
 ```
-

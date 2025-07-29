@@ -28,6 +28,7 @@ subset_cols_bgc <- function(df){
   keep_cols <- c('Date',
                  'Time',
                  'Station',
+                 'site_no',
                  'Latitude',
                  'Longitude',
                  'SampleMethod',
@@ -82,3 +83,72 @@ filter_methods_bgc <- function(df, df_corrections) {
   
   return(df_filtered)
 }
+
+# Update Stations ---------------------------------------------------------
+
+update_stations_bgc <- function(df_data) {
+  df_stations <- read_quiet_csv(abs_pesp_path('Groups/USGS-BGC/Metadata/Stations-BGC.csv'))
+  
+  # Create a lookup table
+  alias_lookup <- df_stations %>%
+    filter(!is.na(field_id_alias) & field_id_alias != '') %>%
+    rowwise() %>%
+    do({
+      aliases <- str_split(.$field_id_alias, ',')[[1]]
+      aliases <- str_trim(aliases)
+      data.frame(
+        alias = aliases,
+        station = .$Station,
+        site_no = .$site_no,
+        stringsAsFactors = FALSE
+      )
+    }) %>%
+    ungroup()
+  
+  alias_lookup <- alias_lookup %>%
+    mutate(site_no = as.character(site_no))
+  
+  df_data <- df_data %>%
+    mutate(site_no = as.character(site_no))
+  
+  df_with_original <- df_data %>%
+    mutate(Station_original = Station)
+  
+  df_updated <- df_with_original %>%
+    left_join(
+      alias_lookup %>% select(alias, site_no, station),
+      by = c("Station" = "alias", "site_no" = "site_no")
+    ) %>%
+    mutate(
+      Station = ifelse(!is.na(station) & station != Station, station, Station)
+    ) %>%
+    select(-station)
+  
+  # Identify changes
+  changed_rows <- df_updated %>%
+    filter(Station_original != Station) %>%
+    select(original = Station_original, updated = Station) %>%
+    distinct()
+  
+  # Generate log message
+  if (nrow(changed_rows) > 0) {
+    change_message <- paste(
+      'Updated station names:',
+      paste0('  • ', changed_rows$original, ' → ', changed_rows$updated, collapse = '\n'),
+      paste0('\nTotal changes: ', nrow(changed_rows)),
+      sep = '\n'
+    )
+    message(change_message)
+  } else {
+    message('No station name updates were needed.')
+  }
+  
+  df_updated <- df_updated %>%
+    select(-Station_original) %>%
+    mutate(Station = str_trim(Station))
+  
+  return(df_updated)
+}
+
+
+

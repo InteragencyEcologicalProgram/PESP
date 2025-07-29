@@ -215,7 +215,7 @@ df_data <- add_dilution_qc(df_data)
 
 ## Standardize unknowns
 ```{r}
-df_data <- clean_unknowns(df_data)
+df_data <- clean_unknowns(df_data, std_sp = TRUE)
 standardized_unknowns <- attr(df_data, 'log')$clean_unknowns
 write_log_file(standardized_unknowns, 'Groups/DWR-NDFS/02 Processed Data/2021-2023/QC files/tables/NDFS_standardized_unknowns.csv')
 
@@ -233,7 +233,7 @@ print(updated_synonyms)
 
 ## Add in higher-level taxa
 ```{r}
-df_data <- higher_lvl_taxa(df_data)
+df_data <- higher_lvl_taxa(df_data, , std_type = 'program')
 needs_hierarchy <- attr(df_data, 'log')$unmatched_taxa
 write_log_file(needs_hierarchy, 'Groups/DWR-NDFS/02 Processed Data/2021-2023/QC files/tables/NDFS_needs_hierarchy.csv')
 

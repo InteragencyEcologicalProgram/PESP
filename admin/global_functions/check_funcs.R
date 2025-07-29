@@ -146,7 +146,9 @@ extract_unstandardized_comments <- function(df, comment_col, delimiter = ' ') {
     'moderate detritus', 'moderate sediment','moderat sediment',
     'low detritus', 'low sediment',
     'light detritus', 'light sediment',
-    'heavy detritus', 'heavy sediment',
+    'heavy detritus', 'heavy sediment', 'high amount of debris',
+    'high amounts of debris', 'lots of debris', 'High sedimnet', 'High sedimen',
+    'fragment.', 'fragmented diatoms', 'diatom fragments', 'diatom fragment',
     'Good',
     'and'
   )
@@ -271,56 +273,102 @@ check_nodata <- function(df) {
 # Check Plots -------------------------------------------------------------
 
 # # Plot NMDS
-calc_nmds <- function(df, group_var, nmds_var, taxa_var = 'Taxon', factor_var = NULL, seed = 42) {
-  set.seed(seed)
+calc_nmds <- function(df, group_var, nmds_var, taxa_var = 'Taxon', 
+                      factor_var = NULL, avg_var = NULL,
+                      distance = 'bray',
+                      show_legend = TRUE, color_palette = NULL) {
+  set.seed(42)
+  
+  message(
+    '\n--- NMDS Setup ---\n',
+    'Measurement Variable: ', nmds_var, '\n',
+    'Multivariate Variable: ', taxa_var, '\n',
+    'Event Grouping Variable: ', group_var, ' (defines each point)\n',
+    'Event Averaging Variable(s): ', 
+    if (!is.null(avg_var)) paste(avg_var, collapse = ', ') else 'none (grouping variable is at the sampling event level)', '\n',
+    'Display/Coloring Variable(s): ', 
+    if (!is.null(factor_var)) paste(factor_var, collapse = ', ') else 'none',
+    '\nDistance Metric: ', distance,
+    '\n------------------\n',
+    '\n:'
+  )
   
   group_sym <- rlang::sym(group_var)
   nmds_sym <- rlang::sym(nmds_var)
   taxa_sym <- rlang::sym(taxa_var)
+  factor_sym <- if (!is.null(factor_var)) rlang::syms(factor_var) else group_sym
+  avg_syms <- if (!is.null(avg_var)) rlang::syms(avg_var) else NULL
   
-  if (!is.null(factor_var)) {
-    factor_syms <- rlang::syms(factor_var)
-    
-    df_cells <- df %>%
-      select(!!group_sym, !!!factor_syms, !!taxa_sym, !!nmds_sym) %>%
-      group_by(!!group_sym, !!!factor_syms, !!taxa_sym) %>%
-      reframe(!!nmds_var := mean(!!nmds_sym, na.rm = TRUE)) %>%
-      pivot_wider(names_from = !!taxa_sym, values_from = !!nmds_sym)
-    
-    meta <- df_cells %>% select(!!group_sym, !!!factor_syms)
-    
-    # build vector of columns to drop safely
-    drop_cols <- c(group_var, factor_var)
-    m_com <- df_cells %>% select(-all_of(drop_cols))
-    
-  } else {
-    df_cells <- df %>%
-      select(!!group_sym, !!taxa_sym, !!nmds_sym) %>%
-      group_by(!!group_sym, !!taxa_sym) %>%
-      reframe(!!nmds_var := mean(!!nmds_sym, na.rm = TRUE)) %>%
-      pivot_wider(names_from = !!taxa_sym, values_from = !!nmds_sym)
-    
-    meta <- df_cells %>% select(!!group_sym)
-    m_com <- df_cells %>% select(-!!group_sym)
+  # compute effort if avg_var is provided
+  if (!is.null(avg_syms)) {
+    df_effort <- df %>%
+      distinct(!!group_sym, !!!avg_syms) %>%
+      count(!!group_sym, name = 'n_effort')
   }
   
+  # base columns for summarizing
+  base_cols <- c(group_var, taxa_var)
+  if (!is.null(factor_var)) base_cols <- c(base_cols, factor_var)
+  if (!is.null(avg_var)) base_cols <- c(base_cols, avg_var)
+  
+  # convert to symbols
+  base_syms <- rlang::syms(base_cols)
+  
+  # summarize
+  df_sum <- df %>%
+    select(!!!base_syms, !!nmds_sym) %>%
+    group_by(!!!rlang::syms(c(group_var, if (!is.null(factor_var)) factor_var, taxa_var))) %>%
+    summarise(total = sum(!!nmds_sym, na.rm = TRUE), .groups = 'drop')
+  
+  # divide by effort if available
+  if (!is.null(avg_syms)) {
+    df_sum <- df_sum %>%
+      left_join(df_effort, by = group_var) %>%
+      mutate(!!nmds_var := total / n_effort) %>%
+      select(-total, -n_effort)
+  } else {
+    df_sum <- df_sum %>%
+      mutate(!!nmds_var := total) %>%
+      select(-total)
+  }
+
+  df_cells <- df_sum %>%
+    pivot_wider(names_from = !!taxa_sym, values_from = !!nmds_sym)
+  
+  meta_vars <- c(group_var, factor_var)
+  meta <- df_cells %>% select(all_of(meta_vars))
+  m_com <- df_cells %>% select(-all_of(meta_vars))
+
   m_com[is.na(m_com)] <- 0
   
-  nmds <- suppressMessages(metaMDS(as.matrix(m_com), distance = 'bray'))
-  scores_df <- as.data.frame(scores(nmds)$sites)
-  result <- bind_cols(scores_df, meta)
+  nmds <- suppressMessages(metaMDS(as.matrix(m_com), distance = distance))
+  df_scores <- as.data.frame(scores(nmds)$sites)
+  result <- bind_cols(df_scores, meta)
   
   return(list(
     df_nmds = result,
-    raw_nmds = nmds
+    raw_nmds = nmds,
+    meta_vars = list(
+      nmds_var = nmds_var,
+      taxa_var = taxa_var,
+      group_var = group_var,
+      factor_var = factor_var,
+      avg_var = avg_var
+    )
   ))
 }
 
-plot_nmds <- function(df_nmds, fill_var, show_legend = TRUE, color_palette = NULL, title = NULL) {
+plot_nmds <- function(df_nmds, meta_vars, fill_var, show_legend = TRUE, color_palette = NULL, title = NULL) {
   fill_sym <- rlang::sym(fill_var)
   
+  if (is.null(title)) {
+    title <- paste0(meta_vars$nmds_var, 
+                   ' (per ', meta_vars$taxa_var, 
+                   ') per ', meta_vars$group_var)
+  }
+  
   plt <- ggplot(df_nmds, aes(x = NMDS1, y = NMDS2, fill = !!fill_sym)) +
-    geom_point(size = 4, shape = 21, color = '#000000') +
+    geom_point(size = 4, shape = 21, alpha = 0.7, color = '#000000') +
     theme_bw() +
     labs(title = title)
   
@@ -333,73 +381,6 @@ plot_nmds <- function(df_nmds, fill_var, show_legend = TRUE, color_palette = NUL
   }
   
   return(plt)
-}
-
-create_nmds <- function(df, group_var, nmds_var, taxa_var = 'Taxon', factor_var = NULL, show_legend = TRUE, color_palette = NULL) {
-  set.seed(42)
-
-  if (!is.null(factor_var)) {
-    group_var <- rlang::sym(group_var)
-    nmds_var <- rlang::sym(nmds_var)
-    taxa_var <- rlang::sym(taxa_var)
-    factor_var <- rlang::sym(factor_var)
-    
-    df_cells <- df %>%
-      select(!!group_var, !!factor_var, !!taxa_var, !!nmds_var) %>%
-      group_by(!!group_var, !!factor_var, !!taxa_var) %>%
-      reframe(!!nmds_var := mean(!!nmds_var, na.rm = TRUE)) %>%
-      pivot_wider(names_from = !!taxa_var, values_from = !!nmds_var)
-    
-    com <- df_cells %>%
-      select(-!!group_var, -!!factor_var)
-    com[is.na(com)] <- 0
-    m_com <- as.matrix(com)
-    
-  } else {
-    factor_var <- rlang::sym(group_var)
-    nmds_var <- rlang::sym(nmds_var)
-    taxa_var <- rlang::sym(taxa_var)
-    
-    df_cells <- df %>%
-      select(!!factor_var, !!taxa_var, !!nmds_var) %>%
-      group_by(!!factor_var, !!taxa_var) %>%
-      reframe(!!nmds_var := mean(!!nmds_var, na.rm = TRUE)) %>%
-      pivot_wider(names_from = !!taxa_var, values_from = !!nmds_var)
-    
-    com <- df_cells %>%
-      select(-!!factor_var)
-    com[is.na(com)] <- 0
-    m_com <- as.matrix(com)
-  }
-  
-  nmds <- NULL
-  invisible(capture.output({
-    nmds <- metaMDS(m_com, distance = 'bray')
-  }))
-  df_nmds <- as.data.frame(scores(nmds)$sites)
-  
-  df_nmds <- df_nmds %>%
-    mutate(!!factor_var := df_cells %>% pull(!!factor_var)) %>%
-    mutate(!!factor_var := as.factor(!!factor_var))
-  
-  plt_nmds <- ggplot(df_nmds, aes(x = NMDS1, y = NMDS2, group = !!factor_var)) + 
-    geom_point(size = 4, shape = 21, color = '#000000', aes(fill = !!factor_var)) +
-    labs(title = paste('NMDS of', nmds_var, 'by', group_var)) +
-    theme_bw()
-  
-  if (!is.null(color_palette)) {
-    plt_nmds <- plt_nmds + scale_fill_manual(values = color_palette)
-  }
-  
-  if (!show_legend) {
-    plt_nmds <- plt_nmds + theme(legend.position = 'none')
-  }
-    
-  return(list(
-    df_nmds = df_nmds,
-    plot = plt_nmds,
-    raw_nmds = nmds
-  ))
 }
 
 check_units_cells <- function(df) {
@@ -553,3 +534,99 @@ unique_check <- function(df, col) {
   unique_vals <- unique(df %>% dplyr::pull(!!col_sym))
   message('Unique ', rlang::as_string(col_sym), 's: ', paste(unique_vals, collapse = ', '))
 }
+
+# Check Station Count -----------------------------------------------------
+check_station_count <- function(df) {
+  df <- df %>%
+    mutate(
+      MonthYear = as.Date(floor_date(Date, 'month')),
+      Station = as.character(Station)
+    )
+  df_station_count <- df %>%
+    distinct(Station, MonthYear) %>%
+    count(MonthYear, name = 'NumStations') %>%
+    mutate(
+      Year = year(MonthYear),
+      Month = month(MonthYear, label = TRUE, abbr = TRUE)
+    )
+  
+  # Create complete grid for all year-month combinations
+  all_years <- min(df_station_count$Year):max(df_station_count$Year)
+  all_months <- month(1:12, label = TRUE, abbr = TRUE)  # This creates ordered factor like df_station_count$Month
+  complete_grid <- expand_grid(Year = all_years, Month = all_months)
+  
+  df_complete <- complete_grid %>%
+    left_join(df_station_count, by = c('Year', 'Month'))
+  
+  ggplot(df_complete, aes(x = Month, y = Year, fill = NumStations)) +
+    geom_tile(color = 'black', linewidth = 0.5) +
+    scale_fill_distiller(palette = 'Blues', direction = 1, name = '# Stations', na.value = 'white') +
+    scale_y_continuous(breaks = all_years) +
+    theme_minimal() +
+    labs(
+      x = 'Month',
+      y = 'Year',
+      title = 'Number of Stations Sampled Per Month'
+    ) +
+    theme(
+      axis.text.x = element_text(angle = 45),
+      panel.grid = element_blank()
+    )
+}
+
+# Check Sampling Frequency ------------------------------------------------
+check_sampling_freq <- function(df) {
+  df <- df %>%
+    mutate(
+      MonthYear = as.Date(floor_date(Date, 'month')),
+      Station = as.character(Station)
+    )
+  
+  df_station_frequency <- df %>%
+    mutate(Year = year(MonthYear)) %>%
+    distinct(Station, MonthYear, Year) %>%
+    count(Station, Year, name = 'TimesPerYear')
+  
+  # Create complete grid for all station-year combinations
+  all_years <- min(df_station_frequency$Year):max(df_station_frequency$Year)
+  all_stations <- unique(df$Station)
+  complete_grid <- expand_grid(Year = all_years, Station = all_stations)
+  
+  df_complete <- complete_grid %>%
+    left_join(df_station_frequency, by = c('Year', 'Station'))
+  
+  ggplot(df_complete, aes(x = Year, y = Station, fill = TimesPerYear)) +
+    geom_tile(color = 'black', linewidth = 0.2) +
+    scale_fill_distiller(palette = 'Blues', direction = 1, name = 'Frequency', na.value = 'white') +
+    scale_x_continuous(breaks = all_years) +
+    theme_minimal() +
+    labs(
+      x = 'Year',
+      y = 'Station',
+      title = 'Station Sampling Frequency Per Year'
+    ) +
+    theme(
+      axis.text.x = element_text(angle = 45, hjust = 1),
+      panel.grid = element_blank()
+    )
+}
+
+# Check Introduced NAs ----------------------------------------------------
+
+check_non_numeric <- function(df, col_name) {
+  if (col_name %in% names(df)) {
+    original <- df[[col_name]]
+    converted <- as.numeric(as.character(original))
+    
+    # Find which values became NA
+    na_indices <- which(is.na(converted) & !is.na(original))
+    
+    if (length(na_indices) > 0) {
+      cat('Column:', col_name, '\n')
+      cat('Problematic values:\n')
+      print(unique(original[na_indices]))
+      cat('At rows:', na_indices[1:min(10, length(na_indices))], '\n\n')
+    }
+  }
+}
+

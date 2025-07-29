@@ -10,7 +10,7 @@ source('admin/global_functions/check_funcs.R')
 ```
 
 ```{r}
-df_phyto <- get_edi_file('269','phyto')
+df_phyto <- get_edi_file('269','phyto_FRP2023')
 ```
 
 ## Check how EMP taxa match with current list
@@ -50,7 +50,7 @@ attr(df_frp, 'log')$unmatched_comments
 
 ## Standardize unknowns
 ```{r}
-df_frp <- clean_unknowns(df_frp)
+df_frp <- clean_unknowns(df_frp, std_sp = TRUE)
 attr(df_frp, 'log')$clean_unknowns
 ```
 
@@ -62,7 +62,7 @@ attr(df_frp, 'log')$synonym_updates
 
 ## Add in higher-level taxa
 ```{r}
-df_frp <- higher_lvl_taxa(df_frp)
+df_frp <- higher_lvl_taxa(df_frp, std_type = 'pesp')
 checking <- attr(df_frp, 'log')$unmatched_taxa
 
 # FRP specific: fix names
@@ -109,7 +109,7 @@ attr(df_frp, 'log')$unmatched_taxa_updated
 
 ## Combine taxa (multiple sizes, standardized unknowns)
 ```{r}
-df_frp <- combine_taxons(df_frp, key_cols = 'SampleID_frp', data_cols = c('Biov_permL', 'Units_permL', 'Cells_permL'))
+df_frp <- combine_taxons(df_frp, key_cols = 'SampleID_frp', measurement_cols = c('Biov_permL', 'Units_permL', 'Cells_permL'))
 attr(df_frp, 'log')$combined_taxa
 ```
 
@@ -123,6 +123,6 @@ df_frp <- df_frp %>%
 
 ## Write csv
 ```{r}
-write_csv(df_frp, abs_pesp_path('Groups/CDFW-FRP/02 Processed Data/FRP_PESP_updated.csv'), na = '')
+write_csv(df_frp, abs_pesp_path('Groups/CDFW-FRP/02 Synth Data/FRP_PESP_updated.csv'), na = '')
 ```
 

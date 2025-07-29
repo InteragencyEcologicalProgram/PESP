@@ -1,0 +1,318 @@
+# Format original EMP data
+
+**Purpose:** Code to format EMP data for original PESP upload.
+
+**Author:** Perry ([sarah.perry\@water.ca.gov](mailto:sarah.perry@water.ca.gov){.email})
+
+# Initial Setup
+
+```{r, message=FALSE, warning=FALSE}
+# Import Packages ---------------------------------------------------------
+library(tidyverse)
+library(fuzzyjoin)
+library(glue)
+library(lubridate)
+
+source('admin/global_functions/global_funcs.R')
+source('programs/DWR-EMP/ref_code/emp_funcs.R')
+source('admin/global_functions/bsa_funcs.R')
+source('admin/global_functions/check_funcs.R')
+```
+
+## Read in data
+
+```{r}
+# specify the file path
+data_path <- abs_pesp_path('Groups/DWR-EMP/01 Raw Data/EMP_Phyto Data 2008-2023.csv')
+
+# new data to format and append
+df_data <- read_quiet_csv(data_path)
+```
+
+## Check distinct columns
+
+```{r}
+df_data <- check_distinct(df_data, type = 'full')
+nondistinct_rows <- attr(df_data, 'log')$nondistinct_allrows
+write_log_file(nondistinct_rows, 'Groups/DWR-EMP/02 Program Data/QC files/tables/EMP_nondistinct_rows.csv')
+
+# remove duplicates
+df_data <- df_data %>% distinct()
+
+print(nondistinct_rows)
+
+check_distinct(df_data, type = 'full')
+```
+
+## Rename columns
+```{r}
+colnames(df_data)
+```
+
+
+```{r}
+rename_map <- c(
+  'Station' = 'StationCode',
+  'Date' = 'SampleDate',
+  'Time' = 'SampleTime',
+  'PhytoForm' = 'Colony or Filament Group Code'
+)
+
+df_data <- rename_cols(df_data, rename_map)
+```
+
+## Remove old taxa info
+
+```{r}
+df_data <- remove_taxa_info(df_data)
+```
+## Calculate measurement columns
+
+### Check non-numeric values
+```{r}
+check_non_numeric(df_data, 'Cells per Unit')
+check_non_numeric(df_data, 'Total Cells Counted') 
+```
+
+### Calculate
+```{r}
+# dependent on if lab is BSA or EA
+df_data <- df_data %>%
+  mutate(`Cells per Unit` = as.numeric(`Cells per Unit`),
+         `Total Cells Counted` = as.numeric(`Total Cells Counted`)) %>%
+  group_by(Lab) %>%
+  group_modify(~ {
+    if (.y$Lab == 'BSA') {
+      calc_data_bsa(.x, unit_col = 'Unit Abundance', cell_col = 'Total Cells Counted')
+    } else if (.y$Lab == 'EcoAnalysts') {
+      calc_data_ea(.x)
+    } else {
+      .x
+    }
+  }) %>%
+  ungroup()
+```
+## Clean PhytoForm column
+
+```{r}
+df_data <- clean_phytoform_bsa(df_data)
+```
+
+## Fix Date/Time; add lat/lon
+
+```{r}
+df_data$Date <- as.Date(df_data$Date,'%m/%d/%Y')
+
+# remove Times
+df_data <- df_data %>% select(-Time)
+```
+
+### Read in WQ data (for Dates/Times/Lats/Lons)
+```{r}
+# read in WQ data
+fp_wq <- abs_pesp_path('Groups/DWR-EMP/01 Raw Data/EMP_DWQ_1975_2023.csv')
+
+df_wq <- read_quiet_csv(fp_wq, col_types = cols(Date = col_date(format = '%m/%d/%Y')))
+
+df_wq$Time <- sub(':00$', '', df_wq$Time)
+
+df_wq <- df_wq %>%
+  mutate(Station = case_when(
+    Station == 'EZ2' ~ 'LSZ2',
+    Station == 'EZ6' ~ 'LSZ6',
+    Station == 'EZ2-SJR' ~ 'LSZ2-SJR',
+    Station == 'EZ6-SJR' ~ 'LSZ6-SJR'
+  ))
+```
+
+### Fix Dates
+```{r}
+# read the fixed date mappings
+fp_dates <- abs_pesp_path('Groups/DWR-EMP/01 Raw Data/mismatched_phyto_wq_dates.csv')
+
+df_fixed_dates <- read_quiet_csv(fp_dates,  col_types = cols(Station = col_character(),
+                                                             PhytoDate = col_date(format = '%m/%d/%Y'),
+                                                             WQDate = col_date(format = '%m/%d/%Y')
+                                                             ))
+
+# update date/times
+df_data <- update_dates_emp(df_data, df_fixed_dates)
+fixed_dates <- attr(df_data, 'log')$fixed_dates
+write_log_file(fixed_dates, 'Groups/DWR-EMP/02 Program Data/QC files/tables/EMP_fixed_dates.csv')
+```
+
+### Add lat/lons/times
+```{r}
+# join WQ data (add times and lat/lon for EZ stations)
+df_data <- add_wq_emp(df_data, df_wq)
+missing_wq <- attr(df_data, 'log')$missing_wq
+write_log_file(missing_wq, 'Groups/DWR-EMP/02 Program Data/QC files/tables/EMP_missing_wq.csv')
+```
+
+```{r}
+# add lat/lon for fixed stations
+df_data <- add_latlon(df_data, 'Groups/DWR-EMP/Metadata/Stations-EMP.csv', merge_cols = c('Location','Station','Latitude','Longitude'))
+
+# merge the two
+df_data <- df_data %>%
+  mutate(
+    Latitude = coalesce(Latitude.x, Latitude.y),
+    Longitude = coalesce(Longitude.x, Longitude.y)
+  ) %>%
+  select(-Latitude.x, -Latitude.y, -Longitude.x, -Longitude.y)
+```
+
+## Add metadata columns
+
+```{r}
+# df_data <- add_meta_col(df_data, 'DWR-EMP', 'SampleDepth')
+ 
+# df_data <- add_meta_col(df_data, 'DWR-EMP', 'SampleMethod')
+```
+
+# Add Taxonomy (and QC column)
+
+## Standardize unknowns
+
+```{r}
+df_data <- clean_unknowns(df_data, std_sp = TRUE)
+standardized_unknowns <- attr(df_data, 'log')$clean_unknowns
+write_log_file(standardized_unknowns, 'Groups/DWR-EMP/02 Program Data/QC files/tables/EMP_standardized_unknowns.csv')
+
+print(standardized_unknowns)
+```
+
+## Correct typos
+
+```{r}
+df_data <- correct_taxon_typos(df_data)
+corrected_typos <- attr(df_data, 'log')$taxon_corrections
+write_log_file(corrected_typos, 'Groups/DWR-EMP/02 Program Data/QC files/tables/EMP_corrected_typos.csv')
+
+print(corrected_typos)
+```
+
+## Add QC column
+
+```{r}
+df_data <- add_qc_col(df_data)
+df_data <- add_debris_col(df_data)
+df_data <- add_notes_col(df_data)
+df_data$CountMethod <- 'Field'
+
+df_data <- extract_unstandardized_comments(df_data, 'Comments', delimiter = '. ')
+unmatched_comments <- attr(df_data, 'log')$unmatched_comments
+write_log_file(unmatched_comments, 'Groups/DWR-EMP/02 Program Data/QC files/tables/EMP_leftover_comments.csv')
+
+print(unmatched_comments)
+
+# manually set for EA
+df_data <- df_data %>%
+  mutate(
+    QualityCheck = case_when(
+      Lab == 'EcoAnalysts' ~ 'Unknown',
+      TRUE ~ QualityCheck
+    ),
+    Debris = case_when(
+      Lab == 'EcoAnalysts' ~ 'Unknown',
+      TRUE ~ Debris
+    ),
+    Notes = case_when(
+      Lab == 'EcoAnalysts' & Notes == 'NoNote' ~ 'Unknown',
+      TRUE ~ Notes
+    )
+  )
+```
+
+## Update synonyms
+
+```{r}
+df_data <- update_synonyms(df_data)
+updated_synonyms <- attr(df_data, 'log')$synonym_updates
+write_log_file(updated_synonyms, 'Groups/DWR-EMP/02 Program Data/QC files/tables/EMP_updated_synonyms.csv')
+
+print(updated_synonyms)
+```
+
+## Add in higher-level taxa
+
+```{r}
+df_data <- higher_lvl_taxa(df_data, std_type = 'program')
+needs_hierarchy <- attr(df_data, 'log')$unmatched_taxa
+write_log_file(needs_hierarchy, 'Groups/DWR-EMP/02 Program Data/QC files/tables/EMP_needs_hierarchy.csv')
+
+print(needs_hierarchy)
+```
+
+## Check distinct cols before combining
+
+```{r}
+df_data <- check_distinct(df_data, type = 'full')
+attr(df_data, 'log')$nondistinct_allrows
+
+df_data <- check_distinct(df_data, type = 'key_cols')
+attr(df_data, 'log')$nondistinct_keyrows
+```
+
+## Combine taxa (multiple sizes, standardized unknowns)
+
+```{r}
+df_data <- combine_taxons(df_data)
+combined_taxa <- attr(df_data, 'log')$combined_taxa
+write_log_file(combined_taxa, 'Groups/DWR-EMP/02 Program Data/QC files/tables/EMP_combined_taxa.csv')
+
+print(combined_taxa)
+```
+
+# Finish Formatting
+
+## Add Count Method column
+
+```{r}
+df_data <- df_data %>%
+  mutate(CountMethod = case_when(
+    `Field of View` >= 1 ~ 'Transect',
+    TRUE ~ 'Field'
+    )
+  )
+```
+
+
+## Subset columns
+
+```{r}
+df_data <- subset_cols_emp(df_data)
+```
+
+# Checks
+
+```{r}
+# check for NAs
+df_data <- check_nas(df_data)
+na_check <- attr(df_data, 'log')$na_check
+
+print(na_check) # one NA in PhytoForm is real
+```
+
+```{r}
+unique_check(df_data, 'Station')
+```
+
+```{r}
+# set <measurements> == 0 to NA (have to do later in code)
+df_data <- df_data %>%
+  mutate(
+    Cells_per_mL = case_when(Cells_per_mL == 0 ~ NA,
+                                      TRUE ~ Cells_per_mL),
+    Units_per_mL = case_when(Units_per_mL == 0 ~ NA,
+                                      TRUE ~ Units_per_mL),
+    Biovolume_per_mL = case_when(Biovolume_per_mL == 0 ~ NA,
+                                      TRUE ~ Biovolume_per_mL)
+    )
+```
+
+# Export
+
+```{r}
+write_csv(df_data, abs_pesp_path('Groups/DWR-EMP/02 Program Data/EMP_program_draft_2008-2023.csv'))
+```

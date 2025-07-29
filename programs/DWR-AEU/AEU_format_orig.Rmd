@@ -40,6 +40,8 @@ write_log_file(nondistinct_rows, 'Groups/DWR-AEU/02 Processed Data/QC files/tabl
 df_data <- df_data %>% distinct()
 
 print(nondistinct_rows)
+
+check_distinct(df_data, type = 'full')
 ```
 
 ## Rename columns
@@ -56,6 +58,8 @@ rename_map <- c(
 )
 
 df_data <- rename_cols(df_data, rename_map)
+
+df_data$check <- df_data$Taxon
 ```
 
 ## Remove old taxa info
@@ -88,6 +92,13 @@ df_data <- add_latlon(df_data, 'Groups/DWR-AEU/Metadata/Stations-AEU.csv')
 df_data$Date <- as.Date(df_data$Date,'%m/%d/%Y')
 
 df_data$Time <- sub(':00$', '', df_data$Time)
+
+# set 00:00:00 times to NA
+df_data <- df_data %>%
+  mutate(Time =
+           case_when(Time == '00:00' ~ NA,
+                   TRUE ~ Time)
+         )
 ```
 
 ## Add metadata columns
@@ -155,6 +166,9 @@ write_log_file(needs_hierarchy, 'Groups/DWR-AEU/02 Processed Data/QC files/table
 
 print(needs_hierarchy)
 ```
+```{r}
+check2 <- df_data %>% select(check, OrigTaxon, Taxon, Kingdom, Phylum, AlgalGroup, Genus, Species)
+```
 
 ## Check distinct cols before combining
 
@@ -191,10 +205,6 @@ df_data <- subset_cols_aeu(df_data)
 ## Format SampleDepth
 
 ```{r}
-unique_check(df_data, 'Station')
-```
-
-```{r}
 df_data <- df_data %>% mutate(SampleDepth = as.numeric(str_remove(SampleDepth, ' meter')))
 ```
 
@@ -207,15 +217,19 @@ df_data <- add_dilution_qc(df_data)
 ## Checks
 
 ```{r}
+unique_check(df_data, 'Station')
+```
+
+```{r}
 # check for NAs
 df_data <- check_nas(df_data)
 na_check <- attr(df_data, 'log')$na_check
 
-print(na_check)
+print(na_check) # one NA in PhytoForm is real
 ```
 
 # Export
 
 ```{r}
-write_csv(df_data, abs_pesp_path('Groups/DWR-AEU/02 Processed Data/AEU_draft.csv'))
+write_csv(df_data, abs_pesp_path('Groups/DWR-AEU/02 Processed Data/AEU_program_draft.csv'))
 ```

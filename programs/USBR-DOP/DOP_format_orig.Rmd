@@ -1,6 +1,6 @@
-# Format original LTS data
+# Format original DOP data
 
-**Purpose:** Code to format LTS data for original PESP upload.
+**Purpose:** Code to format DOP data for original PESP upload.
 
 **Author:** Perry ([sarah.perry\@water.ca.gov](mailto:sarah.perry@water.ca.gov){.email})
 
@@ -14,7 +14,7 @@ library(glue)
 library(lubridate)
 
 source('admin/global_functions/global_funcs.R')
-source('programs/USBR-LTS/ref_code/lts_funcs.R')
+source('programs/USBR-DOP/ref_code/DOP_funcs.R')
 source('admin/global_functions/bsa_funcs.R')
 source('admin/global_functions/check_funcs.R')
 ```
@@ -22,7 +22,7 @@ source('admin/global_functions/check_funcs.R')
 ## Read in Data
 ```{r}
 # specify the file path
-data_path <- abs_pesp_path('Groups/USBR-LTS/01 Raw Data/LTS_Phytoplankton2017-2022.csv')
+data_path <- abs_pesp_path('Groups/USBR-DOP/01 Raw Data/DOP_Phytoplankton2017-2022.csv')
 
 # new data to format and append
 df_data <- read_quiet_csv(data_path) %>%
@@ -35,9 +35,12 @@ df_data <- read_quiet_csv(data_path) %>%
 ```{r}
 df_data <- sortable_check_lts(df_data)
 multi_ids <- attr(df_data, 'log')$sortable_check
-write_log_file(multi_ids, 'Groups/USBR-LTS/02 Processed Data/QC files/tables/LTS_multiple_ids.csv')
+write_log_file(multi_ids, 'Groups/USBR-DOP/02 Processed Data/QC files/tables/DOP_multiple_ids.csv')
 
 print(multi_ids)
+
+df_data <- df_data %>%
+  filter(!(Sortable_ID %in% c('ICF2595','ICF4910')))
 ```
 
 
@@ -84,7 +87,7 @@ df_data$Date <- as.Date(df_data$Date,'%m/%d/%Y')
 ```{r}
 df_data <- check_distinct(df_data, type = 'full')
 nondistinct_rows <- attr(df_data, 'log')$nondistinct_allrows
-write_log_file(nondistinct_rows, 'Groups/USBR-LTS/02 Processed Data/QC files/tables/LTS_nondistinct_rows.csv')
+# write_log_file(nondistinct_rows, 'Groups/USBR-DOP/02 Processed Data/QC files/tables/DOP_nondistinct_rows.csv')
 
 # remove duplicates
 # df_data <- df_data %>% distinct()
@@ -96,12 +99,13 @@ print(nondistinct_rows)
 ```{r}
 df_data <- remove_taxa_info(df_data)
 ```
+
 ```{r}
-df_data <- add_meta_col(df_data, 'LTS Lower Trophic Study', 'SampleDepth')
+df_data <- add_meta_col(df_data, 'USBR-DOP', 'SampleDepth')
 
-df_data <- add_meta_col(df_data, 'LTS Lower Trophic Study', 'Lab')
+df_data <- add_meta_col(df_data, 'USBR-DOP', 'Lab')
 
-df_data <- add_meta_col(df_data, 'LTS Lower Trophic Study', 'SampleMethod')
+df_data <- add_meta_col(df_data, 'USBR-DOP', 'SampleMethod')
 ```
 # Add Taxonomy
 
@@ -109,16 +113,16 @@ df_data <- add_meta_col(df_data, 'LTS Lower Trophic Study', 'SampleMethod')
 ```{r}
 df_data <- correct_taxon_typos(df_data)
 corrected_typos <- attr(df_data, 'log')$taxon_corrections
-write_log_file(corrected_typos, 'Groups/USBR-LTS/02 Processed Data/QC files/tables/LTS_corrected_typos.csv')
+write_log_file(corrected_typos, 'Groups/USBR-DOP/02 Processed Data/QC files/tables/DOP_corrected_typos.csv')
 
 print(corrected_typos)
 ```
 
 ## Standardize unknowns
 ```{r}
-df_data <- clean_unknowns(df_data)
+df_data <- clean_unknowns(df_data, std_sp = TRUE)
 standardized_unknowns <- attr(df_data, 'log')$clean_unknowns
-write_log_file(standardized_unknowns, 'Groups/USBR-LTS/02 Processed Data/QC files/tables/LTS_standardized_unknowns.csv')
+write_log_file(standardized_unknowns, 'Groups/USBR-DOP/02 Processed Data/QC files/tables/DOP_standardized_unknowns.csv')
 
 print(standardized_unknowns)
 ```
@@ -127,16 +131,16 @@ print(standardized_unknowns)
 ```{r}
 df_data <- update_synonyms(df_data)
 updated_synonyms <- attr(df_data, 'log')$synonym_updates
-write_log_file(updated_synonyms, 'Groups/USBR-LTS/02 Processed Data/QC files/tables/LTS_updated_synonyms.csv')
+write_log_file(updated_synonyms, 'Groups/USBR-DOP/02 Processed Data/QC files/tables/DOP_updated_synonyms.csv')
 
 print(updated_synonyms)
 ```
 
 ## Add in higher-level taxa
 ```{r}
-df_data <- higher_lvl_taxa(df_data)
+df_data <- higher_lvl_taxa(df_data, std_type = 'program')
 needs_hierarchy <- attr(df_data, 'log')$unmatched_taxa
-write_log_file(needs_hierarchy, 'Groups/USBR-LTS/02 Processed Data/QC files/tables/LTS_needs_hierarchy.csv')
+write_log_file(needs_hierarchy, 'Groups/USBR-DOP/02 Processed Data/QC files/tables/DOP_needs_hierarchy.csv')
 
 print(needs_hierarchy)
 ```
@@ -144,9 +148,9 @@ print(needs_hierarchy)
 ## Combine taxa when both old and new taxa names exist
 ```{r}
 df_data <- combine_taxa_lts(df_data)
-taxa_lts_combined <- attr(df_data, 'log')$combine_taxa_lts
+taxa_DOP_combined <- attr(df_data, 'log')$combine_taxa_lts
 
-print(taxa_lts_combined)
+print(taxa_DOP_combined)
 ```
 
 ## Check distinct cols before combining
@@ -162,7 +166,7 @@ attr(df_data, 'log')$nondistinct_keyrows
 ```{r}
 df_data <- combine_taxons(df_data, key_cols = c('Sortable_ID', 'Date', 'Time'), measurement_cols = c('Cells_per_mL'))
 combined_taxa <- attr(df_data, 'log')$combined_taxa
-write_log_file(combined_taxa, 'Groups/USBR-LTS/02 Processed Data/QC files/tables/LTS_combined_taxa.csv')
+write_log_file(combined_taxa, 'Groups/USBR-DOP/02 Processed Data/QC files/tables/DOP_combined_taxa.csv')
 
 print(combined_taxa)
 ```
@@ -204,7 +208,7 @@ print(na_check)
 ```{r}
 df_data <- missing_latlon_lts(df_data)
 missing_latlon <- attr(df_data, 'log')$missing_latlon
-write_log_file(missing_latlon, 'Groups/USBR-LTS/02 Processed Data/QC files/tables/LTS_missing_latlon.csv')
+write_log_file(missing_latlon, 'Groups/USBR-DOP/02 Processed Data/QC files/tables/DOP_missing_latlon.csv')
 
 print(missing_latlon)
 ```
@@ -213,12 +217,12 @@ print(missing_latlon)
 ```{r}
 df_data <- missing_time_lts(df_data)
 missing_time <- attr(df_data, 'log')$missing_time
-write_log_file(missing_time, 'Groups/USBR-LTS/02 Processed Data/QC files/tables/LTS_missing_times.csv')
+write_log_file(missing_time, 'Groups/USBR-DOP/02 Processed Data/QC files/tables/DOP_missing_times.csv')
 
 print(missing_time)
 ```
 
 # Export
 ```{r}
-write_csv(df_data, abs_pesp_path('Groups/USBR-LTS/02 Processed Data/LTS_draft.csv'))
+write_csv(df_data, abs_pesp_path('Groups/USBR-DOP/02 Processed Data/DOP_draft.csv'))
 ```

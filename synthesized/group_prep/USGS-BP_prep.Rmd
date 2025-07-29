@@ -28,6 +28,9 @@ df_bp <- read_quiet_csv(data_path_bp)
 ```
 
 # Clean data
+```{r}
+unique(df_bp$SampleMethod)
+```
 
 ## Add in Metadata
 ```{r}
@@ -35,7 +38,7 @@ df_bp <- read_quiet_csv(data_path_bp)
 df_bp <- add_meta_col(df_bp, 'USGS-BP', 'Survey')
 
 # Magnification
-df_bp <- add_meta_col(df_bp, 'USGS-BP', 'Magnification') # FIX HOW THIS WORKS
+df_bp <- add_meta_col(df_bp, 'USGS-BP', 'Magnification', match_cols = 'SampleMethod') # FIX HOW THIS WORKS
 
 # Depth Type
 df_bp <- df_bp %>% mutate(DepthType = 
@@ -44,6 +47,12 @@ df_bp <- df_bp %>% mutate(DepthType =
 
 # Sample Scheme
 df_bp <- add_meta_col(df_bp, 'USGS-BP', 'SampleScheme')
+
+# Count Method
+df_bp <- add_meta_col(df_bp, 'USGS-BP', 'CountMethodSample')
+
+df_bp <- df_bp %>%
+  mutate(CountMethodTaxa = CountMethodSample)
 ```
 
 ## Add extra columns

@@ -32,6 +32,8 @@ subset_cols_aeu <- function(df){
                  'Cells_per_mL',
                  'Units_per_mL',
                  'Biovolume_per_mL',
+                 'GALD',
+                 'PhytoForm',
                  'QualityCheck',
                  'Debris',
                  'Notes') 

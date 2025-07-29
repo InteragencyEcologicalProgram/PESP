@@ -1,0 +1,294 @@
+# Check BP data
+
+**Purpose:** Code to check BP data for errors
+
+**Author:** Perry ([sarah.perry\@water.ca.gov](mailto:sarah.perry@water.ca.gov){.email})
+
+```{r}
+library(tidyverse)
+library(vegan)
+library(lubridate)
+source('admin/global_functions/global_funcs.R')
+source('admin/global_functions/check_funcs.R')
+set.seed(42)
+```
+
+```{r}
+load('synthesized/group_prep/group_data/DWR-SMSCG.RData')
+
+# format main dataframe (species unit)
+df_phyto <- df_smscg %>%
+  mutate(
+    Date = parse_date_time(Date, orders = c('ymd', 'dmy')),
+    Year = factor(year(Date)),
+    Event = paste(Date, Station, sep = '_'),
+    Binary = 1
+  )
+
+# format df (genus unit)
+df_genus <- df_phyto %>%
+  group_by(Event, Date, Year, Station, Genus, Survey) %>%
+  summarize(Biovolume_per_mL = sum(Biovolume_per_mL),
+            Cells_per_mL = sum(Cells_per_mL),
+            Units_per_mL = sum(Units_per_mL),
+            .groups = 'drop') %>%
+  mutate(Binary = 1)
+```
+
+# NMDS by Species and Event
+
+### Biovol
+```{r}
+# create NMDS
+df_nmds_bv <- calc_nmds(df_phyto,
+                      group_var = 'Event',
+                      factor_var = c('Year','Survey'),
+                      nmds_var = 'Biovolume_per_mL')
+
+# print plot
+plt_nmds <- plot_nmds(df_nmds_bv$df_nmds, df_nmds_bv$meta_vars, fill_var = 'Year')
+plt_nmds
+
+ggsave(
+  filename = abs_pesp_path('Groups/DWR-SMSCG/02 Processed Data/QC files/graphs/SMSCG_NMDS_Species_Biovolume_Year.jpg'),
+  plot = plt_nmds,
+  width = 8,
+  height = 6
+)
+
+# print plot
+plt_nmds <- plot_nmds(df_nmds_bv$df_nmds, df_nmds_bv$meta_vars, fill_var = 'Survey')
+plt_nmds
+
+ggsave(
+  filename = abs_pesp_path('Groups/DWR-SMSCG/02 Processed Data/QC files/graphs/SMSCG_NMDS_Species_Biovolume_Survey.jpg'),
+  plot = plt_nmds,
+  width = 8,
+  height = 6
+)
+```
+
+### Units
+```{r}
+# create NMDS
+df_nmds_unit <- calc_nmds(df_phyto,
+                      group_var = 'Event',
+                      factor_var = c('Year','Survey'),
+                      nmds_var = 'Units_per_mL')
+
+# print plot
+plt_nmds <- plot_nmds(df_nmds_unit$df_nmds, df_nmds_unit$meta_vars, fill_var = 'Year')
+plt_nmds
+
+ggsave(
+  filename = abs_pesp_path('Groups/DWR-SMSCG/02 Processed Data/QC files/graphs/SMSCG_NMDS_Species_Units_Year.jpg'),
+  plot = plt_nmds,
+  width = 8,
+  height = 6
+)
+
+# print plot
+plt_nmds <- plot_nmds(df_nmds_unit$df_nmds, df_nmds_unit$meta_vars, fill_var = 'Survey')
+plt_nmds
+
+ggsave(
+  filename = abs_pesp_path('Groups/DWR-SMSCG/02 Processed Data/QC files/graphs/SMSCG_NMDS_Species_Units_Survey.jpg'),
+  plot = plt_nmds,
+  width = 8,
+  height = 6
+)
+```
+
+### Cells
+```{r}
+# create NMDS
+df_nmds_cell <- calc_nmds(df_phyto,
+                      group_var = 'Event',
+                      factor_var = c('Year','Survey'),
+                      nmds_var = 'Cells_per_mL')
+
+# print plot
+plt_nmds <- plot_nmds(df_nmds_cell$df_nmds, df_nmds_cell$meta_vars, fill_var = 'Year')
+plt_nmds
+
+ggsave(
+  filename = abs_pesp_path('Groups/DWR-SMSCG/02 Processed Data/QC files/graphs/SMSCG_NMDS_Species_Cells_Year.jpg'),
+  plot = plt_nmds,
+  width = 8,
+  height = 6
+)
+
+# print plot
+plt_nmds <- plot_nmds(df_nmds_cell$df_nmds, df_nmds_cell$meta_vars, fill_var = 'Survey')
+plt_nmds
+
+ggsave(
+  filename = abs_pesp_path('Groups/DWR-SMSCG/02 Processed Data/QC files/graphs/SMSCG_NMDS_Species_Cells_Survey.jpg'),
+  plot = plt_nmds,
+  width = 8,
+  height = 6
+)
+```
+
+### PA
+```{r}
+# create NMDS
+df_nmds_pa <- calc_nmds(df_phyto,
+                      group_var = 'Event',
+                      factor_var = c('Year','Survey'),
+                      nmds_var = 'Binary',
+                      distance = 'jaccard')
+
+# print plot
+plt_nmds <- plot_nmds(df_nmds_pa$df_nmds, df_nmds_pa$meta_vars, fill_var = 'Year')
+plt_nmds
+
+ggsave(
+  filename = abs_pesp_path('Groups/DWR-SMSCG/02 Processed Data/QC files/graphs/SMSCG_NMDS_Species_PA_Year.jpg'),
+  plot = plt_nmds,
+  width = 8,
+  height = 6
+)
+
+# print plot
+plt_nmds <- plot_nmds(df_nmds_pa$df_nmds, df_nmds_pa$meta_vars, fill_var = 'Survey')
+plt_nmds
+
+ggsave(
+  filename = abs_pesp_path('Groups/DWR-SMSCG/02 Processed Data/QC files/graphs/SMSCG_NMDS_Species_PA_Survey.jpg'),
+  plot = plt_nmds,
+  width = 8,
+  height = 6
+)
+```
+
+# NMDS by Genus and Event
+
+### Biovol
+```{r}
+# create NMDS
+df_nmds_bv <- calc_nmds(df_genus,
+                      taxa_var = 'Genus',                    
+                      group_var = 'Event',
+                      factor_var = c('Year', 'Survey'),
+                      nmds_var = 'Biovolume_per_mL')
+
+# print plot
+plt_nmds <- plot_nmds(df_nmds_bv$df_nmds, df_nmds_bv$meta_vars, fill_var = 'Year')
+plt_nmds
+
+ggsave(
+  filename = abs_pesp_path('Groups/DWR-SMSCG/02 Processed Data/QC files/graphs/SMSCG_NMDS_Genus_Biovolume_Year.jpg'),
+  plot = plt_nmds,
+  width = 8,
+  height = 6
+)
+
+# print plot
+plt_nmds <- plot_nmds(df_nmds_bv$df_nmds, df_nmds_bv$meta_vars, fill_var = 'Survey')
+plt_nmds
+
+ggsave(
+  filename = abs_pesp_path('Groups/DWR-SMSCG/02 Processed Data/QC files/graphs/SMSCG_NMDS_Genus_Biovolume_Survey.jpg'),
+  plot = plt_nmds,
+  width = 8,
+  height = 6
+)
+```
+
+### Units
+```{r}
+# create NMDS
+df_nmds_unit <- calc_nmds(df_genus,
+                      taxa_var = 'Genus',                    
+                      group_var = 'Event',
+                      factor_var = c('Year','Survey'),
+                      nmds_var = 'Units_per_mL')
+
+# print plot
+plt_nmds <- plot_nmds(df_nmds_unit$df_nmds, df_nmds_unit$meta_vars, fill_var = 'Year')
+plt_nmds
+
+ggsave(
+  filename = abs_pesp_path('Groups/DWR-SMSCG/02 Processed Data/QC files/graphs/SMSCG_NMDS_Genus_Units_Year.jpg'),
+  plot = plt_nmds,
+  width = 8,
+  height = 6
+)
+
+# print plot
+plt_nmds <- plot_nmds(df_nmds_unit$df_nmds, df_nmds_unit$meta_vars, fill_var = 'Survey')
+plt_nmds
+
+ggsave(
+  filename = abs_pesp_path('Groups/DWR-SMSCG/02 Processed Data/QC files/graphs/SMSCG_NMDS_Genus_Units_Survey.jpg'),
+  plot = plt_nmds,
+  width = 8,
+  height = 6
+)
+```
+
+### Cells
+```{r}
+# create NMDS
+df_nmds_cell <- calc_nmds(df_genus,
+                      taxa_var = 'Genus',                    
+                      group_var = 'Event',
+                      factor_var = c('Year','Survey'),
+                      nmds_var = 'Cells_per_mL')
+
+# print plot
+plt_nmds <- plot_nmds(df_nmds_cell$df_nmds, df_nmds_cell$meta_vars, fill_var = 'Year')
+plt_nmds
+
+ggsave(
+  filename = abs_pesp_path('Groups/DWR-SMSCG/02 Processed Data/QC files/graphs/SMSCG_NMDS_Genus_Cells_Year.jpg'),
+  plot = plt_nmds,
+  width = 8,
+  height = 6
+)
+
+# print plot
+plt_nmds <- plot_nmds(df_nmds_cell$df_nmds, df_nmds_cell$meta_vars, fill_var = 'Survey')
+plt_nmds
+
+ggsave(
+  filename = abs_pesp_path('Groups/DWR-SMSCG/02 Processed Data/QC files/graphs/SMSCG_NMDS_Genus_Cells_Survey.jpg'),
+  plot = plt_nmds,
+  width = 8,
+  height = 6
+)
+```
+
+### PA
+```{r}
+# create NMDS
+df_nmds_pa <- calc_nmds(df_genus,
+                      taxa_var = 'Genus',                    
+                      group_var = 'Event',
+                      factor_var = c('Year','Survey'),
+                      nmds_var = 'Binary',
+                      distance = 'jaccard')
+
+# print plot
+plt_nmds <- plot_nmds(df_nmds_pa$df_nmds, df_nmds_pa$meta_vars, fill_var = 'Year')
+plt_nmds
+
+ggsave(
+  filename = abs_pesp_path('Groups/DWR-SMSCG/02 Processed Data/QC files/graphs/SMSCG_NMDS_Genus_PA_Year.jpg'),
+  plot = plt_nmds,
+  width = 8,
+  height = 6
+)
+
+# print plot
+plt_nmds <- plot_nmds(df_nmds_pa$df_nmds, df_nmds_pa$meta_vars, fill_var = 'Survey')
+plt_nmds
+
+ggsave(
+  filename = abs_pesp_path('Groups/DWR-SMSCG/02 Processed Data/QC files/graphs/SMSCG_NMDS_Genus_PA_Survey.jpg'),
+  plot = plt_nmds,
+  width = 8,
+  height = 6
+)
+```

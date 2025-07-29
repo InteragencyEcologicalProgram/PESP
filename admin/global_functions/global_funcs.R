@@ -106,34 +106,35 @@ read_meta_file <- function(program_name){
 #' @importFrom purrr map_chr map
 #' @importFrom readr read_csv
 #' @export
-get_edi_file = function(pkg_id, fnames){
-  # Get revision
-  revision_url = glue::glue('https://pasta.lternet.edu/package/eml/edi/{pkg_id}')
-  all_revisions = readLines(revision_url, warn = FALSE) 
-  latest_revision = tail(all_revisions, 1)
+get_edi_file <- function(pkg_id, fname) {
+  # get latest revision
+  revisions <- EDIutils::list_data_package_revisions(scope = 'edi', identifier = pkg_id)
+  latest_revision <- max(as.numeric(revisions))
+  package_id_str <- glue::glue('edi.{pkg_id}.{latest_revision}')
   
-  # Get entities 
-  pkg_url = glue::glue('https://pasta.lternet.edu/package/data/eml/edi/{pkg_id}/{latest_revision}')
-  all_entities = readLines(pkg_url, warn = FALSE)
-  name_urls = glue::glue('https://pasta.lternet.edu/package/name/eml/edi/{pkg_id}/{latest_revision}/{all_entities}')
-  names(all_entities) = purrr::map_chr(name_urls, readLines, warn = FALSE)
+  # get entity IDs
+  entities <- EDIutils::list_data_entities(packageId = package_id_str)
   
-  # Select entities that match fnames
-  fname_regex = stringr::str_c(glue::glue('({fnames})'), collapse = '|')
-  included_entities = all_entities[stringr::str_detect(names(all_entities), fname_regex)]
-  if(length(included_entities) != length(fnames)){
-    stop('Not all specified filenames are included in package')
+  # slow wrapper (avoid rate limit)
+  slow_read <- purrr::slowly(EDIutils::read_data_entity_name, purrr::rate_delay(pause = 1))
+  
+  # find the matching entity
+  matched <- purrr::keep(entities, function(entity_id) {
+    entity_name <- slow_read(packageId = package_id_str, entityId = entity_id)
+    print(entity_name)
+    identical(entity_name, fname)
+  })
+  
+  if (length(matched) == 0) {
+    stop(glue::glue("File '{fname}' not found in package edi.{pkg_id}.{latest_revision}"))
   }
-  # Download data
-  dfs = purrr::map(glue::glue('https://pasta.lternet.edu/package/data/eml/edi/{pkg_id}/{latest_revision}/{included_entities}'),
-                   readr::read_csv, guess_max = 1000000, show_col_types = FALSE)
-  names(dfs) = names(included_entities)
   
-  if (length(dfs) == 1) {
-    return(dfs[[1]])
-  } else {
-    return(dfs)
-  }
+  # construct download URL and read csv
+  entity_id <- matched[[1]]
+  file_url <- glue::glue('https://pasta.lternet.edu/package/data/eml/edi/{pkg_id}/{latest_revision}/{entity_id}')
+  df <- readr::read_csv(file_url, guess_max = 1000000, show_col_types = FALSE)
+  
+  return(df)
 }
 
 # Modify Dataframe --------------------------------------------------------
@@ -216,7 +217,7 @@ add_qc_col <- function(df, comment_col = 'Comments', key_cols = c('Date', 'Stati
         QC_5 = case_when(grepl('CNMT<5|CNMT\\s<5|CNMT\\s<\\s5|CMT<5|CMT\\s<5|CMT\\s<\\s5|CMNT<5|CMNT\\s<5|CMNT\\s<\\s5', !!comment_col, ignore.case = TRUE) ~ 'TallyNotMet_Under5'),
         QC_3 = case_when(
           grepl('did not reach|cannot meet tally|cannot meet natural unit|LessThan400Cells', !!comment_col, ignore.case = TRUE) ~ 'TallyNotMet',
-          grepl('\\bCMT\\b|\\bCMNT\\b', !!comment_col, ignore.case = TRUE) ~ 'TallyNotMet'
+          grepl('\\bCMT\\b|\\bCMNT\\b|\\bCounts the target of 400 natural units due to low\\b', !!comment_col, ignore.case = TRUE) ~ 'TallyNotMet'
         ),
         QC_6 = case_when(grepl('degraded', !!comment_col, ignore.case = TRUE) ~ 'Degraded'),
         QC_7 = case_when(grepl('poor preservation|poorly preserved|weak preservation|weakly preserved|fungus|fungal\\s+growth|mycelial\\s+growth|PoorlyPreserved', !!comment_col, ignore.case = TRUE) ~ 'PoorlyPreserved'),
@@ -316,8 +317,8 @@ add_debris_col <- function(df, comment_col = 'Comments') {
     df <- df %>%
       mutate(
         Db_1 = case_when(
-          grepl('high detritus|high sediment|heavy detritus|heavy sediment', !!comment_col, ignore.case = TRUE) ~ 'High',
-          grepl('moderate detritus|moderate sediment|moderat sediment', !!comment_col, ignore.case = TRUE) ~ 'Moderate',
+          grepl('high detritus|high sediment|heavy detritus|heavy sediment|high amount of debris|high amounts of debris|lots of debris|High sedimnet|High sedimen', !!comment_col, ignore.case = TRUE) ~ 'High',
+          grepl('moderate detritus|moderate sediment|moderat sediment|medium detritus|medium sediment', !!comment_col, ignore.case = TRUE) ~ 'Moderate',
           grepl('low detritus|low sediment|light detritus|light sediment', !!comment_col, ignore.case = TRUE) ~ 'Low',
           TRUE ~ NA_character_
         )
@@ -335,107 +336,109 @@ add_debris_col <- function(df, comment_col = 'Comments') {
 }
 
 add_notes_col <- function(df, comment_col = 'Comments', taxa_col = 'Taxon') {
-  comment_col <- if (!is.null(comment_col)) rlang::ensym(comment_col) else NULL
-  taxa_col <- rlang::ensym(taxa_col)
+  library(tidyverse)
+  library(rlang)
   
-  # Preserve the original Taxon for logging
-  df <- df %>%
-    mutate(.orig_taxon = !!taxa_col)
+  df <- df %>% mutate(.orig_taxon = !!ensym(taxa_col))
   
-  # Add notes based on Taxon and Comments columns
-  if (!is.null(comment_col)) {
-    # If comment_col is not NULL, evaluate normally
-    df <- df %>%
-      mutate(
-        # Detect cyst
-        Note_1 = case_when(
-          grepl('\\bcyst\\b|\\(cyst\\)', .orig_taxon, ignore.case = TRUE) ~ 'Cyst',
-          grepl('\\bcyst\\b|\\(cyst\\)', !!comment_col, ignore.case = TRUE) ~ 'Cyst',
-          TRUE ~ NA_character_
-        ),
-        
-        # Detect secondary
-        Note_2 = case_when(
-          grepl('\\bsecondary\\b|\\(secondary\\)', .orig_taxon, ignore.case = TRUE) ~ 'Secondary',
-          grepl('\\bsecondary\\b|\\(secondary\\)', !!comment_col, ignore.case = TRUE) ~ 'Secondary',
-          TRUE ~ NA_character_
-        ),
-        
-        # Add other notes
-        Note_3 = case_when(
-          is.na(!!comment_col) ~ NA_character_,
-          grepl('\\bciliates\\b', !!comment_col, ignore.case = TRUE) ~ 'Ciliates',
-          TRUE ~ NA_character_
-        ),
-        
-        Note_4 = case_when(
-          is.na(!!comment_col) ~ NA_character_,
-          grepl('\\bgirdle\\s*view\\b|\\bgirdle\\b', !!comment_col, ignore.case = TRUE) ~ 'GirdleView',
-          TRUE ~ NA_character_
-        )
-      )
-  } else {
-    # If comment_col is NULL, all notes are 'Unknown'
-    df <- df %>%
-      mutate(
-        Note_1 = case_when(
-          grepl('\\bcyst\\b|\\(cyst\\)', .orig_taxon, ignore.case = TRUE) ~ 'Cyst',
-          TRUE ~ NA_character_
-        ),
-        Note_3 = case_when(
-          grepl('\\bsecondary\\b|\\(secondary\\)', .orig_taxon, ignore.case = TRUE) ~ 'Secondary',
-          TRUE ~ NA_character_
-        ),
-        Note_4 = 'Unknown',
-        Note_5 = 'Unknown'
-      )
-  }
+  # note patterns
+  note_patterns <- c(
+    Cyst = '\\bcyst\\b',
+    Secondary = '\\bsecondary\\b',
+    Ciliates = '\\bciliates\\b',
+    GirdleView = '\\bgirdle\\s*view\\b|\\bgirdle\\b',
+    FragmentedDiatoms = '\\bfragment.?\\b|fragmented diatoms\\b|\\bdiatom fragments\\b|\\bdiatom fragment\\b',
+    Coccoid = '\\bcoccoid\\b',
+    Filament = '\\bfilament\\b',
+    Cymbelloid = '\\bcymelloid\\b|\\bcymbelloid\\b',
+    Gomphonemoid = '\\bgomphonemoid\\b',
+    Flagellate = '\\bflagellate\\b'
+  )
   
-  # Remove cyst from Taxon
+  comment_sym <- if (!is.null(comment_col)) ensym(comment_col) else NULL
+  
+  # create note columns
+  df_notes <- imap_dfc(note_patterns, function(pattern, name) {
+    col_name <- paste0('Note_', name)
+    if (is.null(comment_sym)) {
+      tibble(!!col_name := case_when(
+        str_detect(df$.orig_taxon, regex(pattern, ignore_case = TRUE)) ~ name,
+        TRUE ~ 'Unknown'
+      ))
+    } else {
+      tibble(!!col_name := case_when(
+        str_detect(df$.orig_taxon, regex(pattern, ignore_case = TRUE)) ~ name,
+        str_detect(eval_tidy(comment_sym, df), regex(pattern, ignore_case = TRUE)) ~ name,
+        TRUE ~ NA_character_
+      ))
+    }
+  })
+  
+  df <- bind_cols(df, df_notes)
+  
+  taxa_sym <- ensym(taxa_col)
+  
+  # extract content in parentheses for flagging
   df <- df %>%
     mutate(
-      !!taxa_col := gsub('\\s*\\(cyst\\)\\s*|\\s*\\bcyst\\b\\s*', ' ', !!taxa_col, ignore.case = TRUE) %>% trimws()
-    ) %>%
-    mutate(
-      !!taxa_col := gsub('\\s*\\(secondary\\)\\s*|\\s*\\bsecondary\\b\\s*', ' ', !!taxa_col, ignore.case = TRUE) %>% trimws()
+      .paren_content = str_extract(!!taxa_sym, '\\(([^()]*)\\)') %>%
+        str_remove_all('[()]') %>%
+        str_squish()
     )
   
-  # Log cyst corrections
-  cyst_log <- df %>%
-    filter(str_squish(.orig_taxon) != str_squish(!!taxa_col)) %>%
-    distinct(OldTaxon = .orig_taxon, UpdatedTaxon = as.character(!!taxa_col)) %>%
+  # remove parenthetical terms that match note_patterns
+  paren_terms_pattern <- str_c('\\(\\s*(', str_c(note_patterns, collapse = '|'), ')\\s*\\)', collapse = '')
+  df <- df %>%
+    mutate(
+      !!taxa_sym := str_remove_all(!!taxa_sym, regex(paren_terms_pattern, ignore_case = TRUE)) %>%
+        str_squish()
+    )
+  
+  # log taxon changes
+  taxonnote_log <- df %>%
+    filter(str_squish(.orig_taxon) != str_squish(!!taxa_sym)) %>%
+    distinct(OldTaxon = .orig_taxon, UpdatedTaxon = as.character(!!taxa_sym)) %>%
     arrange(OldTaxon)
   
-  if (nrow(cyst_log) > 0) {
-    message('Total cyst/secondary taxon corrections: ', nrow(cyst_log))
+  if (nrow(taxonnote_log) > 0) {
+    message('Total taxon note removals: ', nrow(taxonnote_log))
   } else {
-    message('No cyst/secondary taxon corrections found.')
+    message('No taxon note removals found.')
   }
   
-  # Remove temp column
-  df <- df %>% select(-.orig_taxon)
+  # flag cases where parentheses content was removed but not matched
+  pattern_union <- str_c(note_patterns, collapse = '|')
+  df_flagged <- df %>%
+    filter(!is.na(.paren_content), !str_detect(.paren_content, regex(pattern_union, ignore_case = TRUE))) %>%
+    distinct(Taxon = !!taxa_sym, ParenContent = .paren_content)
   
-  # Combine notes
+  if (nrow(df_flagged) > 0) {
+    message('Removed parenthetical notes with no known comment: ', nrow(df_flagged))
+  }
+  
+  # drop temp columns
+  df <- df %>% select(-.orig_taxon, -.paren_content)
+  
+  # combine note columns
   df <- df %>%
-    unite(Notes, starts_with('Note'), remove = TRUE, na.rm = TRUE, sep = ' ') %>%
+    unite(Notes, starts_with('Note_'), remove = TRUE, na.rm = TRUE, sep = ' ') %>%
     mutate(
       Notes = case_when(
         grepl('^\\s*(Unknown\\s*)+$', Notes) ~ 'Unknown',
-        
-        grepl('\\bUnknown\\b', Notes) ~ gsub('\\bUnknown\\b', '', Notes) %>% trimws(),
-        
+        grepl('\\bUnknown\\b', Notes) ~ gsub('\\bUnknown\\b', '', Notes) %>% str_squish(),
         Notes == '' ~ 'NoNote',
-        
         TRUE ~ Notes
       )
     )
   
-  # Attach the log
-  attr(df, 'log') <- list(cyst_taxa = cyst_log)
+  # attach logs
+  attr(df, 'log') <- list(
+    taxa_notes = taxonnote_log,
+    unmatched_notes = df_flagged
+  )
   
   return(df)
 }
-
 
 #' @title Add Metadata Column from Program-Specific Sheet
 #'
@@ -580,7 +583,7 @@ add_meta_col <- function(df, program, col_name, match_cols = NULL){
 #' @importFrom dplyr case_when distinct
 #' @importFrom tibble tibble
 #' @export
-clean_unknowns <- function(df, std_sp = TRUE) {
+clean_unknowns <- function(df, std_sp) {
   original_taxon <- df$Taxon
   
   # Standardize unknown/unidentified/undetermined to "Unknown"
@@ -591,14 +594,25 @@ clean_unknowns <- function(df, std_sp = TRUE) {
     TRUE ~ df$Taxon
   )
   
-  # Simplify sp. X -> sp. and spp. X -> spp.
-  df$Taxon <- df$Taxon %>%
-    stringr::str_replace('sp\\..*', 'sp.') %>%
-    stringr::str_replace('spp\\..*', 'spp.')
-  
   # Optionally standardize spp. -> sp.
   if (std_sp) {
-    df$Taxon <- stringr::str_replace_all(df$Taxon, 'spp\\.', 'sp.')
+    df$Taxon <- df$Taxon %>%
+      # 1. remove anything in parentheses
+      str_remove_all('\\s*\\([^\\)]*\\)') %>%
+      
+      # 2. simplify spp. X, spp X, sp. X, sp X → sp.
+      str_replace_all('\\bspp?\\.?\\s+.*$', 'sp.') %>%
+      
+      # 3. standardize all variants of sp/spp to sp.
+      str_replace_all('\\b(spp?|sp)\\b\\.?', 'sp.') %>%
+      str_squish()
+    
+    # 4. if Unknown X sp., remove trailing sp.
+    df$Taxon <- case_when(
+      str_detect(df$Taxon, regex('^unknown\\b', ignore_case = TRUE)) ~
+        str_remove(df$Taxon, '\\bsp\\.$') %>% str_squish(),
+      TRUE ~ df$Taxon
+    )
   }
   
   # Create log of unique corrections only
@@ -632,9 +646,13 @@ clean_unknowns <- function(df, std_sp = TRUE) {
 #' @importFrom purrr map_chr
 #' @importFrom stringr str_split str_trim
 #' @export
+
 correct_taxon_typos <- function(df) {
   df_typos <- read_quiet_csv(abs_pesp_path('Reference Documents/TaxaTypos.csv'))
-  typo_map <- setNames(df_typos$TaxonCorrected, df_typos$Taxon)
+  typo_map <- setNames(
+    str_squish(stringi::stri_trans_general(df_typos$TaxonCorrected, 'Latin-ASCII')),
+    str_squish(stringi::stri_trans_general(df_typos$Taxon, 'Latin-ASCII'))
+  )
   
   # df$Taxon <- iconv(df$Taxon, from = 'ISO-8859-1', to = 'UTF-8')
   # df$Taxon <- unname(df$Taxon)
@@ -643,6 +661,7 @@ correct_taxon_typos <- function(df) {
   standardize_cf_sp <- function(taxon) {
     taxon %>%
       str_replace_all('\\bcf[.,]?\\s+', 'cf. ') %>%
+      str_replace_all('\\b(sp\\.\\s*){2,}$', 'sp.') %>% 
       str_replace_all('\\bsp[.,]?\\s*$', 'sp.') %>%
       str_replace_all('\\s+', ' ') %>%
       str_trim()
@@ -654,7 +673,7 @@ correct_taxon_typos <- function(df) {
   
   # Step 1: Normalize to ASCII
   df <- df %>%
-    mutate(Taxon = stringi::stri_trans_general(Taxon, 'Latin-ASCII'))
+    mutate(Taxon = str_squish(stringi::stri_trans_general(Taxon, 'Latin-ASCII')))
   
   # Step 2: Standardize cf/sp
   df <- df %>%
@@ -669,11 +688,15 @@ correct_taxon_typos <- function(df) {
     if (length(pure_words) == 0) return(taxon)
     
     pure_taxon <- paste(pure_words, collapse = ' ')
-    corrected <- typo_map[pure_taxon]
-    if (length(corrected) == 0 || is.na(corrected)) {
-      corrected <- pure_taxon
+    
+    # lookup (case-insensitive)
+    typo_names <- names(typo_map)
+    match_idx <- which(tolower(typo_names) == tolower(pure_taxon))
+    
+    if (length(match_idx) > 0) {
+      corrected <- typo_map[[match_idx[1]]]
     } else {
-      corrected <- corrected[[1]]
+      corrected <- pure_taxon
     }
     
     corrected_words <- str_split(corrected, '\\s+')[[1]]
@@ -754,8 +777,10 @@ update_synonyms <- function(df) {
   
   # Resolve cf. and standard names
   resolve_synonym <- function(taxon) {
+    # find cf (only before species name)
     cf_pattern <- '^([\\w-]+)\\s+cf\\.\\s+([\\w-]+)$'
     
+    # resolve taxon
     if (str_detect(taxon, cf_pattern)) {
       matches <- str_match(taxon, cf_pattern)
       clean_taxon <- paste(matches[2], matches[3])
@@ -774,6 +799,7 @@ update_synonyms <- function(df) {
     }
   }
   
+  # improve performance
   memo_resolve_synonym <- memoise::memoise(resolve_synonym)
   
   unique_taxa <- unique(df$Taxon)
@@ -880,32 +906,38 @@ remove_non_phyto <- function(df) {
 #' @importFrom dplyr mutate select left_join relocate any_of distinct filter
 #' @importFrom stringr str_replace_all str_trim str_replace str_detect
 #' @importFrom readr read_csv
-higher_lvl_taxa <- function(df, after_col = NULL, std_type = 'program') {
+higher_lvl_taxa <- function(df, after_col = NULL, std_type) {
   std_type <- tolower(std_type)
+  
+  if (!std_type %in% c('program', 'pesp')) {
+    stop("std_type must be either 'program' or 'PESP'")
+  }
   
   # Step 1: Normalize "Genus Species cf." -> "Genus cf. Species"
   df <- df %>%
     mutate(
-      Taxon = stringr::str_trim(Taxon),
-      Taxon = dplyr::case_when(
-        stringr::str_detect(Taxon, '^\\w+\\s+\\w+\\s+cf\\.$') ~ 
-          stringr::str_replace(Taxon, '^(\\w+)\\s+(\\w+)\\s+cf\\.$', '\\1 cf. \\2'),
+      Taxon = case_when(
+        str_detect(Taxon, '^\\w+\\s+\\w+\\s+cf\\.?$') ~
+          str_replace(Taxon, '^(\\w+)\\s+(\\w+)\\s+cf\\.?$', '\\1 cf. \\2'),
         TRUE ~ Taxon
       )
     )
   
-  # Step 2: PESP standardization (if applicable)
+  df <- df %>%
+    mutate(Taxon = Taxon)
+  
+  # Step 2: PESP standardization (if applicable) of Species cf.
   if (std_type == 'pesp') {
     df <- df %>%
       mutate(
-        Taxon = dplyr::case_when(
-          stringr::str_detect(Taxon, '^\\w+\\s+cf\\.\\s+\\w+$') ~
-            stringr::str_replace(Taxon, '^(\\w+)\\s+cf\\.\\s+\\w+$', '\\1 sp.'),
+        Taxon = case_when(
+          str_detect(Taxon, '^\\w+\\s+cf\\.?\\s+\\w+') ~
+            str_replace(Taxon, '^(\\w+)\\s+cf\\.?\\s+.*$', '\\1 sp.'),
           TRUE ~ Taxon
         ),
-        OrigTaxon = dplyr::case_when(
-          stringr::str_detect(OrigTaxon, '^\\w+\\s+cf\\.\\s+\\w+$') ~
-            stringr::str_replace(OrigTaxon, '^(\\w+)\\s+cf\\.\\s+\\w+$', '\\1 sp.'),
+        OrigTaxon = case_when(
+          str_detect(OrigTaxon, '^\\w+\\s+cf\\.?\\s+\\w+') ~
+            str_replace(OrigTaxon, '^(\\w+)\\s+cf\\.?\\s+.*$', '\\1 sp.'),
           TRUE ~ OrigTaxon
         )
       )
@@ -917,7 +949,7 @@ higher_lvl_taxa <- function(df, after_col = NULL, std_type = 'program') {
       mutate(OrigTaxon = Taxon)
   }
   
-  # Step 4: Create PureTaxon by removing 'cf.' and normalizing
+  # Step 4: Create PureTaxon by removing 'cf.', standardizing 'sp.', and normalizing
   df <- df %>%
     mutate(
       PureTaxon = stringr::str_replace_all(Taxon, regex('cf\\.', ignore_case = TRUE), ''),
@@ -926,24 +958,33 @@ higher_lvl_taxa <- function(df, after_col = NULL, std_type = 'program') {
       PureTaxon = tolower(PureTaxon)
     )
   
+  df$PureTaxon <- df$PureTaxon %>%
+    str_replace_all('\\bspp?\\.?\\s+\\S+', 'sp.') %>% # replace 'sp. X' or 'spp. X' to 'sp.'
+    stringr::str_replace('\\bsp\\.?$', 'sp.') %>%
+    stringr::str_replace('\\bspp\\.?$', 'spp.')
+    
+  df$PureTaxon <- stringr::str_replace_all(df$PureTaxon, 'spp\\.', 'sp.')
+  
   # Step 5: Read in taxa sheet and add PureTaxon
   df_taxa <- read_phyto_taxa()
   df_taxa <- df_taxa %>%
     mutate(
       PureTaxon = stringr::str_trim(Taxon),
       PureTaxon = stringr::str_replace_all(PureTaxon, '\\s+', ' '),
+      PureTaxon = stringr::str_squish(stringi::stri_trans_general(PureTaxon, 'Latin-ASCII')),
       PureTaxon = tolower(PureTaxon)
     ) %>%
     select(-Taxon)
   
   # Step 6: Create unmatched log (distinct only)
   unmatched_log <- df %>%
+    distinct(PureTaxon, Taxon) %>%
     filter(!PureTaxon %in% df_taxa$PureTaxon) %>%
-    distinct(Taxon)
-  
+    distinct(PureTaxon, Taxon)
+    
   message('Unique taxa with no match in reference list: ', nrow(unmatched_log))
   
-  # Step 7: Join and relocate
+  # Step 7: Join higher level taxa and main dfs and relocate
   df_joined <- df %>%
     left_join(df_taxa, by = 'PureTaxon') %>%
     select(-PureTaxon)
@@ -954,7 +995,57 @@ higher_lvl_taxa <- function(df, after_col = NULL, std_type = 'program') {
       relocate(c(Genus, Species), .after = AlgalGroup)
   }
   
-  # Step 8: Remove special characters
+  # Step 8: PESP standardization (if applicable) of Genus cf.
+  if (std_type == 'pesp') {
+    # define plural -> singular Algal Group map
+    algal_singular <- c(
+      'Centric Diatoms' = 'centric diatom',
+      'Cyanobacteria' = 'cyanobacterium',
+      'Pennate Diatoms' = 'pennate diatom',
+      'Cryptophytes' = 'cryptophyte',
+      'Euglenoids' = 'euglenoid',
+      'Dinoflagellates' = 'dinoflagellate',
+      'Green Algae' = 'green alga',
+      'Haptophytes' = 'haptophyte',
+      'Chrysophytes' = 'chrysophyte',
+      'Synurophytes' = 'synurophyte',
+      'Ciliates' = 'ciliate',
+      'Raphidophytes' = 'raphidophyte'
+    )
+    
+    # check for unknown Algal Groups in cf. Taxa
+    unknown_algalgroups <- df_joined %>%
+      filter(str_detect(Taxon, '^cf\\.\\s+\\w+(\\s+\\w+)?$')) %>%
+      pull(AlgalGroup) %>%
+      unique() %>%
+      setdiff(names(algal_singular))
+    
+    if (length(unknown_algalgroups) > 0) {
+      stop('Unknown AlgalGroup(s) in cf. taxa: ', paste(unknown_algalgroups, collapse = ', '))
+    }
+    
+    # apply replacements
+    df_joined <- df_joined %>%
+      mutate(
+        Taxon = case_when(
+          str_detect(Taxon, '^cf\\.\\s+') ~ paste('Unknown', algal_singular[AlgalGroup]),
+          TRUE ~ Taxon
+        ),
+        Genus = case_when(
+          str_detect(Taxon, '^Unknown\\s') ~ 'Unknown',
+          TRUE ~ Genus
+        ),
+        Species = case_when(
+          str_detect(Taxon, '^Unknown\\s') ~ 'Unknown',
+          TRUE ~ Species
+        )
+      )
+    
+    df_joined <- df_joined %>%
+      mutate(Taxon = Taxon)
+  }
+  
+  # Step 9: Remove special characters
   df_joined <- df_joined %>%
     mutate(
       Taxon = stringi::stri_replace_all_regex(Taxon, '\\p{Zs}+', ' '),
@@ -966,8 +1057,8 @@ higher_lvl_taxa <- function(df, after_col = NULL, std_type = 'program') {
     ) %>%
     select(-CurrentTaxon)
   
-  # Step 9: Attach updated log
-  existing_log <- attr(df, 'log')
+  # Step 10: Attach updated log
+  existing_log <- attr(df_joined, 'log')
   attr(df_joined, 'log') <- c(existing_log, list(unmatched_taxa = unmatched_log))
   
   return(df_joined)
@@ -996,19 +1087,15 @@ higher_lvl_taxa <- function(df, after_col = NULL, std_type = 'program') {
 #' @importFrom dplyr group_by ungroup mutate across slice all_of if_else summarize filter select
 #' @importFrom stats na.omit
 combine_taxons <- function(df, key_cols = c('Date', 'Station'), measurement_cols = c('Biovolume_per_mL', 'Units_per_mL', 'Cells_per_mL')) {
-  # Only include measurement columns that exist in the dataframe
   measurement_cols <- intersect(measurement_cols, names(df))
   
-  # Include OrigTaxon in the grouping columns
   group_cols <- c(key_cols, 'OrigTaxon', 'Taxon')
   
-  # Identify combinations for logging
   combine_log <- df %>%
     group_by(across(all_of(group_cols))) %>%
     filter(n() > 1) %>%
     ungroup()
   
-  # Combine measurements within each group without touching OrigTaxon
   df <- df %>%
     group_by(across(all_of(group_cols))) %>%
     mutate(
@@ -1017,7 +1104,14 @@ combine_taxons <- function(df, key_cols = c('Date', 'Station'), measurement_cols
     slice(1) %>%
     ungroup()
   
-  # Print message
+  if('GALD' %in% names(df)) {
+    df <- df %>%
+      group_by(across(all_of(group_cols))) %>%
+      mutate(GALD = ifelse(all(is.na(GALD)), NA_real_, max(GALD, na.rm = TRUE))) %>%
+      slice(1) %>%
+      ungroup()
+  }
+  
   message('Taxon rows combined: ', nrow(combine_log))
   attr(df, 'log') <- list(combined_taxa = combine_log)
   
@@ -1032,10 +1126,10 @@ write_log_file <- function(df_log, fp) {
 }
 
 # Add latlon
-add_latlon <- function(df, fp_stations){
+add_latlon <- function(df, fp_stations, merge_cols = c('Station', 'Latitude','Longitude')){
   # Read station coordinates
   df_latlon <- read_quiet_csv(abs_pesp_path(fp_stations), col_types = cols(Station = col_character())) %>%
-    select(c('Station', 'Latitude', 'Longitude'))
+    select(merge_cols)
   
   # Identify stations in df that are missing from df_latlon
   missing_stations <- setdiff(unique(df$Station), df_latlon$Station)
@@ -1092,7 +1186,7 @@ subset_cols <- function(df, subset_map = NULL, remove_cols = NULL) {
   if (is.null(subset_map)) {
     subset_map <- c(
       'Survey','Date','Time','SampleScheme','Location','Station','Latitude','Longitude','SampleMethod',
-      'SampleDepth','DepthType','TowNetRadius','Lab','Magnification','OrigTaxon','Taxon',
+      'SampleDepth','DepthType','TowNetRadius','Lab','CountMethodSample','CountMethodTaxa','Magnification','OrigTaxon','Taxon',
       'Kingdom','Phylum','Class','AlgalGroup','Genus','Species',
       'Cells_per_mL','Units_per_mL','Biovolume_per_mL',
       'GALD','PhytoForm','QualityCheck','Debris','Notes'
@@ -1195,6 +1289,58 @@ remove_taxa_info <- function(df) {
   } else {
     message('No matching columns to remove.')
   }
+  
+  return(df)
+}
+
+
+# Convert to PST from PST/PDT
+
+convert_to_pst <- function(df) {
+  df <- df %>%
+    mutate(
+      Time_chr = as.character(Time),
+      time_missing = is.na(Time_chr) | Time_chr == '',
+      Time_fixed = if_else(time_missing, '00:00:00', Time_chr),
+      datetime_local = ymd_hms(paste(Date, Time_fixed), tz = 'America/Los_Angeles'),
+      datetime_pst = with_tz(datetime_local, tzone = 'Etc/GMT+8'),
+      Date_new = as_date(datetime_pst),
+      Time_new = if_else(time_missing, NA_character_, format(datetime_pst, '%H:%M:%S'))
+    )
+  
+  # create log of where Time changed (i.e., PDT shifted to PST)
+  log_df <- df %>%
+    filter(!time_missing) %>%
+    mutate(Date_orig = Date, Time_orig = Time_chr) %>%
+    filter(Time_orig != Time_new | Date != Date_new) %>%
+    select(Date = Date_orig) %>%
+    distinct()
+  
+  # update the dataframe
+  df <- df %>%
+    mutate(
+      Date = Date_new,
+      Time = Time_new
+    ) %>%
+    select(-Time_chr, -Time_fixed, -datetime_local, -datetime_pst,
+           -Date_new, -Time_new, -time_missing)
+  
+  message('Times converted for ', nrow(log_df), ' dates.')
+  attr(df, 'log') <- list(converted_times = log_df)
+  return(df)
+}
+
+# Extract orig taxon from formatted program Taxons for PESP Taxons
+extract_program_taxons <- function(df, taxon_original = 'OrigTaxon', taxon_current = 'Taxon') {
+  df <- df %>%
+    mutate(
+      Taxon = case_when(
+        !is.na(.data[[taxon_original]]) ~ .data[[taxon_original]],
+        TRUE ~ .data[[taxon_current]]
+      )
+    )
+  
+  df <- remove_taxa_info(df)
   
   return(df)
 }
