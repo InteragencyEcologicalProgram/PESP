@@ -1,0 +1,54 @@
+# Check Metadata
+
+```{r}
+library(tidyverse)
+source('admin/global_functions/global_funcs.R')
+source('admin/global_functions/check_funcs.R')
+```
+
+```{r}
+df_pesp <- read_csv(abs_pesp_path('Synthesized Dataset/02 Processed Data/PESP_dataset.csv'))
+```
+
+# Check Columns
+
+## Sample Scheme
+```{r}
+unique_check(df_pesp, SampleScheme)
+```
+TODO: none should say "both"
+
+# Check Sample Methods
+```{r}
+unique_check(df_pesp, SampleMethod)
+```
+
+# Check Dates
+```{r}
+all(is.na(as.Date(df_pesp$Date)) == FALSE)
+```
+
+# Check lat/lon
+```{r}
+all(df_pesp$Latitude >= -90 & df_pesp$Latitude <= 90 | is.na(df_pesp$Latitude)) &
+all(df_pesp$Longitude >= -180 & df_pesp$Longitude <= 180 | is.na(df_pesp$Longitude))
+```
+```{r}
+unique_check(df_pesp, SampleDepth)
+```
+```{r}
+unique_check(df_pesp, DepthType)
+```
+TODO: check NAs
+
+```{r}
+unique_check(df_pesp, Lab)
+```
+
+```{r}
+unique_check(df_pesp, CountMethodSample)
+```
+
+```{r}
+unique_check(df_pesp, CountMethodTaxa)
+```

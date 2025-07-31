@@ -960,13 +960,13 @@ higher_lvl_taxa <- function(df, after_col = NULL, std_type) {
     df <- df %>%
       mutate(
         Taxon = case_when(
-          str_detect(Taxon, '^\\w+\\s+cf\\.?\\s+\\w+') ~
-            str_replace(Taxon, '^(\\w+)\\s+cf\\.?\\s+.*$', '\\1 sp.'),
+          str_detect(Taxon, '^\\w+\\s+cf(?:\\.|\\s)\\s*\\w+') ~
+            str_replace(Taxon, '^(\\w+)\\s+cf(?:\\.|\\s)\\s*.*$', '\\1 sp.'),
           TRUE ~ Taxon
         ),
         OrigTaxon = case_when(
-          str_detect(OrigTaxon, '^\\w+\\s+cf\\.?\\s+\\w+') ~
-            str_replace(OrigTaxon, '^(\\w+)\\s+cf\\.?\\s+.*$', '\\1 sp.'),
+          str_detect(OrigTaxon, '^\\w+\\s+cf(?:\\.|\\s)\\s*\\w+') ~
+            str_replace(OrigTaxon, '^(\\w+)\\s+cf(?:\\.|\\s)\\s*.*$', '\\1 sp.'),
           TRUE ~ OrigTaxon
         )
       )
@@ -1057,7 +1057,7 @@ higher_lvl_taxa <- function(df, after_col = NULL, std_type) {
     df_joined <- df_joined %>%
       mutate(
         Taxon = case_when(
-          str_detect(Taxon, '^cf\\.\\s+') ~ paste('Unknown', algal_singular[AlgalGroup]),
+          str_detect(Taxon, '^cf\\.\\s*') ~ paste('Unknown', algal_singular[AlgalGroup]),
           TRUE ~ Taxon
         ),
         Genus = case_when(

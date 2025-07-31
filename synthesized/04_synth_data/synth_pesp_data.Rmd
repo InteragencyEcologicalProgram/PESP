@@ -8,31 +8,40 @@ source('admin/global_functions/global_funcs.R')
 
 ```{r}
 data_dir <- here::here('synthesized', '02_group_data')
-
 fp_data <- list.files(data_dir, pattern = '\\.Rdata$', full.names = TRUE)
-
 ls_combined <- list()
 
 for (file in fp_data) {
   env <- new.env()
   load(file, envir = env)
-
   obj_name <- ls(env)
   
   df <- get(obj_name, envir = env)
-
   df <- df %>%
     mutate(across(-any_of('Date'), as.character))
-
   ls_combined[[file]] <- df
 }
 
-df_combined <- bind_rows(ls_combined)
+df_pesp <- dplyr::bind_rows(ls_combined)
 
-df_combined <- dplyr::bind_rows(ls_combined)
+nrow(df_pesp) == sum(sapply(ls_combined, nrow))
 ```
 
 ```{r}
-write_csv(df_combined, abs_pesp_path('Synthesized Dataset/02 Processed Data/PESP_dataset.csv'))
+rename_map <- c('unspecified surface grab' = 'unspecified grab sample')
+
+df_pesp <- rename_values(df_pesp, 'SampleMethod', rename_map)
 ```
 
+```{r}
+rename_map <- c('1' = '1 meter')
+
+df_pesp <- rename_values(df_pesp, 'SampleDepth', rename_map)
+```
+```{r}
+df_pesp <- df_pesp %>% select(-TowNetRadius) # same for everyone
+```
+
+```{r}
+write_csv(df_pesp, abs_pesp_path('Synthesized Dataset/02 Processed Data/PESP_dataset.csv'))
+```
