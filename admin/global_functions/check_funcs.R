@@ -398,13 +398,13 @@ check_units_cells <- function(df) {
       log_df <- count_issues
       message('(Warning) Found ', nrow(count_issues), ' row where Cells_per_mL is less than Units_per_mL.')
       
-      # Add the QC code 'CountIssues' to the QualityCheck column
-      df <- df %>%
-        mutate(QualityCheck = case_when(
-          row_number() %in% rownames(count_issues) & QualityCheck != 'NoCode' ~ paste(QualityCheck, 'CountIssues'),
-          row_number() %in% rownames(count_issues) & QualityCheck == 'NoCode' ~ 'CountIssues',
-          TRUE ~ QualityCheck
-        ))
+      # # Add the QC code 'UnitsExceedCells' to the QualityCheck column
+      # df <- df %>%
+      #   mutate(QualityCheck = case_when(
+      #     row_number() %in% rownames(count_issues) & QualityCheck != 'NoCode' ~ paste(QualityCheck, 'UnitsExceedCells'),
+      #     row_number() %in% rownames(count_issues) & QualityCheck == 'NoCode' ~ 'UnitsExceedCells',
+      #     TRUE ~ QualityCheck
+      #   ))
       
       attr(df, 'log') <- list(cell_calc_issue = log_df)
     }

@@ -181,6 +181,30 @@ df_smscg <- df_smscg %>%
 df_smscg
 ```
 
+# Rename QC col codes
+```{r}
+df_smscg <- df_smscg %>%
+  mutate(Notes =
+           case_when(QualityCheck == 'fragmented' ~ 'FragmentedDiatoms',
+                     TRUE ~ 'Unknown')
+         ) %>%
+  mutate(QualityCheck =
+           case_when(QualityCheck == 'good' ~ 'NoCode',
+                     QualityCheck == 'fragmented' ~ 'NoCode',
+                     QualityCheck == 'degraded' ~ 'Degraded',
+                     TRUE ~ QualityCheck)
+         ) %>%
+  mutate(Debris =
+           case_when(Debris == 'high' ~ 'High',
+                     Debris == 'moderate' ~ 'Moderate',
+                     Debris == 'low' ~ 'Low',
+                     is.na(Debris) ~ 'None',
+                     TRUE ~ Debris))
+
+unique(df_smscg$Debris)
+unique(df_smscg$Notes)
+unique(df_smscg$QualityCheck)
+```
 
 # Save .Rdata
 

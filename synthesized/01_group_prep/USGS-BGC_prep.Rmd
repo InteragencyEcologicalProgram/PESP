@@ -51,7 +51,15 @@ df_bgc <- df_bgc %>%
   rename(Station = site_abbrev,
          Location = site_no)
 
-# Update Sample Methods
+# Count Method
+df_bgc <- add_meta_col(df_bgc, 'USGS-BGC', 'CountMethodSample')
+df_bgc <- df_bgc %>%
+  mutate(CountMethodTaxa = CountMethodSample)
+```
+
+## Update SampleMethods
+```{r}
+
 rename_map <- c(
   'centrifugal pump' = 'Submersible centrifugal pump',
   'Van Dorn' = 'Van Dorn sampler',
@@ -62,14 +70,6 @@ rename_map <- c(
   'net tow' ='Phytoplankton net'
 )
 
-# Count Method
-df_bgc <- add_meta_col(df_bgc, 'USGS-BGC', 'CountMethodSample')
-df_bgc <- df_bgc %>%
-  mutate(CountMethodTaxa = CountMethodSample)
-```
-
-```{r}
-# Rename sample methods
 df_bgc <- rename_values(df_bgc, 'SampleMethod', rename_map)
 ```
 

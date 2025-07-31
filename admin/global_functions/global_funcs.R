@@ -196,7 +196,7 @@ from_meta <- function(df, df_meta, column) {
 #' - **Obscured**: contains "obscured"
 #' - **BrokenDiatoms**: contains "many broken diatoms"
 #' - **MultipleSizes**: same taxon appears more than once in a group but has differing values in other fields
-#' - **CountIssues**: Units_per_mL > Cells_per_mL
+#' - **UnitsExceedCells**: Units_per_mL > Cells_per_mL
 #'
 #' If both TallyNotMet_Over5 and TallyNotMet_Under5 are flagged for a row, they are merged into a single **TallyNotMet** flag.
 #'
@@ -938,6 +938,12 @@ remove_non_phyto <- function(df) {
 higher_lvl_taxa <- function(df, after_col = NULL, std_type) {
   std_type <- tolower(std_type)
   
+  df <- df %>%
+    mutate(
+      Taxon = str_trim(Taxon),
+      Taxon = str_squish(Taxon)
+    )
+  
   if (!std_type %in% c('program', 'pesp')) {
     stop("std_type must be either 'program' or 'PESP'")
   }
@@ -1023,37 +1029,41 @@ higher_lvl_taxa <- function(df, after_col = NULL, std_type) {
       relocate(c(OrigTaxon, Taxon, Kingdom, Phylum, Class, AlgalGroup), .after = all_of(after_col)) %>%
       relocate(c(Genus, Species), .after = AlgalGroup)
   }
-  
+
   # PESP standardization (if applicable) of Genus cf.
   if (std_type == 'pesp') {
-    # define plural -> singular Algal Group map
     algal_singular <- c(
+      'Bacteria' = 'bacteria',
       'Centric Diatoms' = 'centric diatom',
-      'Cyanobacteria' = 'cyanobacterium',
-      'Pennate Diatoms' = 'pennate diatom',
+      'Chrysophytes' = 'chrysophyte',
+      'Ciliates' = 'ciliate',
+      'Coccolithophores' = 'coccolithophore',
       'Cryptophytes' = 'cryptophyte',
-      'Euglenoids' = 'euglenoid',
+      'Cyanobacteria' = 'cyanobacterium',
       'Dinoflagellates' = 'dinoflagellate',
+      'Euglenoids' = 'euglenoid',
+      'Eustigmatophytes' = 'eustigmatophyte',
+      'Flagellates' = 'flagellate',
       'Green Algae' = 'green alga',
       'Haptophytes' = 'haptophyte',
-      'Chrysophytes' = 'chrysophyte',
+      'Kathablepharids' = 'kathablepharid',
+      'None' = 'None',
+      'Pennate Diatoms' = 'pennate diatom',
+      'Raphidophytes' = 'raphidophyte',
+      'Red Algae' = 'red alga',
+      'Silicoflagellates' = 'silicoflagellate',
       'Synurophytes' = 'synurophyte',
-      'Ciliates' = 'ciliate',
-      'Raphidophytes' = 'raphidophyte'
+      'Unknown' = 'sp.',
+      'Xanthophytes' = 'xanthophyte'
     )
     
-    # check for unknown Algal Groups in cf. Taxa
-    unknown_algalgroups <- df_joined %>%
-      filter(str_detect(Taxon, '^cf\\.\\s+\\w+(\\s+\\w+)?$')) %>%
-      pull(AlgalGroup) %>%
-      unique() %>%
-      setdiff(names(algal_singular))
-    
-    if (length(unknown_algalgroups) > 0) {
-      stop('Unknown AlgalGroup(s) in cf. taxa: ', paste(unknown_algalgroups, collapse = ', '))
+    # Check if algal_singular is missing any AlgalGroups from reference data
+    reference_algal_groups <- unique(df_taxa$AlgalGroup)
+    missing_from_mapping <- setdiff(reference_algal_groups, names(algal_singular))
+    if (length(missing_from_mapping) > 0) {
+      stop('algal_singular mapping missing AlgalGroup(s): ', paste(missing_from_mapping, collapse = ', '))
     }
     
-    # apply replacements
     df_joined <- df_joined %>%
       mutate(
         Taxon = case_when(
@@ -1158,7 +1168,7 @@ write_log_file <- function(df_log, fp) {
 add_latlon <- function(df, fp_stations, merge_cols = c('Station', 'Latitude','Longitude')){
   # Read station coordinates
   df_latlon <- read_quiet_csv(abs_pesp_path(fp_stations), col_types = cols(Station = col_character())) %>%
-    select(merge_cols)
+    select(all_of(merge_cols))
   
   # Identify stations in df that are missing from df_latlon
   missing_stations <- setdiff(unique(df$Station), df_latlon$Station)

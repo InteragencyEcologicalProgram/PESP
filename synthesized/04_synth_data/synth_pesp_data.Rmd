@@ -5,7 +5,7 @@ library(tidyverse)
 source('admin/global_functions/global_funcs.R')
 ```
 
-
+## Synthesize data
 ```{r}
 data_dir <- here::here('synthesized', '02_group_data')
 fp_data <- list.files(data_dir, pattern = '\\.Rdata$', full.names = TRUE)
@@ -27,21 +27,48 @@ df_pesp <- dplyr::bind_rows(ls_combined)
 nrow(df_pesp) == sum(sapply(ls_combined, nrow))
 ```
 
+## Fix SampleMethod names
 ```{r}
 rename_map <- c('unspecified surface grab' = 'unspecified grab sample')
 
 df_pesp <- rename_values(df_pesp, 'SampleMethod', rename_map)
 ```
 
+## Fix Survey names
+```{r}
+rename_map <- c('CDFW-STN' = 'STN',
+                'CDFW-FMWT' = 'FMWT')
+
+df_pesp <- rename_values(df_pesp, 'Survey', rename_map)
+```
+
+## Fix depths
 ```{r}
 rename_map <- c('1' = '1 meter')
 
 df_pesp <- rename_values(df_pesp, 'SampleDepth', rename_map)
 ```
+
+## Set unknown surface depths to 0 (for filtering)
 ```{r}
-df_pesp <- df_pesp %>% select(-TowNetRadius) # same for everyone
+df_pesp <- df_pesp %>%
+ mutate(SampleDepth = case_when(
+   SampleMethod %in% c('syringe','unspecified surface grab','putty knife') & is.na(SampleDepth) ~ '0',
+   TRUE ~ SampleDepth
+   )
+ )
 ```
 
+## Remove unneeded cols
+```{r}
+df_pesp <- df_pesp %>% select(-c(TowNetRadius,DepthType)) # same for everyone
+```
+
+```{r}
+df_pesp <- df_pesp %>% arrange(Survey, Date, Station)
+```
+
+## Write
 ```{r}
 write_csv(df_pesp, abs_pesp_path('Synthesized Dataset/02 Processed Data/PESP_dataset.csv'))
 ```

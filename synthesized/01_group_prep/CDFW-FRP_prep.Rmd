@@ -47,11 +47,15 @@ rename_map <- c(
 df_frp <- rename_cols(df_frp, rename_map)
 ```
 
-## Convert Time (if needed)
-TODO: come back to this when metadata is in
+## Convert Time
+```{r}
+df_frp <- convert_to_pst(df_frp)
+
+converted_times <- attr(df_frp, 'log')$converted_times
+write_log_file(converted_times, 'Synthesized Dataset/01 Group Checks/CDFW-FRP/tables/FRP_converted_times.csv')
+```
 
 ## Add DepthType
-
 ```{r}
 df_frp <- df_frp %>%
   mutate(DepthType =
@@ -102,7 +106,14 @@ df_frp <- df_frp %>%
          OrigTaxon = Taxon)
 ```
 
-## Add comments
+
+## Add PESP Taxon
+
+## Standardize unknowns
+```{r}
+df_frp <- clean_unknowns(df_frp, std_sp = TRUE, std_suffix = TRUE)
+attr(df_frp, 'log')$clean_unknowns
+```
 
 ### Correct typos
 ```{r}
@@ -132,9 +143,7 @@ write_log_file(unmatched_comments, 'Synthesized Dataset/01 Group Checks/CDFW-FRP
 print(unmatched_comments)
 ```
 
-## Add PESP Taxon
-
-### Standardize unknowns
+### Standardize unknowns (again just in case)
 ```{r}
 df_frp <- clean_unknowns(df_frp, std_sp = TRUE, std_suffix = TRUE)
 standardized_unknowns <- attr(df_frp, 'log')$clean_unknowns
@@ -144,7 +153,6 @@ print(standardized_unknowns)
 ```
 
 ### Update synonyms
-
 ```{r}
 df_frp <- update_synonyms(df_frp)
 updated_synonyms <- attr(df_frp, 'log')$synonym_updates

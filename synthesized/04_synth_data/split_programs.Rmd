@@ -1,0 +1,14 @@
+
+```{r}
+library(tidyverse)
+source('admin/global_functions/global_funcs.R')
+source('admin/global_functions/check_funcs.R')
+
+df_pesp <- read_csv(abs_pesp_path('Synthesized Dataset/02 Processed Data/PESP_dataset.csv'))
+
+# Write files
+df_pesp %>%
+  group_by(Survey) %>%
+  nest() %>%
+  pwalk(~ write_csv(.y, abs_pesp_path(paste0('Synthesized Dataset/03 QC Checks/Group Files/', .x, '.csv'))))
+```

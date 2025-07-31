@@ -161,7 +161,7 @@ df_data <- add_meta_col(df_data, 'DWR-EMP', 'Lab')
 df_data <- df_data %>%
   mutate(CountMethod = 
            case_when(
-             round(FoV) == round(SlideChamberArea/2) ~ 'Half Chamber',
+             round(FoV) == round(SlideChamberArea/2) ~ 'HalfChamber',
              TRUE ~ CountMethod
            )
          )

@@ -26,6 +26,12 @@ df_phyto <- df_phyto %>%
 df_taxa <- read_phyto_taxa()
 ```
 
+## Standardize unknowns
+```{r}
+df_phyto <- clean_unknowns(df_phyto, std_sp = TRUE, std_suffix = TRUE)
+attr(df_phyto, 'log')$clean_unknowns
+```
+
 ## Correct typos
 ```{r}
 df_frp <- correct_taxon_typos(df_phyto)
@@ -48,7 +54,7 @@ df_frp <- extract_unstandardized_comments(df_frp, 'Comments', delimiter = '. ')
 attr(df_frp, 'log')$unmatched_comments
 ```
 
-## Standardize unknowns
+## Standardize unknowns (again, just in case)
 ```{r}
 df_frp <- clean_unknowns(df_frp, std_sp = TRUE, std_suffix = TRUE)
 attr(df_frp, 'log')$clean_unknowns
@@ -123,6 +129,6 @@ df_frp <- df_frp %>%
 
 ## Write csv
 ```{r}
-write_csv(df_frp, abs_pesp_path('Groups/CDFW-FRP/02 Program Data/FRP_PESP_updated.csv'), na = '')
+write_csv(df_frp, abs_pesp_path('Groups/CDFW-FRP/02 Program Data/FRP_program_draft.csv'), na = '')
 ```
 

@@ -12,12 +12,17 @@ df_pesp <- read_csv(abs_pesp_path('Synthesized Dataset/02 Processed Data/PESP_da
 
 # Check Columns
 
+## Survey
+```{r}
+unique_check(df_pesp, Survey)
+```
+```{r}
+names(df_pesp)
+```
 ## Sample Scheme
 ```{r}
 unique_check(df_pesp, SampleScheme)
 ```
-TODO: none should say "both"
-
 # Check Sample Methods
 ```{r}
 unique_check(df_pesp, SampleMethod)
@@ -33,17 +38,24 @@ all(is.na(as.Date(df_pesp$Date)) == FALSE)
 all(df_pesp$Latitude >= -90 & df_pesp$Latitude <= 90 | is.na(df_pesp$Latitude)) &
 all(df_pesp$Longitude >= -180 & df_pesp$Longitude <= 180 | is.na(df_pesp$Longitude))
 ```
+
 ```{r}
 unique_check(df_pesp, SampleDepth)
 ```
 ```{r}
-unique_check(df_pesp, DepthType)
+uk_depth <- df_pesp %>% filter(SampleMethod == 'net tow')
+uk_depth
+unique(uk_depth$SampleMethod)
 ```
-TODO: check NAs
 
 ```{r}
 unique_check(df_pesp, Lab)
 ```
+
+```{r}
+unique_check(df_pesp, Magnification)
+```
+
 
 ```{r}
 unique_check(df_pesp, CountMethodSample)
@@ -52,3 +64,79 @@ unique_check(df_pesp, CountMethodSample)
 ```{r}
 unique_check(df_pesp, CountMethodTaxa)
 ```
+
+```{r}
+qc_check <- df_pesp %>%
+ separate_rows(QualityCheck, sep = ' ') %>%
+ filter(!is.na(QualityCheck) & QualityCheck != '') %>%
+ group_by(Survey, QualityCheck) %>%
+ summarise(count = n(), .groups = 'drop') %>%
+ left_join(
+   df_pesp %>% group_by(Survey) %>% summarise(total_samples = n()),
+   by = 'Survey'
+ ) %>%
+ mutate(percentage = round(count / total_samples * 100, 2)) %>%
+ select(-count, -total_samples) %>%
+ pivot_wider(names_from = Survey, values_from = percentage, values_fill = 0)
+
+qc_check
+```
+
+```{r}
+debris_check <- df_pesp %>%
+ separate_rows(Debris, sep = ' ') %>%
+ filter(!is.na(Debris) & Debris != '') %>%
+ group_by(Survey, Debris) %>%
+ summarise(count = n(), .groups = 'drop') %>%
+ left_join(
+   df_pesp %>% group_by(Survey) %>% summarise(total_samples = n()),
+   by = 'Survey'
+ ) %>%
+ mutate(percentage = round(count / total_samples * 100, 2)) %>%
+ select(-count, -total_samples) %>%
+ pivot_wider(names_from = Survey, values_from = percentage, values_fill = 0)
+
+debris_check
+```
+
+```{r}
+notes_check <- df_pesp %>%
+ separate_rows(Notes, sep = ' ') %>%
+ filter(!is.na(Notes) & Notes != '') %>%
+ group_by(Survey, Notes) %>%
+ summarise(count = n(), .groups = 'drop') %>%
+ left_join(
+   df_pesp %>% group_by(Survey) %>% summarise(total_samples = n()),
+   by = 'Survey'
+ ) %>%
+ mutate(percentage = round(count / total_samples * 100, 2)) %>%
+ select(-count, -total_samples) %>%
+ pivot_wider(names_from = Survey, values_from = percentage, values_fill = 0)
+
+notes_check
+```
+
+```{r}
+unique_check(df_pesp, Kingdom)
+```
+
+```{r}
+unique_check(df_pesp, Phylum)
+```
+
+```{r}
+unique_check(df_pesp, Class)
+```
+
+```{r}
+unique_check(df_pesp, AlgalGroup)
+```
+
+```{r}
+any(is.na(df_pesp$Genus))
+```
+
+```{r}
+any(is.na(df_pesp$Species))
+```
+
