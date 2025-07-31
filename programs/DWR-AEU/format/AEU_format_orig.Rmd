@@ -1,0 +1,236 @@
+# Format original AEU data
+
+**Purpose:** Code to format AEU data for original PESP upload.
+
+**Author:** Perry ([sarah.perry\@water.ca.gov](mailto:sarah.perry@water.ca.gov){.email})
+
+# Initial Setup
+
+```{r, message=FALSE, warning=FALSE}
+# Import Packages ---------------------------------------------------------
+library(tidyverse)
+library(fuzzyjoin)
+library(glue)
+library(lubridate)
+
+source('admin/global_functions/global_funcs.R')
+source('programs/DWR-AEU/ref_code/aeu_funcs.R')
+source('admin/global_functions/bsa_funcs.R')
+source('admin/global_functions/check_funcs.R')
+```
+
+## Read in data
+
+```{r}
+# specify the file path
+data_path <- abs_pesp_path('Groups/DWR-AEU/01 Raw Data/dwr-aeu-2020.csv')
+
+# new data to format and append
+df_data <- read_quiet_csv(data_path)
+```
+
+## Check distinct columns
+
+```{r}
+df_data <- check_distinct(df_data, type = 'full')
+nondistinct_rows <- attr(df_data, 'log')$nondistinct_allrows
+write_log_file(nondistinct_rows, 'Groups/DWR-AEU/02 Program Data/QC files/tables/AEU_nondistinct_rows.csv')
+
+# remove duplicates
+df_data <- df_data %>% distinct()
+
+print(nondistinct_rows)
+
+check_distinct(df_data, type = 'full')
+```
+
+## Rename columns
+
+```{r}
+rename_map <- c(
+  'Taxon' = 'taxon',
+  'Station' = 'station_code',
+  'Date' = 'sample_date',
+  'Time' = 'sample_time',
+  'PhytoForm' = 'colony_filament_individual_group_code',
+  'Comments' = 'comments',
+  'GALD' = 'gald1'
+)
+
+df_data <- rename_cols(df_data, rename_map)
+
+df_data$check <- df_data$Taxon
+```
+
+## Remove old taxa info
+
+```{r}
+df_data <- remove_taxa_info(df_data)
+```
+
+## Calculate measurement columns
+
+```{r}
+df_data <- calc_data_bsa(df_data, unit_col = 'unit_abundance', cell_col = 'total_cells')
+```
+
+## Clean PhytoForm column
+
+```{r}
+df_data <- clean_phytoform_bsa(df_data)
+```
+
+## Add in lat/lons
+
+```{r}
+df_data <- add_latlon(df_data, 'Groups/DWR-AEU/Metadata/Stations-AEU.csv')
+```
+
+## Fix Date and Time
+
+```{r}
+df_data$Date <- as.Date(df_data$Date,'%m/%d/%Y')
+
+df_data$Time <- sub(':00$', '', df_data$Time)
+
+# set 00:00:00 times to NA
+df_data <- df_data %>%
+  mutate(Time =
+           case_when(Time == '00:00' ~ NA,
+                   TRUE ~ Time)
+         )
+```
+
+## Add metadata columns
+
+```{r}
+df_data <- add_meta_col(df_data, 'DWR-YBFMP', 'SampleDepth')
+
+df_data <- add_meta_col(df_data, 'DWR-YBFMP', 'Lab')
+
+df_data <- add_meta_col(df_data, 'DWR-YBFMP', 'SampleMethod')
+```
+
+# Add Taxonomy (and QC column)
+
+## Correct typos
+
+```{r}
+df_data <- correct_taxon_typos(df_data)
+corrected_typos <- attr(df_data, 'log')$taxon_corrections
+write_log_file(corrected_typos, 'Groups/DWR-AEU/02 Program Data/QC files/tables/AEU_corrected_typos.csv')
+
+print(corrected_typos)
+```
+
+## Add QC column
+
+```{r}
+df_data <- add_qc_col(df_data)
+df_data <- add_debris_col(df_data)
+df_data <- add_notes_col(df_data)
+
+df_data <- extract_unstandardized_comments(df_data, 'Comments', delimiter = '. ')
+unmatched_comments <- attr(df_data, 'log')$unmatched_comments
+write_log_file(unmatched_comments, 'Groups/DWR-AEU/02 Program Data/QC files/tables/AEU_leftover_comments.csv')
+
+print(unmatched_comments)
+```
+
+## Standardize unknowns
+
+```{r}
+df_data <- clean_unknowns(df_data, std_sp = TRUE, std_suffix = TRUE)
+
+standardized_unknowns <- attr(df_data, 'log')$clean_unknowns
+write_log_file(standardized_unknowns, 'Groups/DWR-AEU/02 Program Data/QC files/tables/AEU_standardized_unknowns.csv')
+
+print(standardized_unknowns)
+```
+
+## Update synonyms
+
+```{r}
+df_data <- update_synonyms(df_data)
+updated_synonyms <- attr(df_data, 'log')$synonym_updates
+write_log_file(updated_synonyms, 'Groups/DWR-AEU/02 Program Data/QC files/tables/AEU_updated_synonyms.csv')
+
+print(updated_synonyms)
+```
+
+## Add in higher-level taxa
+
+```{r}
+df_data <- higher_lvl_taxa(df_data, std_type = 'program')
+needs_hierarchy <- attr(df_data, 'log')$unmatched_taxa
+write_log_file(needs_hierarchy, 'Groups/DWR-AEU/02 Program Data/QC files/tables/AEU_needs_hierarchy.csv')
+
+print(needs_hierarchy)
+```
+```{r}
+check2 <- df_data %>% select(check, OrigTaxon, Taxon, Kingdom, Phylum, AlgalGroup, Genus, Species)
+```
+
+## Check distinct cols before combining
+
+```{r}
+df_data <- check_distinct(df_data, type = 'full')
+attr(df_data, 'log')$nondistinct_allrows
+
+df_data <- check_distinct(df_data, type = 'key_cols')
+attr(df_data, 'log')$nondistinct_keyrows
+```
+
+## Combine taxa (multiple sizes, standardized unknowns)
+
+```{r}
+df_data <- combine_taxons(df_data)
+combined_taxa <- attr(df_data, 'log')$combined_taxa
+write_log_file(combined_taxa, 'Groups/DWR-AEU/02 Program Data/QC files/tables/AEU_combined_taxa.csv')
+
+print(combined_taxa)
+```
+
+# Finish formatting
+
+```{r}
+unique(df_data$Notes)
+```
+
+## Subset columns
+
+```{r}
+df_data <- subset_cols_aeu(df_data)
+```
+
+## Format SampleDepth
+
+```{r}
+df_data <- df_data %>% mutate(SampleDepth = as.numeric(str_remove(SampleDepth, ' meter')))
+```
+
+## Add different dilution factor
+
+```{r}
+df_data <- add_dilution_qc(df_data)
+```
+
+## Checks
+
+```{r}
+unique_check(df_data, 'Station')
+```
+
+```{r}
+# check for NAs
+df_data <- check_nas(df_data)
+na_check <- attr(df_data, 'log')$na_check
+
+print(na_check) # one NA in PhytoForm is real
+```
+
+# Export
+
+```{r}
+write_csv(df_data, abs_pesp_path('Groups/DWR-AEU/02 Program Data/AEU_program_draft.csv'))
+```

@@ -1,0 +1,101 @@
+# Check DOP data
+
+**Purpose:** Code to check DOP data for errors
+
+**Author:** Perry ([sarah.perry\@water.ca.gov](mailto:sarah.perry@water.ca.gov){.email})
+
+```{r}
+library(tidyverse)
+library(vegan)
+library(lubridate)
+source('admin/global_functions/global_funcs.R')
+source('admin/global_functions/check_funcs.R')
+set.seed(42)
+```
+
+```{r}
+load('synthesized/02_group_data/USBR-DOP.RData')
+
+# format main dataframe (species unit)
+df_phyto <- df_dop %>%
+  mutate(
+    Date = parse_date_time(Date, orders = c('ymd', 'dmy', 'mdy')),
+    Year = factor(year(Date)),
+    Event = paste(Date, Station, sep = '_'),
+    Binary = 1
+  )
+
+# filter outlier
+df_phyto <- df_phyto %>%
+  filter(!(Event %in% c('2019-11-14_ICF1729','2021-04-01_ICF3129')))
+
+# format df (genus unit)
+df_genus <- df_phyto %>%
+  group_by(Event, Date, Year, Station, Genus, Survey) %>%
+  summarize(Biovolume_per_mL = sum(Biovolume_per_mL),
+            Cells_per_mL = sum(Cells_per_mL),
+            Units_per_mL = sum(Units_per_mL),
+            .groups = 'drop') %>%
+  mutate(Binary = 1)
+```
+
+# NMDS by Genus and Event
+
+### Cells
+```{r}
+# create NMDS
+df_nmds_cell <- calc_nmds(df_genus,
+                      taxa_var = 'Genus',                    
+                      group_var = 'Event',
+                      factor_var = 'Year',
+                      nmds_var = 'Cells_per_mL',
+                      try = 5, trymax = 5)
+
+# print plot
+plt_nmds <- plot_nmds(df_nmds_cell$df_nmds, df_nmds_cell$meta_vars, fill_var = 'Year')
+plt_nmds
+
+ggsave(
+  filename = abs_pesp_path('Synthesized Dataset/01 Group Checks/USBR-DOP/graphs/DOP-Synth_Genus_Cells_Year.jpg'),
+  plot = plt_nmds,
+  width = 8,
+  height = 6
+)
+```
+
+### PA
+```{r}
+# create NMDS
+df_nmds_pa <- calc_nmds(df_genus,
+                      taxa_var = 'Genus',                    
+                      group_var = 'Event',
+                      factor_var = 'Year',
+                      nmds_var = 'Binary',
+                      distance = 'jaccard',
+                      try = 5, trymax = 5)
+
+# print plot
+plt_nmds <- plot_nmds(df_nmds_pa$df_nmds, df_nmds_pa$meta_vars, fill_var = 'Year')
+plt_nmds
+
+ggsave(
+  filename = abs_pesp_path('Synthesized Dataset/01 Group Checks/USBR-DOP/graphs/DOP-Synth_Genus_PA_Year.jpg'),
+  plot = plt_nmds,
+  width = 8,
+  height = 6
+)
+```
+
+# Check Counts
+```{r}
+plt_count <- check_station_count(df_phyto)
+
+plt_count
+
+ggsave(
+  filename = abs_pesp_path('Synthesized Dataset/01 Group Checks/USBR-DOP/graphs/DOP-Synth_HM_StationNumber.jpg'),
+  plot = plt_count,
+  width = 8,
+  height = 5
+)
+```

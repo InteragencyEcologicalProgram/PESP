@@ -1,0 +1,121 @@
+# Prep AEU Data
+
+**Purpose:** Prep AEU data for PESP merge.
+
+**Author:** Perry ([sarah.perry\@water.ca.gov](mailto:sarah.perry@water.ca.gov){.email})
+
+# Initial Setup
+```{r, message=FALSE, warning=FALSE}
+# Import Packages ---------------------------------------------------------
+library(tidyverse)
+library(fuzzyjoin)
+library(glue)
+library(lubridate)
+
+source('admin/global_functions/global_funcs.R')
+source('admin/global_functions/syn_funcs.R')
+source('admin/global_functions/bsa_funcs.R')
+source('admin/global_functions/check_funcs.R')
+```
+
+# Read in data
+```{r}
+# specify the file path
+data_path_emp <- abs_pesp_path('Groups/DWR-EMP/02 Program Data/EMP_program_draft_2008-2024.csv')
+
+# new data to format and append
+df_emp <- read_quiet_csv(data_path_emp)
+```
+
+# Clean data
+
+(Time is already in PST)
+
+## Add in Metadata
+```{r}
+# Survey
+df_emp <- add_meta_col(df_emp, 'DWR-EMP', 'Survey')
+
+# Sample Method
+df_emp <- add_meta_col(df_emp, 'DWR-EMP', 'SampleMethod')
+
+# Magnification
+df_emp <- add_meta_col(df_emp, 'DWR-EMP', 'Magnification')
+
+# Depth Type
+df_emp <- add_meta_col(df_emp, 'DWR-EMP', 'DepthType')
+
+# Sample Depth
+df_emp <- df_emp %>%
+  mutate(SampleDepth = '1')
+
+# Sample Scheme
+df_emp <- df_emp %>%
+  mutate(SampleScheme =
+           case_when(str_detect(Station, 'LSZ') ~ 'random',
+                     TRUE ~ 'fixed')
+         )
+
+# Count Method
+df_emp <- add_meta_col(df_emp, 'DWR-EMP', 'CountMethodSample')
+
+df_emp <- df_emp %>%
+  rename(CountMethodTaxa = CountMethod) %>%
+  mutate(CountMethodTaxa = stringr::str_to_lower(CountMethodTaxa))
+```
+
+## Add extra columns
+```{r}
+df_emp <- df_emp %>% 
+  mutate(TowNetRadius = NA)
+```
+
+## Format PESP Taxon
+## Extract Taxon
+```{r}
+df_emp <- extract_program_taxons(df_emp)
+```
+
+## Correct typos
+```{r}
+df_emp <- correct_taxon_typos(df_emp)
+corrected_typos <- attr(df_emp, 'log')$taxon_corrections
+write_log_file(corrected_typos, 'Synthesized Dataset/01 Group Checks/DWR-EMP/tables/EMP_corrected_typos.csv')
+
+print(corrected_typos)
+```
+
+### Standardize unknowns
+```{r}
+df_emp <- clean_unknowns(df_emp, std_sp = TRUE, std_suffix = TRUE)
+standardized_unknowns <- attr(df_emp, 'log')$clean_unknowns
+write_log_file(standardized_unknowns, 'Synthesized Dataset/01 Group Checks/DWR-EMP/tables/EMP_standardized_unknowns.csv')
+
+print(standardized_unknowns)
+```
+
+### Update synonyms
+```{r}
+df_emp <- update_synonyms(df_emp)
+updated_synonyms <- attr(df_emp, 'log')$synonym_updates
+write_log_file(updated_synonyms, 'Synthesized Dataset/01 Group Checks/DWR-EMP/tables/EMP_updated_synonyms.csv')
+print(updated_synonyms)
+```
+
+### Add in higher-level taxa
+```{r}
+df_emp <- higher_lvl_taxa(df_emp, std_type = 'PESP')
+needs_hierarchy <- attr(df_emp, 'log')$unmatched_taxa
+
+print(needs_hierarchy)
+```
+
+## Subset relevant columns
+```{r}
+df_emp <- subset_cols(df_emp)
+```
+
+## Save .Rdata
+```{r}
+save(df_emp, file = 'synthesized/02_group_data/DWR-EMP.Rdata')
+```

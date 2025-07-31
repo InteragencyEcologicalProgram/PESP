@@ -175,7 +175,7 @@ df_data <- df_data %>%
 ## Standardize unknowns
 
 ```{r}
-df_data <- clean_unknowns(df_data, std_sp = TRUE)
+df_data <- clean_unknowns(df_data, std_sp = TRUE, std_suffix = TRUE)
 standardized_unknowns <- attr(df_data, 'log')$clean_unknowns
 write_log_file(standardized_unknowns, 'Groups/DWR-EMP/02 Program Data/QC files/tables/EMP_standardized_unknowns.csv')
 
@@ -198,7 +198,6 @@ print(corrected_typos)
 df_data <- add_qc_col(df_data)
 df_data <- add_debris_col(df_data)
 df_data <- add_notes_col(df_data)
-df_data$CountMethod <- 'Field'
 
 df_data <- extract_unstandardized_comments(df_data, 'Comments', delimiter = '. ')
 unmatched_comments <- attr(df_data, 'log')$unmatched_comments

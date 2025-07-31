@@ -1,0 +1,128 @@
+# Taxa Check
+Update FRP taxa with PESP list (2024)
+
+Date: 05/01/2025
+
+```{r}
+library(tidyverse)
+source('admin/global_functions/global_funcs.R')
+source('admin/global_functions/check_funcs.R')
+```
+
+```{r}
+df_phyto <- get_edi_file('269','phyto_FRP2023')
+```
+
+## Check how EMP taxa match with current list
+```{r}
+# read in FRP data
+df_phyto <- df_phyto %>%
+  mutate(Taxon = OriginalTaxon)
+
+df_phyto <- df_phyto %>%
+  mutate(Taxon = str_replace_all(Taxon, 'ë', 'e'))
+
+# read in PESP taxonomy
+df_taxa <- read_phyto_taxa()
+```
+
+## Correct typos
+```{r}
+df_frp <- correct_taxon_typos(df_phyto)
+attr(df_frp, 'log')$taxon_corrections
+```
+
+## Add QC column
+```{r}
+df_frp <- df_frp %>%
+  distinct(SampleID_frp, Units_permL, Cells_permL, Biov_permL, OriginalTaxon, .keep_all = TRUE)
+
+df_frp <- df_frp %>%
+  rename(Comments = QualityCheck)
+
+df_frp <- add_qc_col(df_frp, key_cols = 'SampleID_frp', taxa_col = 'OriginalTaxon')
+df_frp <- add_debris_col(df_frp)
+df_frp <- add_notes_col(df_frp)
+
+df_frp <- extract_unstandardized_comments(df_frp, 'Comments', delimiter = '. ')
+attr(df_frp, 'log')$unmatched_comments
+```
+
+## Standardize unknowns
+```{r}
+df_frp <- clean_unknowns(df_frp, std_sp = TRUE, std_suffix = TRUE)
+attr(df_frp, 'log')$clean_unknowns
+```
+
+## Update synonyms
+```{r}
+df_frp <- update_synonyms(df_frp)
+attr(df_frp, 'log')$synonym_updates
+```
+
+## Add in higher-level taxa
+```{r}
+df_frp <- higher_lvl_taxa(df_frp, std_type = 'program')
+checking <- attr(df_frp, 'log')$unmatched_taxa
+
+# FRP specific: fix names
+df_frptypos <- read_quiet_csv(abs_pesp_path('Groups/CDFW-FRP/Metadata/FRP_taxatypos.csv')) %>%
+  rename(TrueTaxon = Taxon,
+         Taxon = CleanTypoTaxon) %>%
+  select(-TypoTaxon) %>%
+  mutate(Taxon = stringr::str_replace_all(Taxon, 'spp\\.', 'sp.')) %>%
+  distinct()
+
+df_frp <- df_frp %>%
+  left_join(df_frptypos, by = 'Taxon', suffix = c('', '.typo')) %>%
+  mutate(
+    Kingdom = coalesce(Kingdom.typo, Kingdom),
+    Phylum  = coalesce(Phylum.typo, Phylum),
+    Class   = coalesce(Class.typo, Class),
+    AlgalGroup = coalesce(Class.typo, AlgalGroup),
+    Genus   = coalesce(Genus.typo, Genus),
+    Species = coalesce(Species.typo, Species)
+  ) %>%
+  select(-ends_with('.typo')) 
+
+df_taxa <- read_phyto_taxa() %>%
+  mutate(PureTaxon = Taxon)
+
+updated_unmatched <- df_frp %>%
+  filter(
+    is.na(Kingdom) |
+    is.na(Phylum) |
+    is.na(Class) |
+    is.na(AlgalGroup) |
+    is.na(Genus) |
+    is.na(Species)
+  ) %>%
+  distinct(Taxon)
+
+
+existing_log <- attr(df_frp, 'log')
+attr(df_frp, 'log') <- c(existing_log, list(unmatched_taxa_updated = updated_unmatched))
+
+message('Remaining unmatched taxa after FRP typo join: ', nrow(updated_unmatched))
+attr(df_frp, 'log')$unmatched_taxa_updated
+```
+
+## Combine taxa (multiple sizes, standardized unknowns)
+```{r}
+df_frp <- combine_taxons(df_frp, key_cols = 'SampleID_frp', measurement_cols = c('Biov_permL', 'Units_permL', 'Cells_permL'))
+attr(df_frp, 'log')$combined_taxa
+```
+
+## Format like FRP desires
+```{r}
+df_frp <- df_frp %>%
+  mutate(Taxonomy_PESP = paste(Kingdom,Phylum,Class,Genus,Species, sep='/')) %>%
+  select(-c(Kingdom,Phylum,Class,AlgalGroup,Genus,Species,TrueTaxon,OrigTaxon,Taxonomy_EMP,Taxon)) %>%
+  relocate(Taxonomy_PESP, .after = Taxonomy_FRP)
+```
+
+## Write csv
+```{r}
+write_csv(df_frp, abs_pesp_path('Groups/CDFW-FRP/02 Program Data/FRP_PESP_updated.csv'), na = '')
+```
+

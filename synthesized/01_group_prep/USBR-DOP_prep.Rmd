@@ -1,0 +1,131 @@
+# Prep AEU Data
+
+**Purpose:** Prep AEU data for PESP merge.
+
+**Author:** Perry ([sarah.perry\@water.ca.gov](mailto:sarah.perry@water.ca.gov){.email})
+
+# Initial Setup
+```{r, message=FALSE, warning=FALSE}
+# Import Packages ---------------------------------------------------------
+library(tidyverse)
+library(fuzzyjoin)
+library(glue)
+library(lubridate)
+
+source('admin/global_functions/global_funcs.R')
+source('programs/USBR-DOP/ref_code/DOP_funcs.R')
+source('admin/global_functions/syn_funcs.R')
+source('admin/global_functions/bsa_funcs.R')
+source('admin/global_functions/check_funcs.R')
+```
+
+# Read in data
+```{r}
+# specify the file path
+data_path_dop <- abs_pesp_path('Groups/USBR-DOP/02 Program Data/DOP_program_draft.csv')
+
+# new data to format and append
+df_dop <- read_quiet_csv(data_path_dop)
+```
+
+# Clean data
+
+## Convert Time
+```{r}
+df_dop <- convert_to_pst(df_dop)
+
+converted_times <- attr(df_dop, 'log')$converted_times
+write_log_file(converted_times, 'Synthesized Dataset/01 Group Checks/USBR-DOP/tables/DOP_converted_times.csv')
+```
+
+## Add in Metadata
+```{r}
+# Survey
+df_dop <- add_meta_col(df_dop, 'USBR-DOP', 'Survey')
+
+# Magnification
+df_dop <- add_meta_col(df_dop, 'USBR-DOP', 'Magnification')
+
+# SampleScheme
+df_dop <- add_meta_col(df_dop, 'USBR-DOP', 'SampleScheme')
+
+# Depth Type
+df_dop <- add_meta_col(df_dop, 'USBR-DOP', 'DepthType')
+
+# Sample Depth
+df_dop <- add_meta_col(df_dop, 'USBR-DOP', 'SampleDepth')
+
+# Count Method
+df_dop <- add_meta_col(df_dop, 'USBR-DOP', 'CountMethodSample')
+
+df_dop <- df_dop %>%
+  mutate(CountMethodTaxa = CountMethodSample)
+
+# make 'Station'
+df_dop <- df_dop %>%
+  rename(Station = Sortable_ID) %>%
+  mutate(Location = Station)
+```
+
+## Add extra columns
+```{r}
+df_dop <- df_dop %>% 
+  mutate(TowNetRadius = NA,
+         Units_per_mL = NA,
+         Biovolume_per_mL = NA,
+         GALD = NA,
+         PhytoForm = NA,
+         QualityCheck = 'Unknown',
+         Debris = 'Unknown',
+         Notes = 'Unknown')
+```
+
+## Format PESP Taxon
+## Extract Taxon
+```{r}
+df_dop <- extract_program_taxons(df_dop)
+```
+
+## Correct typos
+```{r}
+df_dop <- correct_taxon_typos(df_dop)
+corrected_typos <- attr(df_dop, 'log')$taxon_corrections
+write_log_file(corrected_typos, 'Synthesized Dataset/01 Group Checks/USBR-DOP/tables/DOP_corrected_typos.csv')
+
+print(corrected_typos)
+```
+
+### Standardize unknowns
+```{r}
+df_dop <- clean_unknowns(df_dop, std_sp = TRUE, std_suffix = TRUE)
+standardized_unknowns <- attr(df_dop, 'log')$clean_unknowns
+write_log_file(standardized_unknowns, 'Synthesized Dataset/01 Group Checks/USBR-DOP/tables/DOP_standardized_unknowns.csv')
+
+print(standardized_unknowns)
+```
+
+### Update synonyms
+```{r}
+df_dop <- update_synonyms(df_dop)
+updated_synonyms <- attr(df_dop, 'log')$synonym_updates
+write_log_file(updated_synonyms, 'Synthesized Dataset/01 Group Checks/USBR-DOP/tables/DOP_updated_synonyms.csv')
+print(updated_synonyms)
+```
+
+### Add in higher-level taxa
+```{r}
+df_dop <- higher_lvl_taxa(df_dop, std_type = 'PESP')
+needs_hierarchy <- attr(df_dop, 'log')$unmatched_taxa
+
+print(needs_hierarchy)
+```
+
+## Subset relevant columns
+```{r}
+df_dop <- subset_cols(df_dop)
+```
+
+## Save .Rdata
+```{r}
+save(df_dop, file = 'synthesized/02_group_data/USBR-DOP.Rdata')
+```

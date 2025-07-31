@@ -276,7 +276,8 @@ check_nodata <- function(df) {
 calc_nmds <- function(df, group_var, nmds_var, taxa_var = 'Taxon', 
                       factor_var = NULL, avg_var = NULL,
                       distance = 'bray',
-                      show_legend = TRUE, color_palette = NULL) {
+                      show_legend = TRUE, color_palette = NULL,
+                      try = 20, trymax = 20) {
   set.seed(42)
   
   message(
@@ -341,13 +342,14 @@ calc_nmds <- function(df, group_var, nmds_var, taxa_var = 'Taxon',
 
   m_com[is.na(m_com)] <- 0
   
-  nmds <- suppressMessages(metaMDS(as.matrix(m_com), distance = distance))
+  nmds <- suppressMessages(metaMDS(as.matrix(m_com), distance = distance, try = try, trymax = trymax))
   df_scores <- as.data.frame(scores(nmds)$sites)
   result <- bind_cols(df_scores, meta)
   
   return(list(
     df_nmds = result,
     raw_nmds = nmds,
+    m_com = m_com,
     meta_vars = list(
       nmds_var = nmds_var,
       taxa_var = taxa_var,
@@ -630,3 +632,72 @@ check_non_numeric <- function(df, col_name) {
   }
 }
 
+
+# Plot SIMPER Taxon -------------------------------------------------------
+
+plot_simper_bp <- function(df, sim, taxon_col = 'Taxon', x_axis = 'Year', y_axis, p = 0.05, taxa_num = 6) {
+  taxon_sym <- sym(taxon_col)
+  x_sym <- sym(x_axis)
+  y_sym <- sym(y_axis)
+  
+  # extract top taxa from SIMPER results
+  top_taxa <- sim[[1]] %>%
+    as.data.frame() %>%
+    rownames_to_column(var = taxon_col) %>%
+    arrange(desc(average)) %>%
+    filter(p <= !!p) %>%
+    slice_head(n = taxa_num) %>%
+    pull(!!taxon_sym)
+  
+  df %>%
+    filter((!!taxon_sym) %in% top_taxa) %>%
+    ggplot(aes(x = !!x_sym, y = !!y_sym)) +
+    geom_boxplot(color = 'black') +
+    facet_wrap(vars(!!taxon_sym), scales = 'free_y') +
+    labs(
+      title = paste('Top SIMPER', y_axis),
+      x = x_axis,
+      y = y_axis
+    ) +
+    theme_minimal() +
+    theme(strip.text = element_text(size = 8))
+}
+
+plot_simper_summary <- function(df, sim,
+                                x_axis = 'Year',
+                                taxon_col = 'Taxon',
+                                y_axis = 'Biovolume_per_mL',
+                                agg_fun = sum,
+                                p = 0.05,
+                                taxa_num = 6) {
+  taxon_sym <- sym(taxon_col)
+  x_sym <- sym(x_axis)
+  y_sym <- sym(y_axis)
+  agg_name <- as.character(substitute(agg_fun))[[1]]
+  
+  top_taxa <- sim[[1]] %>%
+    as.data.frame() %>%
+    rownames_to_column(var = taxon_col) %>%
+    arrange(desc(average)) %>%
+    filter(p <= !!p) %>%
+    slice_head(n = taxa_num) %>%
+    pull(!!taxon_sym)
+  
+  df %>%
+    filter((!!taxon_sym) %in% top_taxa) %>%
+    group_by(!!taxon_sym, !!x_sym) %>%
+    summarise(
+      Value = agg_fun(!!y_sym, na.rm = TRUE),
+      .groups = 'drop'
+    ) %>%
+    ggplot(aes(x = !!x_sym, y = Value, color = !!taxon_sym, group = !!taxon_sym)) +
+    geom_line() +
+    geom_point(size = 2) +
+    labs(
+      title = paste('Top SIMPER', y_axis),
+      x = x_axis,
+      y = paste(stringr::str_to_title(agg_name), 'of', as_label(y_sym)),
+      color = 'Taxon'
+    ) +
+    theme_minimal()
+}

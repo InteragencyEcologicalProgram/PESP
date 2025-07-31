@@ -1,0 +1,124 @@
+# Prep NDFS Data
+
+**Purpose:** Prep NDFS data for PESP merge.
+
+**Author:** Perry ([sarah.perry\@water.ca.gov](mailto:sarah.perry@water.ca.gov){.email})
+
+# Initial Setup
+```{r, message=FALSE, warning=FALSE}
+# Import Packages ---------------------------------------------------------
+library(tidyverse)
+library(fuzzyjoin)
+library(glue)
+library(lubridate)
+
+source('admin/global_functions/global_funcs.R')
+source('admin/global_functions/syn_funcs.R')
+source('admin/global_functions/bsa_funcs.R')
+source('admin/global_functions/check_funcs.R')
+```
+
+# Read in data
+```{r}
+# specify the file path
+data_path_ndfs <- abs_pesp_path('Groups/DWR-NDFS/02 Program Data/NDFS_program_draft.csv')
+
+# new data to format and append
+df_ndfs <- read_quiet_csv(data_path_ndfs)
+```
+
+# Clean data
+
+## Convert Time
+```{r}
+df_ndfs <- convert_to_pst(df_ndfs)
+
+converted_times <- attr(df_ndfs, 'log')$converted_times
+write_log_file(converted_times, 'Synthesized Dataset/01 Group Checks/DWR-NDFS/tables/NDFS_converted_times.csv')
+```
+## Add in Metadata
+```{r}
+# Survey
+df_ndfs <- add_meta_col(df_ndfs, 'DWR-NDFS', 'Survey')
+
+# Sample Method
+df_ndfs <- add_meta_col(df_ndfs, 'DWR-NDFS', 'SampleMethod')
+
+# Magnification
+df_ndfs <- add_meta_col(df_ndfs, 'DWR-NDFS', 'Magnification')
+
+# Depth Type
+df_ndfs <- add_meta_col(df_ndfs, 'DWR-NDFS', 'DepthType')
+
+# Sample Scheme
+df_ndfs <- add_meta_col(df_ndfs, 'DWR-NDFS', 'SampleScheme')
+
+# Count Method
+df_ndfs <- add_meta_col(df_ndfs, 'DWR-NDFS', 'CountMethodSample')
+
+df_ndfs <- df_ndfs %>%
+  mutate(CountMethodTaxa = CountMethodSample) # must be the same
+```
+
+## Add extra columns
+```{r}
+df_ndfs <- df_ndfs %>% 
+  mutate(TowNetRadius = NA,
+         Location = Station,
+         GALD = NA,
+         PhytoForm = NA)
+```
+
+## Format PESP Taxon
+## Extract Taxon
+```{r}
+df_ndfs <- extract_program_taxons(df_ndfs)
+```
+
+## Correct typos
+```{r}
+df_ndfs <- correct_taxon_typos(df_ndfs)
+corrected_typos <- attr(df_ndfs, 'log')$taxon_corrections
+write_log_file(corrected_typos, 'Synthesized Dataset/01 Group Checks/DWR-NDFS/tables/NDFS_corrected_typos.csv')
+
+print(corrected_typos)
+```
+
+### Standardize unknowns
+```{r}
+df_ndfs <- clean_unknowns(df_ndfs, std_sp = TRUE, std_suffix = TRUE)
+standardized_unknowns <- attr(df_ndfs, 'log')$clean_unknowns
+write_log_file(standardized_unknowns, 'Synthesized Dataset/01 Group Checks/DWR-NDFS/tables/NDFS_standardized_unknowns.csv')
+
+print(standardized_unknowns)
+```
+
+### Update synonyms
+```{r}
+df_ndfs <- update_synonyms(df_ndfs)
+updated_synonyms <- attr(df_ndfs, 'log')$synonym_updates
+write_log_file(updated_synonyms, 'Synthesized Dataset/01 Group Checks/DWR-NDFS/tables/NDFS_updated_synonyms.csv')
+print(updated_synonyms)
+```
+
+### Add in higher-level taxa
+```{r}
+df_ndfs$Taxon <- iconv(df_ndfs$Taxon, from = 'ISO-8859-1', to = 'UTF-8')
+df_ndfs$Taxon <- unname(df_ndfs$Taxon)
+
+df_ndfs <- higher_lvl_taxa(df_ndfs, std_type = 'PESP')
+needs_hierarchy <- attr(df_ndfs, 'log')$unmatched_taxa
+
+print(needs_hierarchy)
+```
+
+## Subset relevant columns
+```{r}
+df_ndfs <- subset_cols(df_ndfs)
+```
+
+## Save .Rdata
+```{r}
+save(df_ndfs, file = 'synthesized/02_group_data/DWR-NDFS.Rdata')
+```
+

@@ -196,6 +196,7 @@ from_meta <- function(df, df_meta, column) {
 #' - **Obscured**: contains "obscured"
 #' - **BrokenDiatoms**: contains "many broken diatoms"
 #' - **MultipleSizes**: same taxon appears more than once in a group but has differing values in other fields
+#' - **CountIssues**: Units_per_mL > Cells_per_mL
 #'
 #' If both TallyNotMet_Over5 and TallyNotMet_Under5 are flagged for a row, they are merged into a single **TallyNotMet** flag.
 #'
@@ -264,6 +265,17 @@ add_qc_col <- function(df, comment_col = 'Comments', key_cols = c('Date', 'Stati
       }
     ) %>%
     ungroup()
+  
+  # Check if Units > Cells
+  if (all(c('Units_per_mL', 'Cells_per_mL') %in% names(df))) {
+    df <- df %>%
+      mutate(
+        QC_12 = case_when(
+          !is.na(Units_per_mL) & !is.na(Cells_per_mL) & Units_per_mL > Cells_per_mL ~ 'UnitsExceedCells',
+          TRUE ~ NA_character_
+        )
+      )
+  }
   
   # Collapse all QC columns into a single string, default to 'NoCode' if all are NA
   df <- df %>%
@@ -336,9 +348,6 @@ add_debris_col <- function(df, comment_col = 'Comments') {
 }
 
 add_notes_col <- function(df, comment_col = 'Comments', taxa_col = 'Taxon') {
-  library(tidyverse)
-  library(rlang)
-  
   df <- df %>% mutate(.orig_taxon = !!ensym(taxa_col))
   
   # note patterns
@@ -368,7 +377,7 @@ add_notes_col <- function(df, comment_col = 'Comments', taxa_col = 'Taxon') {
     } else {
       tibble(!!col_name := case_when(
         str_detect(df$.orig_taxon, regex(pattern, ignore_case = TRUE)) ~ name,
-        str_detect(eval_tidy(comment_sym, df), regex(pattern, ignore_case = TRUE)) ~ name,
+        str_detect(rlang::eval_tidy(comment_sym, df), regex(pattern, ignore_case = TRUE)) ~ name,
         TRUE ~ NA_character_
       ))
     }
@@ -378,7 +387,7 @@ add_notes_col <- function(df, comment_col = 'Comments', taxa_col = 'Taxon') {
   
   taxa_sym <- ensym(taxa_col)
   
-  # extract content in parentheses for flagging
+  # extract content for flagging
   df <- df %>%
     mutate(
       .paren_content = str_extract(!!taxa_sym, '\\(([^()]*)\\)') %>%
@@ -386,11 +395,12 @@ add_notes_col <- function(df, comment_col = 'Comments', taxa_col = 'Taxon') {
         str_squish()
     )
   
-  # remove parenthetical terms that match note_patterns
-  paren_terms_pattern <- str_c('\\(\\s*(', str_c(note_patterns, collapse = '|'), ')\\s*\\)', collapse = '')
+  # remove extra terms
+  note_removal_pattern <- str_c('\\b(', str_c(note_patterns, collapse = '|'), ')\\b', collapse = '')
   df <- df %>%
     mutate(
-      !!taxa_sym := str_remove_all(!!taxa_sym, regex(paren_terms_pattern, ignore_case = TRUE)) %>%
+      !!taxa_sym := str_remove_all(!!taxa_sym, regex(note_removal_pattern, ignore_case = TRUE)) %>%
+        str_remove_all('\\(\\s*\\)') %>%  
         str_squish()
     )
   
@@ -583,10 +593,10 @@ add_meta_col <- function(df, program, col_name, match_cols = NULL){
 #' @importFrom dplyr case_when distinct
 #' @importFrom tibble tibble
 #' @export
-clean_unknowns <- function(df, std_sp) {
+clean_unknowns <- function(df, std_sp, std_suffix) {
   original_taxon <- df$Taxon
   
-  # Standardize unknown/unidentified/undetermined to "Unknown"
+  # standardize unknown/unidentified/undetermined to "Unknown"
   unknown_syns <- 'unknown|unidentified|undetermined'
   df$Taxon <- dplyr::case_when(
     grepl(unknown_syns, df$Taxon, ignore.case = TRUE) ~ 
@@ -594,28 +604,47 @@ clean_unknowns <- function(df, std_sp) {
     TRUE ~ df$Taxon
   )
   
-  # Optionally standardize spp. -> sp.
+  # standardize spp. -> sp.
   if (std_sp) {
     df$Taxon <- df$Taxon %>%
-      # 1. remove anything in parentheses
-      str_remove_all('\\s*\\([^\\)]*\\)') %>%
-      
-      # 2. simplify spp. X, spp X, sp. X, sp X → sp.
-      str_replace_all('\\bspp?\\.?\\s+.*$', 'sp.') %>%
-      
-      # 3. standardize all variants of sp/spp to sp.
       str_replace_all('\\b(spp?|sp)\\b\\.?', 'sp.') %>%
       str_squish()
-    
-    # 4. if Unknown X sp., remove trailing sp.
-    df$Taxon <- case_when(
-      str_detect(df$Taxon, regex('^unknown\\b', ignore_case = TRUE)) ~
-        str_remove(df$Taxon, '\\bsp\\.$') %>% str_squish(),
-      TRUE ~ df$Taxon
-    )
   }
   
-  # Create log of unique corrections only
+  # simplify spp. X, spp X, sp. X, sp X -> sp.
+  if (std_suffix) {
+    df$Taxon <- df$Taxon %>%
+      # remove anything in parentheses
+      str_remove_all('\\s*\\([^\\)]*\\)') %>%
+      # remove everything else that trails
+      str_replace_all('\\bspp?\\.?\\s+.*$', 'sp.') %>%
+      str_squish()
+  }
+  
+  # if Unknown X sp., remove trailing sp.
+  df$Taxon <- case_when(
+    str_to_lower(df$Taxon) == 'unknown sp.' ~ 'Unknown sp.',
+    str_detect(df$Taxon, regex('^unknown\\b', ignore_case = TRUE)) ~
+      str_remove(df$Taxon, '\\bsp\\.$') %>% str_squish(),
+    TRUE ~ df$Taxon
+  )
+  
+  # replace 'cf. Unknown x' -> 'Unknown x'
+  df$Taxon <- df$Taxon %>%
+    str_replace(regex('^cf\\.\\s+(Unknown\\b.*)', ignore_case = TRUE), '\\1') %>%
+    str_squish()
+  
+  # standardize case of "Unknown taxa"
+  df$Taxon <- case_when(
+    str_detect(df$Taxon, regex('^unknown \\w+$', ignore_case = TRUE)) ~ 
+      str_replace(df$Taxon, regex('^unknown (\\w+)$', ignore_case = TRUE), function(m) {
+        second_word <- str_match(m, regex('^unknown (\\w+)$', ignore_case = TRUE))[,2]
+        paste('Unknown', tolower(second_word))
+      }),
+    TRUE ~ df$Taxon
+  )
+  
+  # create log
   df_log <- tibble::tibble(
     OrigTaxon = original_taxon[original_taxon != df$Taxon],
     UpdatedTaxon = df$Taxon[original_taxon != df$Taxon]
@@ -913,7 +942,7 @@ higher_lvl_taxa <- function(df, after_col = NULL, std_type) {
     stop("std_type must be either 'program' or 'PESP'")
   }
   
-  # Step 1: Normalize "Genus Species cf." -> "Genus cf. Species"
+  # normalize "Genus Species cf." -> "Genus cf. Species"
   df <- df %>%
     mutate(
       Taxon = case_when(
@@ -926,7 +955,7 @@ higher_lvl_taxa <- function(df, after_col = NULL, std_type) {
   df <- df %>%
     mutate(Taxon = Taxon)
   
-  # Step 2: PESP standardization (if applicable) of Species cf.
+  # PESP standardization (if applicable) of Species cf.
   if (std_type == 'pesp') {
     df <- df %>%
       mutate(
@@ -943,13 +972,13 @@ higher_lvl_taxa <- function(df, after_col = NULL, std_type) {
       )
   }
   
-  # Step 3: Save OrigTaxon if not already present
+  # save OrigTaxon if not already present
   if (!'OrigTaxon' %in% names(df)) {
     df <- df %>%
       mutate(OrigTaxon = Taxon)
   }
   
-  # Step 4: Create PureTaxon by removing 'cf.', standardizing 'sp.', and normalizing
+  # create PureTaxon by removing 'cf.', standardizing 'sp.', and normalizing
   df <- df %>%
     mutate(
       PureTaxon = stringr::str_replace_all(Taxon, regex('cf\\.', ignore_case = TRUE), ''),
@@ -965,7 +994,7 @@ higher_lvl_taxa <- function(df, after_col = NULL, std_type) {
     
   df$PureTaxon <- stringr::str_replace_all(df$PureTaxon, 'spp\\.', 'sp.')
   
-  # Step 5: Read in taxa sheet and add PureTaxon
+  # read in taxa sheet and add PureTaxon
   df_taxa <- read_phyto_taxa()
   df_taxa <- df_taxa %>%
     mutate(
@@ -976,7 +1005,7 @@ higher_lvl_taxa <- function(df, after_col = NULL, std_type) {
     ) %>%
     select(-Taxon)
   
-  # Step 6: Create unmatched log (distinct only)
+  # create unmatched log (distinct only)
   unmatched_log <- df %>%
     distinct(PureTaxon, Taxon) %>%
     filter(!PureTaxon %in% df_taxa$PureTaxon) %>%
@@ -984,7 +1013,7 @@ higher_lvl_taxa <- function(df, after_col = NULL, std_type) {
     
   message('Unique taxa with no match in reference list: ', nrow(unmatched_log))
   
-  # Step 7: Join higher level taxa and main dfs and relocate
+  # join higher level taxa and main dfs and relocate
   df_joined <- df %>%
     left_join(df_taxa, by = 'PureTaxon') %>%
     select(-PureTaxon)
@@ -995,7 +1024,7 @@ higher_lvl_taxa <- function(df, after_col = NULL, std_type) {
       relocate(c(Genus, Species), .after = AlgalGroup)
   }
   
-  # Step 8: PESP standardization (if applicable) of Genus cf.
+  # PESP standardization (if applicable) of Genus cf.
   if (std_type == 'pesp') {
     # define plural -> singular Algal Group map
     algal_singular <- c(
@@ -1045,7 +1074,7 @@ higher_lvl_taxa <- function(df, after_col = NULL, std_type) {
       mutate(Taxon = Taxon)
   }
   
-  # Step 9: Remove special characters
+  # remove special characters
   df_joined <- df_joined %>%
     mutate(
       Taxon = stringi::stri_replace_all_regex(Taxon, '\\p{Zs}+', ' '),
@@ -1057,7 +1086,7 @@ higher_lvl_taxa <- function(df, after_col = NULL, std_type) {
     ) %>%
     select(-CurrentTaxon)
   
-  # Step 10: Attach updated log
+  # create log
   existing_log <- attr(df_joined, 'log')
   attr(df_joined, 'log') <- c(existing_log, list(unmatched_taxa = unmatched_log))
   
@@ -1120,7 +1149,7 @@ combine_taxons <- function(df, key_cols = c('Date', 'Station'), measurement_cols
 
 # Write log file
 write_log_file <- function(df_log, fp) {
-  if (!(nrow(df_log) == 0 && ncol(df_log) == 1)) {
+  if (exists('df_log') && is.data.frame(df_log) && nrow(df_log) > 0) {
     write_csv(df_log, abs_pesp_path(fp))
   }
 }
@@ -1335,12 +1364,38 @@ extract_program_taxons <- function(df, taxon_original = 'OrigTaxon', taxon_curre
   df <- df %>%
     mutate(
       Taxon = case_when(
-        !is.na(.data[[taxon_original]]) ~ .data[[taxon_original]],
+        !is.na(.data[[taxon_original]]) & !str_detect(.data[[taxon_original]], ';') ~ .data[[taxon_original]],
         TRUE ~ .data[[taxon_current]]
       )
     )
   
   df <- remove_taxa_info(df)
+  
+  return(df)
+}
+
+# Rename values in column
+rename_values <- function(df, column, rename_map) {
+  orig_vals <- df[[column]]
+  
+  rev_map <- setNames(names(rename_map), rename_map)
+  
+  df <- df %>%
+    dplyr::mutate(
+      !!column := dplyr::recode(.data[[column]], !!!rev_map)
+    )
+  
+  changed_count <- sum(orig_vals %in% rename_map)
+  total_count <- length(orig_vals)
+  
+  rename_count <- paste(
+    paste('Renamed values in column:', column),
+    paste0('  • ', rename_map, ' → ', names(rename_map), collapse = '\n'),
+    paste('Changed', changed_count, 'out of', total_count, 'values'),
+    sep = '\n'
+  )
+  
+  message(rename_count)
   
   return(df)
 }

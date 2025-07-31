@@ -1,0 +1,136 @@
+# Prep AEU Data
+
+**Purpose:** Prep AEU data for PESP merge.
+
+**Author:** Perry ([sarah.perry\@water.ca.gov](mailto:sarah.perry@water.ca.gov){.email})
+
+# Initial Setup
+```{r, message=FALSE, warning=FALSE}
+# Import Packages ---------------------------------------------------------
+library(tidyverse)
+library(fuzzyjoin)
+library(glue)
+library(lubridate)
+
+source('admin/global_functions/global_funcs.R')
+source('admin/global_functions/syn_funcs.R')
+source('admin/global_functions/bsa_funcs.R')
+source('admin/global_functions/check_funcs.R')
+```
+
+# Read in data
+```{r}
+# specify the file path
+data_path_aeu <- abs_pesp_path('Groups/USGS-BGC/02 Program Data/BGC_program_draft.csv')
+
+# new data to format and append
+df_bgc <- read_quiet_csv(data_path_aeu)
+```
+
+# Clean data
+
+Time already in PST.
+
+## Add in Metadata
+
+```{r}
+# Survey
+df_bgc <- add_meta_col(df_bgc, 'USGS-BGC', 'Survey')
+
+# Magnification
+df_bgc <- add_meta_col(df_bgc, 'USGS-BGC', 'Magnification')
+
+# Depth Type
+df_bgc <- add_meta_col(df_bgc, 'USGS-BGC', 'DepthType')
+
+# Sample Scheme
+df_bgc <- add_meta_col(df_bgc, 'USGS-BGC', 'SampleScheme')
+
+# Station
+df_bgc <- df_bgc %>%
+  rename(Station = site_abbrev,
+         Location = site_no)
+
+# Update Sample Methods
+rename_map <- c(
+  'centrifugal pump' = 'Submersible centrifugal pump',
+  'Van Dorn' = 'Van Dorn sampler',
+  'peristaltic pump' = 'Peristaltic pump',
+  'unspecified grab sample' = 'Grab sample',
+  'diaphragm pump' = 'Diaphragm pump',
+  'diaphragm pump' = 'Diaphragm pump and churn',
+  'net tow' ='Phytoplankton net'
+)
+
+# Count Method
+df_bgc <- add_meta_col(df_bgc, 'USGS-BGC', 'CountMethodSample')
+df_bgc <- df_bgc %>%
+  mutate(CountMethodTaxa = CountMethodSample)
+```
+
+```{r}
+# Rename sample methods
+df_bgc <- rename_values(df_bgc, 'SampleMethod', rename_map)
+```
+
+## Add extra columns
+```{r}
+df_bgc <- df_bgc %>% 
+  mutate(TowNetRadius = NA,
+         Units_per_mL = NA,
+         GALD = NA,
+         PhytoForm = NA)
+```
+
+## Format PESP Taxon
+## Extract Taxon
+```{r}
+df_bgc <- extract_program_taxons(df_bgc)
+```
+
+## Correct typos
+```{r}
+df_bgc <- correct_taxon_typos(df_bgc)
+corrected_typos <- attr(df_bgc, 'log')$taxon_corrections
+write_log_file(corrected_typos, 'Synthesized Dataset/01 Group Checks/USGS-BGC/tables/BGC_corrected_typos.csv')
+
+print(corrected_typos)
+```
+
+### Standardize unknowns
+```{r}
+df_bgc <- clean_unknowns(df_bgc, std_sp = TRUE, std_suffix = TRUE)
+standardized_unknowns <- attr(df_bgc, 'log')$clean_unknowns
+write_log_file(standardized_unknowns, 'Synthesized Dataset/01 Group Checks/USGS-BGC/tables/BGC_standardized_unknowns.csv')
+
+print(standardized_unknowns)
+```
+
+### Update synonyms
+```{r}
+df_bgc <- update_synonyms(df_bgc)
+updated_synonyms <- attr(df_bgc, 'log')$synonym_updates
+write_log_file(updated_synonyms, 'Synthesized Dataset/01 Group Checks/USGS-BGC/tables/BGC_updated_synonyms.csv')
+print(updated_synonyms)
+```
+
+### Add in higher-level taxa
+```{r}
+df_bgc <- higher_lvl_taxa(df_bgc, std_type = 'PESP')
+needs_hierarchy <- attr(df_bgc, 'log')$unmatched_taxa
+
+print(needs_hierarchy)
+```
+
+
+## Subset relevant columns
+```{r}
+df_bgc <- subset_cols(df_bgc)
+```
+
+## Save .Rdata
+```{r}
+save(df_bgc, file = 'synthesized/02_group_data/USGS-BGC.Rdata')
+```
+
+

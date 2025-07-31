@@ -90,16 +90,16 @@ df_data_one <- df_data_one %>% mutate(Lab = 'Dick Dufford',
 ```{r}
 df_data_one <- correct_taxon_typos(df_data_one)
 corrected_typos <- attr(df_data_one, 'log')$taxon_corrections
-write_log_file(corrected_typos, 'Groups/USGS-BP/02 Processed Data/QC files/tables/BP_Dufford_corrected_typos.csv')
+write_log_file(corrected_typos, 'Groups/USGS-BP/02 Program Data/QC files/tables/BP_Dufford_corrected_typos.csv')
 
 print(corrected_typos)
 ```
 
 ## Standardize unknowns
 ```{r}
-df_data_one <- clean_unknowns(df_data_one)
+df_data_one <- clean_unknowns(df_data_one, std_sp = TRUE, std_suffix = TRUE)
 standardized_unknowns <- attr(df_data_one, 'log')$clean_unknowns
-write_log_file(standardized_unknowns, 'Groups/USGS-BP/02 Processed Data/QC files/tables/BP_Dufford_standardized_unknowns.csv')
+write_log_file(standardized_unknowns, 'Groups/USGS-BP/02 Program Data/QC files/tables/BP_Dufford_standardized_unknowns.csv')
 
 print(standardized_unknowns)
 ```
@@ -116,16 +116,16 @@ df_data_one <- add_notes_col(df_data_one, comment_col = NULL)
 ```{r}
 df_data_one <- update_synonyms(df_data_one)
 updated_synonyms <- attr(df_data_one, 'log')$synonym_updates
-write_log_file(updated_synonyms, 'Groups/USGS-BP/02 Processed Data/QC files/tables/BP_Dufford_updated_synonyms.csv')
+write_log_file(updated_synonyms, 'Groups/USGS-BP/02 Program Data/QC files/tables/BP_Dufford_updated_synonyms.csv')
 
 print(updated_synonyms)
 ```
 
 ## Add in higher-level taxa
 ```{r}
-df_data_one <- higher_lvl_taxa(df_data_one)
+df_data_one <- higher_lvl_taxa(df_data_one, std_type = 'program')
 needs_hierarchy <- attr(df_data_one, 'log')$unmatched_taxa
-write_log_file(needs_hierarchy, 'Groups/USGS-BP/02 Processed Data/QC files/tables/BP_Dufford_needs_hierarchy.csv')
+write_log_file(needs_hierarchy, 'Groups/USGS-BP/02 Program Data/QC files/tables/BP_Dufford_needs_hierarchy.csv')
 
 print(needs_hierarchy)
 ```
@@ -195,7 +195,7 @@ df_data_two <- df_data_two %>% mutate(Lab = 'BSA',
 ```{r}
 df_data_two <- correct_taxon_typos(df_data_two)
 corrected_typos <- attr(df_data_two, 'log')$taxon_corrections
-write_log_file(corrected_typos, 'Groups/USGS-BP/02 Processed Data/QC files/tables/BP_BSA_corrected_typos.csv')
+write_log_file(corrected_typos, 'Groups/USGS-BP/02 Program Data/QC files/tables/BP_BSA_corrected_typos.csv')
 
 print(corrected_typos)
 ```
@@ -208,16 +208,16 @@ df_data_two <- add_notes_col(df_data_two)
 
 df_data_two <- extract_unstandardized_comments(df_data_two, 'Comments', delimiter = '. ')
 unmatched_comments <- attr(df_data_two, 'log')$unmatched_comments
-write_log_file(unmatched_comments, 'Groups/USGS-BP/02 Processed Data/QC files/tables/BP_BSA_leftover_comments.csv')
+write_log_file(unmatched_comments, 'Groups/USGS-BP/02 Program Data/QC files/tables/BP_BSA_leftover_comments.csv')
 
 print(unmatched_comments)
 ```
 
 ## Standardize unknowns
 ```{r}
-df_data_two <- clean_unknowns(df_data_two)
+df_data_two <- clean_unknowns(df_data_two, std_sp = TRUE, std_suffix = TRUE)
 standardized_unknowns <- attr(df_data_two, 'log')$clean_unknowns
-write_log_file(standardized_unknowns, 'Groups/USGS-BP/02 Processed Data/QC files/tables/BP_BSA_standardized_unknowns.csv')
+write_log_file(standardized_unknowns, 'Groups/USGS-BP/02 Program Data/QC files/tables/BP_BSA_standardized_unknowns.csv')
 
 print(standardized_unknowns)
 ```
@@ -226,16 +226,16 @@ print(standardized_unknowns)
 ```{r}
 df_data_two <- update_synonyms(df_data_two)
 updated_synonyms <- attr(df_data_two, 'log')$synonym_updates
-write_log_file(updated_synonyms, 'Groups/USGS-BP/02 Processed Data/QC files/tables/BP_BSA_updated_synonyms.csv')
+write_log_file(updated_synonyms, 'Groups/USGS-BP/02 Program Data/QC files/tables/BP_BSA_updated_synonyms.csv')
 
 print(updated_synonyms)
 ```
 
 ## Add in higher-level taxa
 ```{r}
-df_data_two <- higher_lvl_taxa(df_data_two)
+df_data_two <- higher_lvl_taxa(df_data_two, std_type = 'program')
 needs_hierarchy <- attr(df_data_two, 'log')$unmatched_taxa
-write_log_file(needs_hierarchy, 'Groups/USGS-BP/02 Processed Data/QC files/tables/BP_BSA_needs_hierarchy.csv')
+write_log_file(needs_hierarchy, 'Groups/USGS-BP/02 Program Data/QC files/tables/BP_BSA_needs_hierarchy.csv')
 
 print(needs_hierarchy)
 ```
@@ -298,7 +298,7 @@ df_data_three <- add_latlon(df_data_three, 'Groups/USGS-BP/Metadata/Stations-SFB
 ## Add metadata columns
 ```{r}
 df_data_three <- df_data_three %>% mutate(Lab = 'BSA',
-                                      SampleMethod = 'phytoplankton net tow')
+                                      SampleMethod = 'net tow')
 ```
 
 # Add Taxonomy (and QC column)
@@ -307,7 +307,7 @@ df_data_three <- df_data_three %>% mutate(Lab = 'BSA',
 ```{r}
 df_data_three <- correct_taxon_typos(df_data_three)
 corrected_typos <- attr(df_data_three, 'log')$taxon_corrections
-write_log_file(corrected_typos, 'Groups/USGS-BP/02 Processed Data/QC files/tables/BP_Tow_corrected_typos.csv')
+write_log_file(corrected_typos, 'Groups/USGS-BP/02 Program Data/QC files/tables/BP_Tow_corrected_typos.csv')
 
 print(corrected_typos)
 ```
@@ -320,16 +320,16 @@ df_data_three <- add_notes_col(df_data_three)
 
 df_data_three <- extract_unstandardized_comments(df_data_three, 'Comments', delimiter = '. ')
 unmatched_comments <- attr(df_data_three, 'log')$unmatched_comments
-write_log_file(unmatched_comments, 'Groups/USGS-BP/02 Processed Data/QC files/tables/BP_Tow_leftover_comments.csv')
+write_log_file(unmatched_comments, 'Groups/USGS-BP/02 Program Data/QC files/tables/BP_Tow_leftover_comments.csv')
 
 print(unmatched_comments)
 ```
 
 ## Standardize unknowns
 ```{r}
-df_data_three <- clean_unknowns(df_data_three)
+df_data_three <- clean_unknowns(df_data_three, std_sp = TRUE, std_suffix = TRUE)
 standardized_unknowns <- attr(df_data_three, 'log')$clean_unknowns
-write_log_file(standardized_unknowns, 'Groups/USGS-BP/02 Processed Data/QC files/tables/BP_Tow_standardized_unknowns.csv')
+write_log_file(standardized_unknowns, 'Groups/USGS-BP/02 Program Data/QC files/tables/BP_Tow_standardized_unknowns.csv')
 
 print(standardized_unknowns)
 ```
@@ -338,16 +338,16 @@ print(standardized_unknowns)
 ```{r}
 df_data_three <- update_synonyms(df_data_three)
 updated_synonyms <- attr(df_data_three, 'log')$synonym_updates
-write_log_file(updated_synonyms, 'Groups/USGS-BP/02 Processed Data/QC files/tables/BP_Tow_updated_synonyms.csv')
+write_log_file(updated_synonyms, 'Groups/USGS-BP/02 Program Data/QC files/tables/BP_Tow_updated_synonyms.csv')
 
 print(updated_synonyms)
 ```
 
 ## Add in higher-level taxa
 ```{r}
-df_data_three <- higher_lvl_taxa(df_data_three)
+df_data_three <- higher_lvl_taxa(df_data_three, std_type = 'program')
 needs_hierarchy <- attr(df_data_three, 'log')$unmatched_taxa
-write_log_file(needs_hierarchy, 'Groups/USGS-BP/02 Processed Data/QC files/tables/BP_Tow_needs_hierarchy.csv')
+write_log_file(needs_hierarchy, 'Groups/USGS-BP/02 Program Data/QC files/tables/BP_Tow_needs_hierarchy.csv')
 
 print(needs_hierarchy)
 ```
@@ -386,7 +386,7 @@ df_data <- subset_cols_bp(df_data)
 ```{r}
 df_data <- combine_taxons(df_data, key_cols = c('Station','Date','Depth_m'), measurement_cols = c('Biovolume_per_mL','Cells_per_mL'))
 combined_taxa <- attr(df_data, 'log')$combined_taxa
-write_log_file(combined_taxa, 'Groups/USGS-BP/02 Processed Data/QC files/tables/BP_All_combined_taxa.csv')
+write_log_file(combined_taxa, 'Groups/USGS-BP/02 Program Data/QC files/tables/BP_All_combined_taxa.csv')
 
 print(combined_taxa)
 ```
@@ -406,5 +406,5 @@ df_data <- df_data %>%
   arrange(Date, Station, Taxon) %>%
   mutate(Date = as.Date(Date))
 
-write_csv(df_data, abs_pesp_path('Groups/USGS-BP/02 Processed Data/BP_draft.csv'))
+write_csv(df_data, abs_pesp_path('Groups/USGS-BP/02 Program Data/BP_program_draft_1992-2023.csv'))
 ```

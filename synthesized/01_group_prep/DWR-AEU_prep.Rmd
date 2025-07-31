@@ -1,0 +1,119 @@
+# Prep AEU Data
+
+**Purpose:** Prep AEU data for PESP merge.
+
+**Author:** Perry ([sarah.perry\@water.ca.gov](mailto:sarah.perry@water.ca.gov){.email})
+
+# Initial Setup
+```{r, message=FALSE, warning=FALSE}
+# Import Packages ---------------------------------------------------------
+library(tidyverse)
+library(fuzzyjoin)
+library(glue)
+library(lubridate)
+
+source('admin/global_functions/global_funcs.R')
+source('admin/global_functions/syn_funcs.R')
+source('admin/global_functions/bsa_funcs.R')
+source('admin/global_functions/check_funcs.R')
+```
+
+# Read in data
+```{r}
+# specify the file path
+data_path_aeu <- abs_pesp_path('Groups/DWR-AEU/02 Program Data/AEU_program_draft.csv')
+
+# new data to format and append
+df_aeu <- read_quiet_csv(data_path_aeu)
+```
+
+# Clean data
+
+## Convert Time
+```{r}
+df_aeu <- convert_to_pst(df_aeu)
+
+converted_times <- attr(df_aeu, 'log')$converted_times
+write_log_file(converted_times, 'Synthesized Dataset/01 Group Checks/DWR-AEU/tables/AEU_converted_times.csv')
+```
+
+## Add in Metadata
+```{r}
+# Survey
+df_aeu <- add_meta_col(df_aeu, 'DWR-YBFMP', 'Survey')
+
+# Sample Method
+df_aeu <- add_meta_col(df_aeu, 'DWR-YBFMP', 'SampleMethod')
+
+# Magnification
+df_aeu <- add_meta_col(df_aeu, 'DWR-YBFMP', 'Magnification')
+
+# Depth Type
+df_aeu <- add_meta_col(df_aeu, 'DWR-YBFMP', 'DepthType')
+
+# Sample Scheme
+df_aeu <- add_meta_col(df_aeu, 'DWR-YBFMP', 'SampleScheme')
+
+# Count Method
+df_aeu <- add_meta_col(df_aeu, 'DWR-YBFMP', 'CountMethodSample')
+
+df_aeu <- df_aeu %>%
+  mutate(CountMethodTaxa = CountMethodSample) # must be the same
+```
+
+## Add extra columns
+```{r}
+df_aeu <- df_aeu %>% 
+  mutate(TowNetRadius = NA,
+         Location = Station)
+```
+
+## Format PESP Taxon
+## Extract Taxon
+```{r}
+df_aeu <- extract_program_taxons(df_aeu)
+```
+
+## Correct typos
+```{r}
+df_aeu <- correct_taxon_typos(df_aeu)
+corrected_typos <- attr(df_aeu, 'log')$taxon_corrections
+write_log_file(corrected_typos, 'Synthesized Dataset/01 Group Checks/DWR-AEU/tables/AEU_corrected_typos.csv')
+
+print(corrected_typos)
+```
+
+### Standardize unknowns
+```{r}
+df_aeu <- clean_unknowns(df_aeu, std_sp = TRUE, std_suffix = TRUE)
+standardized_unknowns <- attr(df_aeu, 'log')$clean_unknowns
+write_log_file(standardized_unknowns, 'Synthesized Dataset/01 Group Checks/DWR-AEU/tables/AEU_standardized_unknowns.csv')
+
+print(standardized_unknowns)
+```
+
+### Update synonyms
+```{r}
+df_aeu <- update_synonyms(df_aeu)
+updated_synonyms <- attr(df_aeu, 'log')$synonym_updates
+write_log_file(updated_synonyms, 'Synthesized Dataset/01 Group Checks/DWR-AEU/tables/AEU_updated_synonyms.csv')
+print(updated_synonyms)
+```
+
+### Add in higher-level taxa
+```{r}
+df_aeu <- higher_lvl_taxa(df_aeu, std_type = 'PESP')
+needs_hierarchy <- attr(df_aeu, 'log')$unmatched_taxa
+
+print(needs_hierarchy)
+```
+
+## Subset relevant columns
+```{r}
+df_aeu <- subset_cols(df_aeu)
+```
+
+## Save .Rdata
+```{r}
+save(df_aeu, file = 'synthesized/02_group_data/DWR-AEU.Rdata')
+```

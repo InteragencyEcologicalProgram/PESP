@@ -81,6 +81,7 @@ df_data <- add_meta_col(df_data, 'USGS-BGC', 'SampleDepth')
 
 df_data <- add_meta_col(df_data, 'USGS-BGC', 'Lab')
 ```
+
 ## Update station names
 ```{r}
 df_data <- update_stations_bgc(df_data)
@@ -106,7 +107,7 @@ df_data <- add_latlon(df_data, 'Groups/USGS-BGC/Metadata/Stations-BGC.csv')
 ```{r}
 df_data <- correct_taxon_typos(df_data)
 corrected_typos <- attr(df_data, 'log')$taxon_corrections
-write_log_file(corrected_typos, 'Groups/USGS-BGC/02 Processed Data/QC files/tables/BGC_corrected_typos.csv')
+write_log_file(corrected_typos, 'Groups/USGS-BGC/02 Program Data/QC files/tables/BGC_corrected_typos.csv')
 
 print(corrected_typos)
 ```
@@ -120,16 +121,16 @@ df_data <- add_notes_col(df_data)
 
 df_data <- extract_unstandardized_comments(df_data, 'Comments', delimiter = '. ')
 unmatched_comments <- attr(df_data, 'log')$unmatched_comments
-write_log_file(unmatched_comments, 'Groups/USGS-BGC/02 Processed Data/QC files/tables/BGC_leftover_comments.csv')
+write_log_file(unmatched_comments, 'Groups/USGS-BGC/02 Program Data/QC files/tables/BGC_leftover_comments.csv')
 
 print(unmatched_comments)
 ```
 
 ## Standardize unknowns
 ```{r}
-df_data <- clean_unknowns(df_data, std_sp = TRUE)
+df_data <- clean_unknowns(df_data, std_sp = TRUE, std_suffix = TRUE)
 standardized_unknowns <- attr(df_data, 'log')$clean_unknowns
-write_log_file(standardized_unknowns, 'Groups/USGS-BGC/02 Processed Data/QC files/tables/BGC_standardized_unknowns.csv')
+write_log_file(standardized_unknowns, 'Groups/USGS-BGC/02 Program Data/QC files/tables/BGC_standardized_unknowns.csv')
 
 print(standardized_unknowns)
 ```
@@ -138,7 +139,7 @@ print(standardized_unknowns)
 ```{r}
 df_data <- update_synonyms(df_data)
 updated_synonyms <- attr(df_data, 'log')$synonym_updates
-write_log_file(updated_synonyms, 'Groups/USGS-BGC/02 Processed Data/QC files/tables/BGC_updated_synonyms.csv')
+write_log_file(updated_synonyms, 'Groups/USGS-BGC/02 Program Data/QC files/tables/BGC_updated_synonyms.csv')
 
 print(updated_synonyms)
 ```
@@ -147,7 +148,7 @@ print(updated_synonyms)
 ```{r}
 df_data <- higher_lvl_taxa(df_data, std_type = 'program')
 needs_hierarchy <- attr(df_data, 'log')$unmatched_taxa
-write_log_file(needs_hierarchy, 'Groups/USGS-BGC/02 Processed Data/QC files/tables/BGC_needs_hierarchy.csv')
+write_log_file(needs_hierarchy, 'Groups/USGS-BGC/02 Program Data/QC files/tables/BGC_needs_hierarchy.csv')
 
 print(needs_hierarchy)
 ```
@@ -164,7 +165,7 @@ attr(df_data, 'log')$nondistinct_allrows
 
 df_data <- check_distinct(df_data, type = 'key_measure_cols', key_cols = c('Station','Date', 'Time'), measurement_cols = c('Biovolume_per_mL','Cells_per_mL'))
 nondistinct_rows <- attr(df_data, 'log')$nondistinct_keymeasurerows
-# write_log_file(nondistinct_rows, 'Groups/USGS-BGC/02 Processed Data/QC files/tables/BGC_nondistinct_rows.csv')
+# write_log_file(nondistinct_rows, 'Groups/USGS-BGC/02 Program Data/QC files/tables/BGC_nondistinct_rows.csv')
 
 nondistinct_rows
 
@@ -190,7 +191,7 @@ df_data <- df_data %>%
 ```{r}
 df_data <- combine_taxons(df_data, key_cols = c('Date', 'Time', 'Station', 'SampleDepth'))
 combined_taxa <- attr(df_data, 'log')$combined_taxa
-write_log_file(combined_taxa, 'Groups/USGS-BGC/02 Processed Data/QC files/tables/BGC_combined_taxa.csv')
+write_log_file(combined_taxa, 'Groups/USGS-BGC/02 Program Data/QC files/tables/BGC_combined_taxa.csv')
 
 print(combined_taxa)
 ```
@@ -214,6 +215,7 @@ unique_check(df_data, SampleMethod)
 ```{r}
 unique_check(df_data, Station)
 ```
+
 ```{r}
 df_data <- df_data %>%
   rename('site_abbrev' = 'Station')
@@ -221,5 +223,5 @@ df_data <- df_data %>%
 
 ## Export
 ```{r}
-write_csv(df_data, abs_pesp_path('Groups/USGS-BGC/02 Processed Data/BGC_draft.csv'))
+write_csv(df_data, abs_pesp_path('Groups/USGS-BGC/02 Program Data/BGC_program_draft.csv'))
 ```

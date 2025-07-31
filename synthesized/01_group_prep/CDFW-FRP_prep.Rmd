@@ -1,0 +1,195 @@
+# Prep FRP Data
+
+**Purpose:** Prep FRP data for PESP merge.
+
+**Author:** Perry ([sarah.perry\@water.ca.gov](mailto:sarah.perry@water.ca.gov){.email})
+
+# Initial Setup
+```{r, message=FALSE, warning=FALSE}
+# Import Packages ---------------------------------------------------------
+library(tidyverse)
+library(fuzzyjoin)
+library(glue)
+library(lubridate)
+
+source('admin/global_functions/global_funcs.R')
+source('admin/global_functions/syn_funcs.R')
+source('admin/global_functions/bsa_funcs.R')
+source('admin/global_functions/check_funcs.R')
+```
+
+# Read in data
+```{r}
+# specify the file path
+data_path_frp <- abs_pesp_path('Groups/CDFW-FRP/02 Program Data/FRP_program_draft.csv')
+
+# new data to format and append
+df_frp <- read_quiet_csv(data_path_frp)
+```
+
+# Clean data
+
+## Rename columns
+```{r}
+rename_map <- c(
+  'Station' = 'VisitNo',
+  'Latitude' = 'LatitudeStart',
+  'Longitude' = 'LongitudeStart',
+  'Time' = 'StartTime',
+  'SampleDepth' = 'DepthOfSample',
+  'Lab' = 'LAB_NAME',
+  'Taxon'= 'OriginalTaxon',
+  'Cells_per_mL' = 'Cells_permL',
+  'Units_per_mL' = 'Units_permL',
+  'Biovolume_per_mL' = 'Biov_permL'
+)
+
+df_frp <- rename_cols(df_frp, rename_map)
+```
+
+## Convert Time (if needed)
+TODO: come back to this when metadata is in
+
+## Add DepthType
+
+```{r}
+df_frp <- df_frp %>%
+  mutate(DepthType =
+           case_when(Substrate == 'epiphytic' ~ 'surface',
+                     Substrate == 'pelagic' ~ 'near surface',
+                     Substrate == 'benthic' ~ 'bottom'),
+         SampleMethod =
+           case_when(Substrate == 'epiphytic' ~ 'putty knife',
+                     Substrate == 'pelagic' & Date <= '2020-03-17' ~ 'water sampler dipper',
+                     Substrate == 'pelagic' & Date >= '2020-06-09' & Date <= '2023-06-30' ~ 'unspecified surface grab',
+                     Substrate == 'pelagic' & Date >= '2023-06-09' ~ 'Van Dorn',
+                     Substrate == 'benthic' ~ 'syringe'),
+         SampleDepth =
+           case_when(SampleMethod == 'Van Dorn' ~ 0.5,
+                     SampleMethod == 'water sampler dipper' ~ 0.1,
+                     SampleDepth == 0 | SampleDepth == 0.0 ~ 0,
+                     TRUE ~ SampleDepth)
+         )
+```
+
+
+## Add in Metadata
+```{r}
+# Survey
+df_frp <- add_meta_col(df_frp, 'CDFW-FRP', 'Survey')
+
+# Magnification
+df_frp <- add_meta_col(df_frp, 'CDFW-FRP', 'Magnification')
+
+# Sample Scheme
+df_frp <- add_meta_col(df_frp, 'CDFW-FRP', 'SampleScheme')
+
+# Count Method
+df_frp <- add_meta_col(df_frp, 'CDFW-FRP', 'CountMethodSample')
+
+df_frp <- df_frp %>%
+  mutate(CountMethodTaxa = CountMethodSample) # don't have more info
+
+# Location
+df_frp <- df_frp %>%
+  mutate(Location = Station) # same for this study
+```
+
+## Add extra columns
+```{r}
+df_frp <- df_frp %>% 
+  mutate(TowNetRadius = NA,
+         OrigTaxon = Taxon)
+```
+
+## Add comments
+
+### Correct typos
+```{r}
+df_frp <- correct_taxon_typos(df_frp)
+corrected_typos <- attr(df_frp, 'log')$taxon_corrections
+
+print(corrected_typos)
+```
+
+### Add comments
+```{r}
+df_frp <- add_qc_col(df_frp)
+df_frp <- add_debris_col(df_frp)
+df_frp <- add_notes_col(df_frp)
+
+taxon_notes <- attr(df_frp, 'log')$taxa_notes
+write_log_file(taxon_notes, 'Synthesized Dataset/01 Group Checks/CDFW-FRP/tables/FRP_taxon_notes.csv')
+print(taxon_notes)
+
+unmatched_notes <- attr(df_frp, 'log')$unmatched_notes
+write_log_file(unmatched_notes, 'Synthesized Dataset/01 Group Checks/CDFW-FRP/tables/FRP_unmatched_taxon_notes.csv')
+print(unmatched_notes)
+
+df_frp <- extract_unstandardized_comments(df_frp, 'Comments', delimiter = '. ')
+unmatched_comments <- attr(df_frp, 'log')$unmatched_comments
+write_log_file(unmatched_comments, 'Synthesized Dataset/01 Group Checks/CDFW-FRP/tables/FRP_leftover_comments.csv')
+print(unmatched_comments)
+```
+
+## Add PESP Taxon
+
+### Standardize unknowns
+```{r}
+df_frp <- clean_unknowns(df_frp, std_sp = TRUE, std_suffix = TRUE)
+standardized_unknowns <- attr(df_frp, 'log')$clean_unknowns
+write_log_file(standardized_unknowns, 'Synthesized Dataset/01 Group Checks/CDFW-FRP/tables/FRP_standardized_unknowns.csv')
+
+print(standardized_unknowns)
+```
+
+### Update synonyms
+
+```{r}
+df_frp <- update_synonyms(df_frp)
+updated_synonyms <- attr(df_frp, 'log')$synonym_updates
+write_log_file(updated_synonyms, 'Synthesized Dataset/01 Group Checks/CDFW-FRP/tables/FRP_updated_synonyms.csv')
+
+print(updated_synonyms)
+```
+
+### Add in higher-level taxa
+
+```{r}
+df_frp <- higher_lvl_taxa(df_frp, std_type = 'pesp')
+needs_hierarchy <- attr(df_frp, 'log')$unmatched_taxa
+
+print(needs_hierarchy)
+```
+
+## Subset relevant columns
+```{r}
+df_frp <- subset_cols(df_frp)
+
+df_frp <- df_frp %>%
+  arrange(Date, Time) %>%
+  mutate(
+    Cells_per_mL = round(Cells_per_mL, 2),
+    Units_per_mL = round(Units_per_mL, 2),
+    Biovolume_per_mL = round(Biovolume_per_mL, 2)
+  )
+```
+
+# fix capitalization
+
+```{r}
+df_frp <- df_frp %>%
+  mutate(
+    Taxon = case_when(
+      Taxon == 'Unknown Cyanophyte'   ~ 'Unknown cyanophyte',
+      Taxon == 'Unknown Chlorophyte'  ~ 'Unknown chlorophyte',
+      Taxon == 'Unknown Chlorophyta'  ~ 'Unknown chlorophyte',
+      TRUE ~ Taxon
+    )
+  )
+```
+
+# Save .Rdata
+```{r}
+save(df_frp, file = 'synthesized/02_group_data/CDFW-FRP.Rdata')
+```

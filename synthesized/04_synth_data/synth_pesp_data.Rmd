@@ -1,0 +1,38 @@
+# Synthesize Datasets
+
+```{r}
+library(tidyverse)
+source('admin/global_functions/global_funcs.R')
+```
+
+
+```{r}
+data_dir <- here::here('synthesized', '02_group_data')
+
+fp_data <- list.files(data_dir, pattern = '\\.Rdata$', full.names = TRUE)
+
+ls_combined <- list()
+
+for (file in fp_data) {
+  env <- new.env()
+  load(file, envir = env)
+
+  obj_name <- ls(env)
+  
+  df <- get(obj_name, envir = env)
+
+  df <- df %>%
+    mutate(across(-any_of('Date'), as.character))
+
+  ls_combined[[file]] <- df
+}
+
+df_combined <- bind_rows(ls_combined)
+
+df_combined <- dplyr::bind_rows(ls_combined)
+```
+
+```{r}
+write_csv(df_combined, abs_pesp_path('Synthesized Dataset/02 Processed Data/PESP_dataset.csv'))
+```
+

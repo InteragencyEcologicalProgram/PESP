@@ -45,10 +45,13 @@ subset_cols_bgc <- function(df){
                  'Cells_per_mL',
                  'Biovolume_per_mL',
                  'QualityCheck',
+                 'Debris',
                  'Notes') 
   
   df <- df %>%
     select(all_of(keep_cols))
+  
+  message(glue::glue('Columns: {toString(colnames(df))}'))
   
   return(df) 
 }
