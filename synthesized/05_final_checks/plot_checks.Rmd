@@ -44,7 +44,7 @@ plt_AG_cells
 ggsave(
   filename = abs_pesp_path('Synthesized Dataset/03 QC Checks/Graphs/cells_per_algalgroup.jpg'),
   plot = plt_AG_cells,
-  width = 8,
+  width = 10,
   height = 6
 )
 ```
@@ -64,7 +64,7 @@ plt_AG_units
 ggsave(
   filename = abs_pesp_path('Synthesized Dataset/03 QC Checks/Graphs/units_per_algalgroup.jpg'),
   plot = plt_AG_units,
-  width = 8,
+  width = 10,
   height = 6
 )
 ```
