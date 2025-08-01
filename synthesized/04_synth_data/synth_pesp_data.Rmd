@@ -27,6 +27,11 @@ df_pesp <- dplyr::bind_rows(ls_combined)
 nrow(df_pesp) == sum(sapply(ls_combined, nrow))
 ```
 
+```{r}
+unique(df_pesp$AlgalGroup)
+```
+
+
 ## Fix SampleMethod names
 ```{r}
 rename_map <- c('unspecified surface grab' = 'unspecified grab sample')

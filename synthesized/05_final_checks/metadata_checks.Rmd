@@ -16,6 +16,7 @@ df_pesp <- read_csv(abs_pesp_path('Synthesized Dataset/02 Processed Data/PESP_da
 ```{r}
 unique_check(df_pesp, Survey)
 ```
+
 ```{r}
 names(df_pesp)
 ```
@@ -23,6 +24,7 @@ names(df_pesp)
 ```{r}
 unique_check(df_pesp, SampleScheme)
 ```
+
 # Check Sample Methods
 ```{r}
 unique_check(df_pesp, SampleMethod)
@@ -42,8 +44,9 @@ all(df_pesp$Longitude >= -180 & df_pesp$Longitude <= 180 | is.na(df_pesp$Longitu
 ```{r}
 unique_check(df_pesp, SampleDepth)
 ```
+
 ```{r}
-uk_depth <- df_pesp %>% filter(SampleMethod == 'net tow')
+uk_depth <- df_pesp %>% filter(is.na(SampleDepth))
 uk_depth
 unique(uk_depth$SampleMethod)
 ```

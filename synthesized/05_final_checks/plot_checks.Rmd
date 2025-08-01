@@ -1,0 +1,73 @@
+```{r}
+library(tidyverse)
+library(lubridate)
+source('admin/global_functions/global_funcs.R')
+source('admin/global_functions/check_funcs.R')
+```
+
+```{r}
+df_pesp <- read_csv(abs_pesp_path('Synthesized Dataset/02 Processed Data/PESP_dataset.csv'))
+```
+
+```{r}
+plt_AG_bv <- df_pesp %>%
+  mutate(Year = year(Date)) %>%
+  group_by(Year, AlgalGroup) %>%
+  summarise(TotalBiovolume = sum(Biovolume_per_mL, na.rm = TRUE), .groups = 'drop') %>%
+  ggplot(aes(x = factor(Year), y = TotalBiovolume, fill = AlgalGroup)) +
+  geom_col(position = 'fill') +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+plt_AG_bv
+
+ggsave(
+  filename = abs_pesp_path('Synthesized Dataset/03 QC Checks/Graphs/biovol_per_algalgroup.jpg'),
+  plot = plt_AG_bv,
+  width = 10,
+  height = 6
+)
+```
+
+```{r}
+plt_AG_cells <- df_pesp %>%
+  mutate(Year = year(Date)) %>%
+  group_by(Year, AlgalGroup) %>%
+  summarise(TotalCells = sum(Cells_per_mL, na.rm = TRUE), .groups = 'drop') %>%
+  ggplot(aes(x = factor(Year), y = TotalCells, fill = AlgalGroup)) +
+  geom_col(position = 'fill') +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+plt_AG_cells
+
+ggsave(
+  filename = abs_pesp_path('Synthesized Dataset/03 QC Checks/Graphs/cells_per_algalgroup.jpg'),
+  plot = plt_AG_cells,
+  width = 8,
+  height = 6
+)
+```
+
+```{r}
+plt_AG_units <- df_pesp %>%
+  mutate(Year = year(Date)) %>%
+  group_by(Year, AlgalGroup) %>%
+  summarise(TotalUnits = sum(Units_per_mL, na.rm = TRUE), .groups = 'drop') %>%
+  ggplot(aes(x = factor(Year), y = TotalUnits, fill = AlgalGroup)) +
+  geom_col(position = 'fill') +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+plt_AG_units
+
+ggsave(
+  filename = abs_pesp_path('Synthesized Dataset/03 QC Checks/Graphs/units_per_algalgroup.jpg'),
+  plot = plt_AG_units,
+  width = 8,
+  height = 6
+)
+```
+
+
+
