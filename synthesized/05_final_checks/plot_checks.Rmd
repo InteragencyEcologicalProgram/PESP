@@ -70,4 +70,61 @@ ggsave(
 ```
 
 
+```{r}
+
+plt_AG_cells <- df_pesp %>%
+  mutate(Year = year(Date)) %>%
+  group_by(Year, AlgalGroup, Survey) %>%
+  summarise(TotalCells = sum(Cells_per_mL, na.rm = TRUE), .groups = 'drop') %>%
+  ggplot(aes(x = factor(Year), y = TotalCells, fill = AlgalGroup)) +
+  geom_col(position = 'fill') +
+  theme_minimal() +
+  facet_wrap(~Survey, scales = "free_x")+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+plt_AG_cells
+
+```
+
+now by count instead of total
+
+```{r}
+
+
+
+plt_AG_cells2 <- df_pesp %>%
+  mutate(Year = year(Date)) %>%
+  group_by(Year, AlgalGroup, Survey) %>%
+  summarise(TotalCells = sum(Cells_per_mL, na.rm = TRUE), .groups = 'drop') %>%
+  ggplot(aes(x = Year, y = TotalCells, fill = AlgalGroup)) +
+  geom_col() +
+  theme_minimal() +
+  facet_wrap(~Survey, scales = "free_x")+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+plt_AG_cells2
+
+```
+
+#cells per sample
+
+```{r}
+
+
+
+plt_AG_cells3 <- df_pesp %>%
+  mutate(Year = year(Date)) %>%
+  group_by(Year, Survey, Date, Time, Location) %>%
+  summarise(TotalCells = sum(Cells_per_mL, na.rm = TRUE), .groups = 'drop') %>%
+  ggplot(aes(x = Year, y = TotalCells, color = Survey)) +
+  geom_point() +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+plt_AG_cells3
+#wow, some crazy high values
+
+high = filter(df_pesp, Cells_per_mL >10000000)
+
+```
 
