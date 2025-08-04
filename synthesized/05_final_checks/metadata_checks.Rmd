@@ -40,6 +40,17 @@ all(is.na(as.Date(df_pesp$Date)) == FALSE)
 all(df_pesp$Latitude >= -90 & df_pesp$Latitude <= 90 | is.na(df_pesp$Latitude)) &
 all(df_pesp$Longitude >= -180 & df_pesp$Longitude <= 180 | is.na(df_pesp$Longitude))
 ```
+That checks whether the lats and longs are valid, but are they in the estuary?
+```{r}
+all(df_pesp$Latitude >= 36 & df_pesp$Latitude <= 39 | is.na(df_pesp$Latitude)) &
+all(df_pesp$Longitude >= -121 & df_pesp$Longitude <= -122.6 | is.na(df_pesp$Longitude))
+
+test = filter(df_pesp,Longitude <= -122.6 |  Longitude >= -121 )
+#Ahah! Someone forgot to make longitude negative
+test2 = filter(df_pesp, is.na(Longitude))
+#what's up with the missing GPS coordinates?
+```
+
 
 ```{r}
 unique_check(df_pesp, SampleDepth)
@@ -141,5 +152,36 @@ any(is.na(df_pesp$Genus))
 
 ```{r}
 any(is.na(df_pesp$Species))
+```
+
+# check for any issues with taxonomy
+
+```{r}
+lookup = select(df_pesp, Phylum, Class, AlgalGroup) %>%
+  distinct() %>%
+  arrange(Phylum, Class,AlgalGroup)
+
+View(lookup)
+
+#Something is still screwy with Ochrophyta and Baccilariophyta
+write.csv(lookup, "AlgalGroups.csv")
+```
+
+#check cells per L greater than units per l
+
+
+```{r}
+
+all(df_pesp$Cells_per_mL > df_pesp$Units_per_mL | is.na(df_pesp$Cells_per_mL)) 
+
+testunits = filter(df_pesp, Cells_per_mL < Units_per_mL)
+#Some of these are already noted as "Units exceeds cells" but not all of them.
+```
+
+#QA codes
+
+```{r}
+
+unique(df_pesp$QualityCheck)
 ```
 
