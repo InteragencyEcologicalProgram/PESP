@@ -5,6 +5,8 @@
 '%!in%' <- function(x,y)!('%in%'(x,y))
 
 #' @importFrom readr col_date
+#' @importFrom tidyr separate
+#' @importFrom lubridate mdy
 #' @noRd
 NULL
 
@@ -151,7 +153,7 @@ get_edi_file <- function(pkg_id, fname) {
   })
   
   if (length(matched) == 0) {
-    stop(glue::glue("File '{fname}' not found in package edi.{pkg_id}.{latest_revision}"))
+    stop(glue("File '{fname}' not found in package edi.{pkg_id}.{latest_revision}"))
   }
   
   # construct download URL and read csv
@@ -388,7 +390,7 @@ add_latlon <- function(df, fp_stations, merge_cols = c('Station', 'Latitude','Lo
   # log missing stations, if any
   if (length(missing_stations) > 0) {
     message('Missing latitude/longitude for ', length(missing_stations), ' station(s): ', paste(missing_stations, collapse = ', '))
-    df_log <- tibble::tibble(MissingStation = missing_stations) %>% distinct()
+    df_log <- tibble(MissingStation = missing_stations) %>% distinct()
     attr(df, 'log') <- list(missing_stations = df_log)
   }
   
@@ -550,7 +552,7 @@ coalesce_cols <- function(df, combine_map = NULL) {
 #' @importFrom rlang ensym !!
 #' @export
 add_qc_col <- function(df, comment_col = 'Comments', key_cols = c('Date', 'Station'), taxa_col = 'Taxon') {
-  comment_col <- if (!is.null(comment_col)) rlang::ensym(comment_col) else NULL
+  comment_col <- if (!is.null(comment_col)) ensym(comment_col) else NULL
   group_cols <- c(key_cols, taxa_col)
   
   # add QC flags
@@ -657,7 +659,7 @@ add_debris_col <- function(df, comment_col = 'Comments') {
     df <- df %>%
       mutate(Debris = 'Unknown')
   } else {
-    comment_col <- rlang::ensym(comment_col)
+    comment_col <- ensym(comment_col)
     
     df <- df %>%
       mutate(
@@ -721,7 +723,7 @@ add_debris_col <- function(df, comment_col = 'Comments') {
 #' @importFrom dplyr mutate case_when filter distinct arrange select bind_cols
 #' @importFrom tidyr unite
 #' @importFrom purrr imap_dfc
-#' @importFrom rlang ensym !!
+#' @importFrom rlang ensym eval_tidy !!
 #' @importFrom stringr str_detect str_extract str_remove_all str_squish str_c regex
 #' @export
 add_notes_col <- function(df, comment_col = 'Comments', taxa_col = 'Taxon') {
@@ -754,7 +756,7 @@ add_notes_col <- function(df, comment_col = 'Comments', taxa_col = 'Taxon') {
     } else {
       tibble(!!col_name := case_when(
         str_detect(df$.orig_taxon, regex(pattern, ignore_case = TRUE)) ~ name,
-        str_detect(rlang::eval_tidy(comment_sym, df), regex(pattern, ignore_case = TRUE)) ~ name,
+        str_detect(eval_tidy(comment_sym, df), regex(pattern, ignore_case = TRUE)) ~ name,
         TRUE ~ NA_character_
       ))
     }
@@ -976,7 +978,7 @@ add_meta_col <- function(df, program, col_name, match_cols = NULL, read_func = r
 #' @importFrom hms as_hms
 #' @export
 add_id_col <- function(df, loc_col) {
-  loc_sym <- rlang::ensym(loc_col)
+  loc_sym <- ensym(loc_col)
   
   df <- df %>%
     mutate(
@@ -992,13 +994,13 @@ add_id_col <- function(df, loc_col) {
       ),
       SampleDepth = as.numeric(SampleDepth),
       # parse time to hms; NA stays NA
-      .time_hms = suppressWarnings(hms::as_hms(Time))
+      .time_hms = suppressWarnings(as_hms(Time))
     ) %>%
     # base groups for T# assignment
     group_by(survey_short, !!loc_sym, Date) %>%
     arrange(.time_hms, dep, SampleDepth, .by_group = TRUE) %>%
     mutate(
-      grab_num  = dense_rank(coalesce(.time_hms, hms::as_hms('23:59:59'))),
+      grab_num  = dense_rank(coalesce(.time_hms, as_hms('23:59:59'))),
       grab_code = paste0('T', grab_num)
     ) %>%
     # refine groups so D# is per (time, depth type)
@@ -1010,7 +1012,7 @@ add_id_col <- function(df, loc_col) {
       Event_ID   = paste(
         survey_short,
         !!loc_sym,
-        format(lubridate::ymd(Date), '%Y%m%d'),
+        format(ymd(Date), '%Y%m%d'),
         dep,
         paste0(grab_code, depth_code),
         sep = '-'
@@ -1052,9 +1054,9 @@ clean_unknowns <- function(df, std_sp, std_suffix) {
   
   # standardize unknown/unidentified/undetermined to "Unknown"
   unknown_syns <- 'unknown|unidentified|undetermined'
-  df$Taxon <- dplyr::case_when(
+  df$Taxon <- case_when(
     grepl(unknown_syns, df$Taxon, ignore.case = TRUE) ~ 
-      stringr::str_replace_all(df$Taxon, regex(unknown_syns, ignore_case = TRUE), 'Unknown'),
+      str_replace_all(df$Taxon, regex(unknown_syns, ignore_case = TRUE), 'Unknown'),
     TRUE ~ df$Taxon
   )
   
@@ -1099,7 +1101,7 @@ clean_unknowns <- function(df, std_sp, std_suffix) {
   )
   
   # create log
-  df_log <- tibble::tibble(
+  df_log <- tibble(
     OrigTaxon = original_taxon[original_taxon != df$Taxon],
     UpdatedTaxon = df$Taxon[original_taxon != df$Taxon]
   ) %>%
@@ -1255,8 +1257,8 @@ update_synonyms <- function(df) {
   
   # normalize function
   normalize_taxon <- function(x) {
-    x <- tolower(stringr::str_trim(x))
-    x <- stringr::str_replace_all(x, '\\s+', ' ')
+    x <- tolower(str_trim(x))
+    x <- str_replace_all(x, '\\s+', ' ')
     return(x)
   }
   
@@ -1353,7 +1355,7 @@ update_synonyms <- function(df) {
   }
   
   # memoize for performance
-  memo_resolve_synonym <- memoise::memoise(resolve_synonym)
+  memo_resolve_synonym <- memoise(resolve_synonym)
   
   unique_taxa <- unique(df$Taxon)
   resolved_taxa_map <- setNames(
@@ -1400,11 +1402,11 @@ update_synonyms <- function(df) {
 #' @export
 remove_non_phyto <- function(df) {
   exclude_taxa <- read_quiet_csv(abs_pesp_path('Reference Documents/TaxaNotPhyto.csv')) %>%
-    dplyr::pull(Taxon)
+    pull(Taxon)
   
   removed <- df %>%
-    dplyr::filter(Taxon %in% exclude_taxa) %>%
-    dplyr::pull(Taxon) %>%
+    filter(Taxon %in% exclude_taxa) %>%
+    pull(Taxon) %>%
     unique()
   
   if (length(removed) > 0) {
@@ -1414,9 +1416,9 @@ remove_non_phyto <- function(df) {
   }
   
   df_clean <- df %>%
-    dplyr::filter(!Taxon %in% exclude_taxa)
+    filter(!Taxon %in% exclude_taxa)
   
-  removed_log <- tibble::tibble(RemovedTaxon = removed)
+  removed_log <- tibble(RemovedTaxon = removed)
   
   existing_log <- attr(df, 'log')
   invisible(attr(df_clean, 'log') <- c(existing_log, list(non_phyto_removed = removed_log)))
@@ -1465,7 +1467,7 @@ remove_non_phyto <- function(df) {
 #' - For `std_type = "pesp"`, `AlgalGroup` field is mapped to its singular form when replacing `"cf."` taxa.
 #'
 #' @importFrom dplyr mutate select left_join relocate any_of distinct filter
-#' @importFrom stringr str_replace_all str_trim str_replace str_detect str_squish regex
+#' @importFrom stringr str_replace_all str_trim str_replace str_detect str_squish str_to_sentence regex
 #' @importFrom readr read_csv
 #' @importFrom stringi stri_trans_general stri_replace_all_regex stri_trim_both
 #' @export
@@ -1521,26 +1523,26 @@ higher_lvl_taxa <- function(df, after_col = NULL, std_type) {
   # create PureTaxon by removing 'cf.', standardizing 'sp.', and normalizing
   df <- df %>%
     mutate(
-      PureTaxon = stringr::str_replace_all(Taxon, regex('cf\\.', ignore_case = TRUE), ''),
-      PureTaxon = stringr::str_trim(PureTaxon),
-      PureTaxon = stringr::str_replace_all(PureTaxon, '\\s+', ' '),
+      PureTaxon = str_replace_all(Taxon, regex('cf\\.', ignore_case = TRUE), ''),
+      PureTaxon = str_trim(PureTaxon),
+      PureTaxon = str_replace_all(PureTaxon, '\\s+', ' '),
       PureTaxon = tolower(PureTaxon)
     )
   
   df$PureTaxon <- df$PureTaxon %>%
     str_replace_all('\\bspp?\\.?\\s+\\S+', 'sp.') %>% # replace 'sp. X' or 'spp. X' to 'sp.'
-    stringr::str_replace('\\bsp\\.?$', 'sp.') %>%
-    stringr::str_replace('\\bspp\\.?$', 'spp.')
+    str_replace('\\bsp\\.?$', 'sp.') %>%
+    str_replace('\\bspp\\.?$', 'spp.')
     
-  df$PureTaxon <- stringr::str_replace_all(df$PureTaxon, 'spp\\.', 'sp.')
+  df$PureTaxon <- str_replace_all(df$PureTaxon, 'spp\\.', 'sp.')
   
   # read in taxa sheet and add PureTaxon
   df_taxa <- read_phyto_taxa()
   df_taxa <- df_taxa %>%
     mutate(
-      PureTaxon = stringr::str_trim(Taxon),
-      PureTaxon = stringr::str_replace_all(PureTaxon, '\\s+', ' '),
-      PureTaxon = stringr::str_squish(stringi::stri_trans_general(PureTaxon, 'Latin-ASCII')),
+      PureTaxon = str_trim(Taxon),
+      PureTaxon = str_replace_all(PureTaxon, '\\s+', ' '),
+      PureTaxon = str_squish(stri_trans_general(PureTaxon, 'Latin-ASCII')),
       PureTaxon = tolower(PureTaxon)
     ) %>%
     select(-Taxon)
@@ -1644,12 +1646,12 @@ higher_lvl_taxa <- function(df, after_col = NULL, std_type) {
   # remove special characters
   df_joined <- df_joined %>%
     mutate(
-      Taxon = stringi::stri_replace_all_regex(Taxon, '\\p{Zs}+', ' '),
-      OrigTaxon = stringi::stri_replace_all_regex(OrigTaxon, '\\p{Zs}+', ' ')
+      Taxon = stri_replace_all_regex(Taxon, '\\p{Zs}+', ' '),
+      OrigTaxon = stri_replace_all_regex(OrigTaxon, '\\p{Zs}+', ' ')
     ) %>%
     mutate(
-      Taxon = stringi::stri_trim_both(Taxon),
-      OrigTaxon = stringi::stri_trim_both(OrigTaxon)
+      Taxon = stri_trim_both(Taxon),
+      OrigTaxon = stri_trim_both(OrigTaxon)
     ) %>%
     select(-CurrentTaxon)
   
@@ -1704,7 +1706,7 @@ higher_lvl_taxa <- function(df, after_col = NULL, std_type) {
 #' - **GALD**: takes the maximum non-missing value  
 #' - **OrigTaxon**: concatenated with `"; "` if multiple distinct forms exist 
 #'
-#' @importFrom dplyr group_by ungroup mutate across slice all_of if_else summarize filter select count summarize
+#' @importFrom dplyr group_by ungroup mutate across slice all_of if_else summarize filter select count summarize first
 #' @importFrom tidyr pivot_longer
 #' @importFrom stringr str_squish str_squish str_split
 #' @importFrom purrr map
@@ -1817,7 +1819,7 @@ combine_taxons <- function(df,
       Debris = combine_debris(Debris),
       PhytoForm = combine_phytoform(PhytoForm),
       OrigTaxon = combine_origtaxon(OrigTaxon, Taxon),
-      across(all_of(carry_cols), \(x) dplyr::first(x)),
+      across(all_of(carry_cols), \(x) first(x)),
       .groups = 'drop'
     ) %>%
     select(any_of(original_cols))
@@ -1850,7 +1852,7 @@ remove_taxa_info <- function(df) {
   cols_to_remove <- names(df)[grepl(paste0('^(', paste(taxa_cols, collapse = '|'), ')$'), names(df), ignore.case = TRUE)]
   
   # remove the matching columns
-  df <- df %>% dplyr::select(-all_of(cols_to_remove))
+  df <- df %>% select(-all_of(cols_to_remove))
   
   # print only the columns that were actually removed
   if (length(cols_to_remove) > 0) {

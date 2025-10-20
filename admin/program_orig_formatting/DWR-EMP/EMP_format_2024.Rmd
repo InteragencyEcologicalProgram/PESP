@@ -1,22 +1,14 @@
-# Format original EMP data
+# Format 2024 EMP data
 
 **Purpose:** Code to format EMP data for original PESP upload.
 
 **Author:** Perry ([sarah.perry\@water.ca.gov](mailto:sarah.perry@water.ca.gov){.email})
 
-# Initial Setup
+# Initial setup
 
 ```{r, message=FALSE, warning=FALSE}
-# Import Packages ---------------------------------------------------------
-library(tidyverse)
-library(fuzzyjoin)
-library(glue)
-library(lubridate)
-
-source('admin/global_functions/global_funcs.R')
-source('programs/DWR-EMP/ref_code/emp_funcs.R')
-source('admin/global_functions/bsa_funcs.R')
-source('admin/global_functions/check_funcs.R')
+# import packages
+devtools::load_all()
 ```
 
 ## Read in data
@@ -135,26 +127,22 @@ df_data$Date <- as.Date(df_data$Date,'%m/%d/%Y')
 <!-- write_log_file(missing_wq, 'Groups/DWR-EMP/02 Program Data/QC files/2024/tables/EMP_missing_wq.csv') -->
 <!-- ``` -->
 
-```{r}
-# add lat/lon for fixed stations
-df_data <- add_latlon(df_data, 'Groups/DWR-EMP/Metadata/Stations-EMP.csv', merge_cols = c('Location','Station','Latitude','Longitude'))
+<!-- ```{r} -->
+<!-- # add lat/lon for fixed stations -->
+<!-- df_data <- add_latlon(df_data, 'Groups/DWR-EMP/Metadata/Stations-EMP.csv', merge_cols = c('Location','Station','Latitude','Longitude')) -->
 
-# merge the two
-# df_data <- df_data %>%
-#   mutate(
-#     Latitude = coalesce(Latitude.x, Latitude.y),
-#     Longitude = coalesce(Longitude.x, Longitude.y)
-#   ) %>%
-#   select(-Latitude.x, -Latitude.y, -Longitude.x, -Longitude.y)
-```
+<!-- # merge the two -->
+<!-- # df_data <- df_data %>% -->
+<!-- #   mutate( -->
+<!-- #     Latitude = coalesce(Latitude.x, Latitude.y), -->
+<!-- #     Longitude = coalesce(Longitude.x, Longitude.y) -->
+<!-- #   ) %>% -->
+<!-- #   select(-Latitude.x, -Latitude.y, -Longitude.x, -Longitude.y) -->
+<!-- ``` -->
 
 ## Add metadata columns
 
 ```{r}
-# df_data <- add_meta_col(df_data, 'DWR-EMP', 'SampleDepth')
- 
-# df_data <- add_meta_col(df_data, 'DWR-EMP', 'SampleMethod')
-
 df_data <- add_meta_col(df_data, 'DWR-EMP', 'Lab')
 
 # Update count method w/ half-chamber scan

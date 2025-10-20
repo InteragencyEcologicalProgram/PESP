@@ -33,3 +33,6 @@ Imports:
     utils
 Suggests:
     testthat
+Remotes:
+    EDIorg/EDIutils
+
