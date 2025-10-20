@@ -47,11 +47,11 @@ rename_map <- c(
 
 df_frp <- rename_cols(df_frp, rename_map)
 ```
+
 ## Add location abbreviations
 ```{r}
 df_frp <- update_locs_frp(df_frp)
 ```
-
 
 ## Convert Time
 ```{r}
@@ -218,5 +218,5 @@ df_frp <- subset_cols(df_frp)
 
 # Save .Rdata
 ```{r}
-save(df_frp, file = 'synthesized/02_group_data/CDFW-FRP.Rdata')
+save(df_frp, file = 'synthesized/02_group_data/CDFW-FRP.Rda')
 ```
