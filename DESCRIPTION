@@ -30,3 +30,6 @@ Imports:
     tidyselect (>= 1.0.0),
     stats,
     utils
+    
+Suggests:
+    testthat
