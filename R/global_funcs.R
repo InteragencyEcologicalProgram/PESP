@@ -88,7 +88,6 @@ read_phyto_taxa <- function(){
 #' @return
 #' A dataframe of filtered metadata with no missing ending dates
 #' @importFrom readxl read_xlsx
-#' @importFrom dplyr subset
 read_meta_file <- function(program_name){
   df <- read_xlsx(abs_pesp_path('Reference Documents/GroupMetadata.xlsx'), skip = 2)
   
@@ -531,7 +530,7 @@ coalesce_cols <- function(df, combine_map = NULL) {
 #' Rows with multiple issues are flagged with all applicable labels separated by spaces.
 #' If no issues are found, `QualityCheck` is set to `"NoCode"`.
 #'
-#' @importFrom dplyr mutate case_when select unite
+#' @importFrom dplyr mutate case_when select
 #' @importFrom tidyr unite
 #' @importFrom rlang ensym !!
 #' @export
@@ -1021,7 +1020,6 @@ add_id_col <- function(df, loc_col) {
 #' - Converts trailing `sp. X` or `spp. X` to just `sp.` or `spp.`
 #' - Optionally converts all `spp.` to `sp.` for consistency
 #' - Convert `cf. Unknown x` to `Unknown x`
-#' }
 #'
 #' @param df Dataframe containing a `Taxon` column
 #' @param std_sp Logical; if `TRUE`, convert all `spp.` variants to `sp.` (default: `TRUE`)
@@ -1110,7 +1108,6 @@ clean_unknowns <- function(df, std_sp, std_suffix) {
 #' - Standardizes affixes `cf`, `sp`, and `var` to consistent forms
 #' - Performs exact case-insensitive matches against the typo correction table
 #' - Reattaches `cf.` qualifiers to corrected names
-#' }
 #'
 #' @param df Dataframe containing a `Taxon` column to correct
 #'

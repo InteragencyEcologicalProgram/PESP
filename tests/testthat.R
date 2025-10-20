@@ -1,2 +1,3 @@
-source('admin/global_functions/global_funcs.R', local = FALSE)
-testthat::test_dir('tests/testthat/')
+library(testthat)
+library(PESP)
+test_check("PESP")

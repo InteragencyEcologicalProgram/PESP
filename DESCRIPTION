@@ -1,0 +1,32 @@
+Package: PESP
+Type: Package
+Title: PESP
+Version: 0.0.1
+Authors@R: 
+    c(person(given = c("S"),
+           family = "Perry",
+           role = c("aut", "cre"),
+           email = "sarah.perry@water.ca.gov")
+Description: PESP datasets and functions.
+License: GPL-3
+Encoding: UTF-8
+LazyData: true
+LazyDataCompression: xz
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.2
+Depends: R (>= 4.1)
+Imports:
+    lubridate,
+    readxl,
+    dplyr (>= 1.0.4),
+    tidyr,
+    readr,
+    purrr,
+    tibble,
+    stringr,
+    rlang,
+    magrittr,
+    data.table,
+    tidyselect (>= 1.0.0),
+    stats,
+    utils
