@@ -7,16 +7,8 @@
 # Initial Setup
 
 ```{r, message=FALSE, warning=FALSE}
-# Import Packages ---------------------------------------------------------
-library(tidyverse)
-library(fuzzyjoin)
-library(glue)
-library(lubridate)
-
-source('admin/global_functions/global_funcs.R')
-source('programs/DWR-EMP/ref_code/emp_funcs.R')
-source('admin/global_functions/bsa_funcs.R')
-source('admin/global_functions/check_funcs.R')
+# import packages
+devtools::load_all()
 ```
 
 ## Read in data
