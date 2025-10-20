@@ -157,7 +157,6 @@ test_that("add_notes_col logs taxon changes when note terms removed", {
 # add_meta_col ------------------------------------------------------------
 
 test_that("add_meta_col correctly joins metadata by date range", {
-  # mock metadata function
   mock_meta <- tibble(
     Survey = 'EMP',
     `Starting Date` = as.Date(c('2020-01-01', '2020-06-01')),
@@ -165,32 +164,60 @@ test_that("add_meta_col correctly joins metadata by date range", {
     Analyst = c('Alice', 'Bob')
   )
   
-  assign('read_meta_file', function(program) mock_meta, envir = environment(add_meta_col))
-  
   df <- tibble(Date = seq(as.Date('2020-01-15'), as.Date('2020-12-15'), by = 'month'))
   
-  out <- add_meta_col(df, program = 'EMP', col_name = Analyst)
+  out <- add_meta_col(
+    df,
+    program = 'EMP',
+    col_name = Analyst,
+    read_func = function(x) mock_meta
+  )
   
-  # verify correct assignment across date ranges
-  expect_equal(out$Analyst[1], 'Alice')
-  expect_equal(out$Analyst[6], 'Bob')
+  # first half (Jan–May) should map to Alice
+  expect_true(all(out$Analyst[1:5] == 'Alice'))
+  
+  # second half (Jun–Dec) should map to Bob
+  expect_true(all(out$Analyst[6:12] == 'Bob'))
+  
+  # confirm no missing values
   expect_true(all(!is.na(out$Analyst)))
 })
 
 test_that("add_meta_col stops if column missing in metadata", {
-  mock_meta <- tibble(Survey = 'EMP', `Starting Date` = Sys.Date(), `Ending Date` = Sys.Date())
-  assign('read_meta_file', function(program) mock_meta, envir = environment(add_meta_col))
+  mock_meta <- tibble(
+    Survey = 'EMP',
+    `Starting Date` = Sys.Date(),
+    `Ending Date` = Sys.Date()
+  )
   
   df <- tibble(Date = Sys.Date())
-  expect_error(add_meta_col(df, 'EMP', col_name = Analyst))
+  
+  expect_error(
+    add_meta_col(df, 'EMP', col_name = Analyst,
+                 read_func = function(x) mock_meta)
+  )
 })
 
 test_that("add_meta_col stops if match_cols missing", {
-  mock_meta <- tibble(Survey = 'EMP', `Starting Date` = Sys.Date(), `Ending Date` = Sys.Date(), Station = 'A', Analyst = 'Bob')
-  assign('read_meta_file', function(program) mock_meta, envir = environment(add_meta_col))
+  mock_meta <- tibble(
+    Survey = 'EMP',
+    `Starting Date` = Sys.Date(),
+    `Ending Date` = Sys.Date(),
+    Station = 'A',
+    Analyst = 'Bob'
+  )
   
   df <- tibble(Date = Sys.Date())
-  expect_error(add_meta_col(df, 'EMP', col_name = Analyst, match_cols = 'Station'))
+  
+  expect_error(
+    add_meta_col(
+      df,
+      'EMP',
+      col_name = Analyst,
+      match_cols = 'Station',
+      read_func = function(x) mock_meta
+    )
+  )
 })
 
 test_that("add_meta_col respects match_cols filtering", {
@@ -201,14 +228,20 @@ test_that("add_meta_col respects match_cols filtering", {
     Station = c('A', 'B'),
     Analyst = c('Alice', 'Bob')
   )
-  assign('read_meta_file', function(program) mock_meta, envir = environment(add_meta_col))
   
   df <- tibble(
     Date = rep(as.Date('2020-06-01'), 2),
     Station = c('A', 'B')
   )
   
-  out <- add_meta_col(df, 'EMP', col_name = Analyst, match_cols = 'Station')
+  out <- add_meta_col(
+    df,
+    'EMP',
+    col_name = Analyst,
+    match_cols = 'Station',
+    read_func = function(x) mock_meta
+  )
+  
   expect_equal(out$Analyst, c('Alice', 'Bob'))
 })
 

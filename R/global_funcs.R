@@ -707,7 +707,7 @@ add_debris_col <- function(df, comment_col = 'Comments') {
 #' @importFrom tidyr unite
 #' @importFrom purrr imap_dfc
 #' @importFrom rlang ensym !!
-#' @importFrom stringr str_detect str_extract str_remove_all str_squish str_c
+#' @importFrom stringr str_detect str_extract str_remove_all str_squish str_c regex
 #' @export
 add_notes_col <- function(df, comment_col = 'Comments', taxa_col = 'Taxon') {
   df <- df %>% mutate(.orig_taxon = !!ensym(taxa_col))
@@ -838,9 +838,9 @@ add_notes_col <- function(df, comment_col = 'Comments', taxa_col = 'Taxon') {
 #' @importFrom rlang enquo as_name
 #' @importFrom dplyr pull
 #' @export
-add_meta_col <- function(df, program, col_name, match_cols = NULL){
+add_meta_col <- function(df, program, col_name, match_cols = NULL, read_func = read_meta_file){
   # read in metadata
-  df_meta <- read_meta_file(program)
+  df_meta <- read_func(program)
   col_str <- as_name(enquo(col_name))
   
   # check if col_name exists in df_meta
@@ -1028,7 +1028,7 @@ add_id_col <- function(df, loc_col) {
 #' @return
 #' Dataframe with cleaned `Taxon` values and a `log` attribute listing changed entries
 #'
-#' @importFrom stringr str_replace_all str_replace str_remove_all str_detect str_match str_squish str_to_lower
+#' @importFrom stringr str_replace_all str_replace str_remove_all str_detect str_match str_squish str_to_lower regex
 #' @importFrom dplyr case_when distinct
 #' @importFrom tibble tibble
 #' @export
@@ -1450,7 +1450,7 @@ remove_non_phyto <- function(df) {
 #' - For `std_type = "pesp"`, `AlgalGroup` field is mapped to its singular form when replacing `"cf."` taxa.
 #'
 #' @importFrom dplyr mutate select left_join relocate any_of distinct filter
-#' @importFrom stringr str_replace_all str_trim str_replace str_detect str_squish
+#' @importFrom stringr str_replace_all str_trim str_replace str_detect str_squish regex
 #' @importFrom readr read_csv
 #' @importFrom stringi stri_trans_general stri_replace_all_regex stri_trim_both
 #' @export
