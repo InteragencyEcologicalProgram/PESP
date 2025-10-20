@@ -6,7 +6,7 @@ Authors@R:
     c(person(given = c("S"),
            family = "Perry",
            role = c("aut", "cre"),
-           email = "sarah.perry@water.ca.gov")
+           email = "sarah.perry@water.ca.gov"))
 Description: PESP datasets and functions.
 License: GPL-3
 Encoding: UTF-8

@@ -49,16 +49,6 @@ rename_map <- c('1' = '1 meter')
 df_pesp <- rename_values(df_pesp, 'SampleDepth', rename_map)
 ```
 
-## Set unknown surface depths to 0 (for filtering)
-```{r}
-# df_pesp <- df_pesp %>%
-#  mutate(SampleDepth = case_when(
-#    SampleMethod %in% c('unspecified surface grab','putty knife') & is.na(SampleDepth) ~ '0',
-#    TRUE ~ SampleDepth
-#    )
-#  )
-```
-
 ## Remove unneeded cols
 ```{r}
 df_pesp <- df_pesp %>% select(-c(TowNetRadius)) # same for everyone
