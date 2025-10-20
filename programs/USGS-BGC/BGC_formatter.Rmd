@@ -1,0 +1,44 @@
+```{r}
+### convert new BGC data file to previous format
+
+# disable scientific notation
+options(scipen = 999)
+
+# load packages
+library(tidyverse)
+source('admin/global_functions/global_funcs.R')
+
+# load data
+# # specify the file path
+data_path <- abs_pesp_path('Groups/USGS-BGC/01 Raw Data/USGS_Phytoenumeration_2016topresent-v2.0.csv')
+
+# # load data
+phyto <- read_quiet_csv(data_path)
+
+site_info <- read.csv(abs_pesp_path('Groups/USGS-BGC/Metadata/BGC_station_metadata.csv'))
+
+# join spatial attributes
+phyto_join <- left_join(phyto, site_info, by = "site_no")
+
+# combine date and time
+# as.POSIXct(paste(phyto_join$date, phyto_join$time_pst), format = "%m/%d/%Y %H:%M") 
+phyto_join$datetime_pst <- paste(phyto_join$date, phyto_join$time_pst)
+
+# add cols that don't exist here: they will be blank
+# note that these polyids are not in our metadata file. I don't think this should be an issue?
+phyto_join$poly_id_1 <- NA
+phyto_join$poly_id_5 <- NA
+
+# reorder columns
+phyto_join <- phyto_join |> relocate(c(datetime_pst, field_id), .before = site_no) |> 
+  relocate(c(station_nm, latitude, longitude, Region, Location, Poly_ID_01, poly_id_1, poly_id_5), .after = site_no)
+
+# rename columns, drop new cols
+phyto_join <- phyto_join |> select(-c(bgc_id, date, time_pst, data_flag)) |> 
+  rename(site_abbrev = field_id) |> 
+  rename(subregion = Region) |> rename_with(tolower)
+
+# export 
+write_csv(phyto_join, abs_pesp_path('Groups/USGS-BGC/01 Raw Data/BGC_phytoenumeration_reformat.csv'))
+```
+

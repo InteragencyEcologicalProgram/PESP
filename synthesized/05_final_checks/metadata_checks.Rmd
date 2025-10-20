@@ -143,3 +143,12 @@ any(is.na(df_pesp$Genus))
 any(is.na(df_pesp$Species))
 ```
 
+```{r}
+df_dupes <- df_pesp %>%
+  group_by(Event_ID, Kingdom, Phylum, Class, AlgalGroup, Genus, Species, Taxon) %>%
+  filter(n()  > 1) %>%
+  ungroup()
+
+df_dupes
+```
+

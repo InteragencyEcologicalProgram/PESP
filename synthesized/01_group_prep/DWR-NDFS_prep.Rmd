@@ -111,10 +111,20 @@ needs_hierarchy <- attr(df_ndfs, 'log')$unmatched_taxa
 
 print(needs_hierarchy)
 ```
+## Add ID column
+```{r}
+df_ndfs <- add_id_col(df_ndfs, loc_col = 'Station')
+```
 
 ## Subset relevant columns
 ```{r}
 df_ndfs <- subset_cols(df_ndfs)
+```
+
+## Combine taxa (multiple sizes, standardized unknowns)
+```{r}
+df_ndfs <- combine_taxons(df_ndfs, key_cols = c('Date', 'Time', 'Station', 'SampleDepth'))
+combine_checks <- attr(df_ndfs, 'log')$combined_conflicts
 ```
 
 ## Save .Rdata

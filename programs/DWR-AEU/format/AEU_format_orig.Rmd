@@ -181,6 +181,12 @@ df_data <- check_distinct(df_data, type = 'key_cols')
 attr(df_data, 'log')$nondistinct_keyrows
 ```
 
+## Subset columns
+
+```{r}
+df_data <- subset_cols_aeu(df_data)
+```
+
 ## Combine taxa (multiple sizes, standardized unknowns)
 
 ```{r}
@@ -195,12 +201,6 @@ print(combined_taxa)
 
 ```{r}
 unique(df_data$Notes)
-```
-
-## Subset columns
-
-```{r}
-df_data <- subset_cols_aeu(df_data)
 ```
 
 ## Format SampleDepth

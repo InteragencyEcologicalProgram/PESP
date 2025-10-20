@@ -104,16 +104,24 @@ needs_hierarchy <- attr(df_bp, 'log')$unmatched_taxa
 print(needs_hierarchy)
 ```
 
+## Add ID column
+```{r}
+df_bp <- add_id_col(df_bp, loc_col = 'Station')
+```
 
 ## Subset relevant columns
 ```{r}
 df_bp <- subset_cols(df_bp)
 ```
 
+## Combine taxa (multiple sizes, standardized unknowns)
+```{r}
+df_bp <- combine_taxons(df_bp, key_cols = c('Station','Date','SampleDepth','Lab','SampleMethod'), measurement_cols = c('Biovolume_per_mL','Cells_per_mL'))
+combine_issues <- attr(df_bp, 'log')$combined_conflicts
+combine_checks <- attr(df_bp, 'log')$combined_taxa
+```
 
 ## Save .Rdata
 ```{r}
 save(df_bp, file = 'synthesized/02_group_data/USGS-BP.Rdata')
 ```
-
-

@@ -24,9 +24,9 @@ options(scipen = 999)
 ```{r}
 # Read in Data --------------------------------------------------------------------
 # specify the file path
-data_path <- abs_pesp_path('Groups/USGS-BGC/01 Raw Data/USGS_Phytoenumeration_2016topresent-20230622ER.csv')
+data_path <- abs_pesp_path('Groups/USGS-BGC/01 Raw Data/BGC_phytoenumeration_reformat.csv')
 
-# new data to format and append
+# read in data
 df_data <- read_quiet_csv(data_path, col_types = cols(site_no = col_character()))
 ```
 
@@ -59,7 +59,6 @@ rename_map <- c(
 df_data <- rename_cols(df_data, rename_map) %>%
   select(-genus)
 ```
-
 ```{r}
 unique(df_data$SampleMethod)
 ```
@@ -82,25 +81,6 @@ df_data <- add_meta_col(df_data, 'USGS-BGC', 'SampleDepth')
 df_data <- add_meta_col(df_data, 'USGS-BGC', 'Lab')
 ```
 
-## Update station names
-```{r}
-df_data <- update_stations_bgc(df_data)
-df_data <- df_data %>% mutate(Station = str_trim(Station))
-
-df_data <- df_data %>%
-  mutate(
-    Station = case_when(Station == 'SFEI18' ~ 'PETER18',
-              TRUE ~ Station)
-  )
-```
-
-## Add lat/lons
-```{r}
-# remove them as they need updating
-df_data <- df_data %>% select(-c(Latitude, Longitude))
-
-df_data <- add_latlon(df_data, 'Groups/USGS-BGC/Metadata/Stations-BGC.csv')
-```
 # Add Taxonomy (and QC column)
 
 ## Correct typos
@@ -185,7 +165,6 @@ df_data <- df_data %>%
     !(is.na(Cells_per_mL) & is.na(Biovolume_per_mL))
   )
 ```
-
 
 ## Combine taxa (multiple sizes, standardized unknowns)
 ```{r}

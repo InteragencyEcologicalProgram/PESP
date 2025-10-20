@@ -1,0 +1,625 @@
+# Check Groupings
+
+```{r}
+library(tidyverse)
+library(lme4)
+library(stats)
+library(vegan)
+library(deltamapr)
+library(openxlsx)
+library(sf)
+library(sp)
+source('admin/global_functions/global_funcs.R')
+source('admin/global_functions/check_funcs.R')
+```
+
+```{r}
+df_pesp <- read_csv(abs_pesp_path('Synthesized Dataset/02 Processed Data/PESP_dataset.csv')) %>%
+  mutate(Magnification =
+           case_when(is.na(Magnification) ~ '1200x',
+                     TRUE ~ Magnification))
+
+sf_delta <- R_EDSM_Subregions_Mahardja
+```
+
+# Group A
+
+## Attempt 1
+
+Count Method (Taxa): field
+Depth Type: near surface
+Lab: BSA
+Density: Unit
+
+```{r}
+df_pesp %>%
+  filter(Survey == 'DWR-EMP') %>%
+  distinct(year(Date), Lab, Magnification)
+```
+
+
+### Map (All)
+```{r}
+df_gA <- df_pesp %>%
+  filter(Survey %in% c('CDFW-FRP','DWR-AWCA','CDFW-FMWT','CDFW-STN','DWR-YBFMP','DWR-NDFS','DWR-EMP'),
+         CountMethodTaxa == 'field',
+         Lab == 'BSA',
+         DepthType == 'near surface'
+  ) %>%
+  group_by(Event_ID, Survey, Station, Date, Magnification, SampleMethod, Lab, AlgalGroup, Latitude, Longitude) %>%
+  summarize(Units_per_mL = sum(Units_per_mL)) %>%
+  ungroup() %>%
+  filter(!is.na(Latitude) & !is.na(Longitude)) %>%
+  mutate(YearMonth = paste0(year(Date),'-',month(Date)),
+         Year = year(Date))
+
+df_gA %>%
+  distinct(Lab, Survey, Magnification, SampleMethod)
+```
+
+```{r}
+sf_gA <- convert_to_sf(df_gA, sf_delta)
+
+sf_plt <- sf_gA %>%
+  distinct(Survey, Region, geometry)
+
+ggplot() +
+  geom_sf(data = sf_delta) +
+  geom_sf(data = sf_plt, aes(shape = Region, fill = Survey), size = 3, alpha = 0.7) +
+  scale_shape_manual(values = c(21, 22, 23, 24, 25, 25)) +
+  guides(fill = guide_legend(override.aes = list(shape = 21, color = 'black')))
+
+df_gA %>%
+  distinct(Lab, Survey, Magnification, SampleMethod)
+```
+### Map (Overlap)
+
+```{r}
+df_gA.1 <- as_tibble(sf_gA) %>%
+  mutate(Year = factor(year(Date)),
+         YearMonth = paste0(year(Date),'-',month(Date))) %>%
+  group_by(YearMonth, SubRegion) %>%
+  filter(n_distinct(Survey) > 1) %>%
+  ungroup()
+
+# check data
+sf_gA.1 <- sf_gA %>%
+  mutate(Year = factor(year(Date)),
+         YearMonth = paste0(year(Date),'-',month(Date))) %>%
+  group_by(YearMonth, SubRegion) %>%
+  filter(n_distinct(Survey) > 1) %>%
+  ungroup() %>%
+  distinct(Survey, Region, geometry)
+
+ggplot() +
+  geom_sf(data = sf_delta) +
+  geom_sf(data = sf_gA.1, aes(shape = Region, fill = Survey), size = 3, alpha = 0.7) +
+  scale_shape_manual(values = c(21, 23, 22, 24, 25, 25)) +
+  guides(fill = guide_legend(override.aes = list(shape = 21, color = 'black')))
+```
+
+```{r}
+df_gA.1 %>%
+  distinct(Lab, Survey, Magnification, SampleMethod)
+```
+
+
+### Community Matrix
+
+```{r}
+com_gA.1 <- create_mcom(df_gA.1,
+                        group_var = c('Survey','SubRegion','YearMonth'),
+                        avg_var = 'Station',
+                        taxa_var = 'AlgalGroup',
+                        factor_var = c('Survey','Magnification','SubRegion','SampleMethod','Lab','Region','Year','YearMonth'),
+                        measure_var = 'Units_per_mL',
+                        distance = 'bray')
+```
+
+```{r}
+mcom_gA.1 <- as_tibble(com_gA.1$m_com)
+meta_gA.1 <- com_gA.1$m_meta
+
+wb_gA.1 <- export_primer(meta_gA.1, mcom_gA.1)
+saveWorkbook(wb_gA.1, 'C:/Users/sperry/Desktop/PESP_gA1.xlsx', overwrite = TRUE)
+```
+
+### NMDS (Bray)
+
+```{r}
+nmds_gA.1 <- calc_nmds(df_gA.1,
+                       group_var = c('Survey','SubRegion','YearMonth'),
+                       avg_var = 'Station',
+                       taxa_var = 'AlgalGroup',
+                       factor_var = c('Survey','Magnification','SubRegion','SampleMethod','Lab','Region','Year','YearMonth'),
+                       measure_var = 'Units_per_mL',
+                       distance = 'bray')
+```
+
+```{r}
+plot_nmds(nmds_gA.1$df_nmds, nmds_gA.1$meta_vars, fill_var = 'Survey')
+plot_nmds(nmds_gA.1$df_nmds, nmds_gA.1$meta_vars, fill_var = 'Survey', flip_order = TRUE)
+plot_nmds(nmds_gA.1$df_nmds, nmds_gA.1$meta_vars, fill_var = 'Magnification')
+plot_nmds(nmds_gA.1$df_nmds, nmds_gA.1$meta_vars, fill_var = 'Magnification', flip_order = TRUE)
+plot_nmds(nmds_gA.1$df_nmds, nmds_gA.1$meta_vars, fill_var = 'SampleMethod')
+plot_nmds(nmds_gA.1$df_nmds, nmds_gA.1$meta_vars, fill_var = 'SampleMethod', flip_order = TRUE)
+plot_nmds(nmds_gA.1$df_nmds, nmds_gA.1$meta_vars, fill_var = 'Region')
+plot_nmds(nmds_gA.1$df_nmds, nmds_gA.1$meta_vars, fill_var = 'Region', flip_order = TRUE)
+```
+
+### NMDS (Jaccard)
+
+```{r}
+nmds_gA.1 <- calc_nmds(df_gA.1,
+                       group_var = c('Survey','SubRegion','YearMonth'),
+                       avg_var = 'Station',
+                       taxa_var = 'AlgalGroup',
+                       factor_var = c('Survey','Magnification','SubRegion','SampleMethod','Lab','Region','Year','YearMonth'),
+                       measure_var = 'Units_per_mL',
+                       distance = 'jaccard')
+```
+
+```{r}
+plot_nmds(nmds_gA.1$df_nmds, nmds_gA.1$meta_vars, fill_var = 'Year')
+plot_nmds(nmds_gA.1$df_nmds, nmds_gA.1$meta_vars, fill_var = 'Survey')
+plot_nmds(nmds_gA.1$df_nmds, nmds_gA.1$meta_vars, fill_var = 'Survey', flip_order = TRUE)
+plot_nmds(nmds_gA.1$df_nmds, nmds_gA.1$meta_vars, fill_var = 'Magnification')
+plot_nmds(nmds_gA.1$df_nmds, nmds_gA.1$meta_vars, fill_var = 'Magnification', flip_order = TRUE)
+plot_nmds(nmds_gA.1$df_nmds, nmds_gA.1$meta_vars, fill_var = 'SampleMethod')
+plot_nmds(nmds_gA.1$df_nmds, nmds_gA.1$meta_vars, fill_var = 'SampleMethod', flip_order = TRUE)
+plot_nmds(nmds_gA.1$df_nmds, nmds_gA.1$meta_vars, fill_var = 'Region')
+plot_nmds(nmds_gA.1$df_nmds, nmds_gA.1$meta_vars, fill_var = 'Region', flip_order = TRUE)
+plot_nmds(nmds_gA.1$df_nmds, nmds_gA.1$meta_vars, fill_var = 'SubRegion')
+plot_nmds(nmds_gA.1$df_nmds, nmds_gA.1$meta_vars, fill_var = 'SubRegion', flip_order = TRUE)
+```
+
+# Group D
+
+## Attempt 1
+
+Count Method (Sample): field/transect/halfchamber
+Depth Type: near surface
+Lab: BSA
+Density: Biovolume
+
+### Map (All)
+```{r}
+df_gD <- df_pesp %>%
+  filter(CountMethodSample == 'field transect halfchamber',
+         DepthType == 'near surface'
+  ) %>%
+  group_by(Event_ID, Survey, Station, Date, Magnification, SampleMethod, Lab, AlgalGroup, Latitude, Longitude) %>%
+  summarize(Biovolume_per_mL = sum(Biovolume_per_mL)) %>%
+  ungroup() %>%
+  filter(!is.na(Latitude) & !is.na(Longitude)) %>%
+  mutate(YearMonth = paste0(year(Date),'-',month(Date)),
+         Year = year(Date))
+
+df_gD %>%
+  distinct(Lab, Survey, Magnification, SampleMethod)
+```
+
+```{r}
+sf_gD <- convert_to_sf(df_gD, sf_delta)
+
+sf_plt <- sf_gD %>%
+  distinct(Survey, Region, geometry)
+
+ggplot() +
+  geom_sf(data = sf_delta) +
+  geom_sf(data = sf_plt, aes(shape = Region, fill = Survey), size = 3, alpha = 0.7) +
+  scale_shape_manual(values = c(21, 22, 23, 24, 25, 25)) +
+  guides(fill = guide_legend(override.aes = list(shape = 21, color = 'black')))
+
+df_gD %>%
+  distinct(Lab, Survey, Magnification, SampleMethod)
+```
+
+### Map (Overlap)
+
+```{r}
+df_gD.1 <- as_tibble(sf_gD) %>%
+  mutate(Year = factor(year(Date)),
+         YearMonth = paste0(year(Date),'-',month(Date))) %>%
+  group_by(YearMonth, SubRegion) %>%
+  filter(n_distinct(Survey) > 1) %>%
+  ungroup()
+
+# check data
+sf_gD.1 <- sf_gD %>%
+  mutate(Year = factor(year(Date)),
+         YearMonth = paste0(year(Date),'-',month(Date))) %>%
+  group_by(YearMonth, SubRegion) %>%
+  filter(n_distinct(Survey) > 1) %>%
+  ungroup() %>%
+  distinct(Survey, Region, geometry)
+
+ggplot() +
+  geom_sf(data = sf_delta) +
+  geom_sf(data = sf_gD.1, aes(shape = Region, fill = Survey), size = 3, alpha = 0.7) +
+  scale_shape_manual(values = c(21, 23, 22, 24, 25, 25)) +
+  guides(fill = guide_legend(override.aes = list(shape = 21, color = 'black')))
+```
+
+### Community Matrix
+
+```{r}
+com_gD.1 <- create_mcom(df_gD.1,
+                        group_var = c('Survey','SubRegion','YearMonth'),
+                        avg_var = 'Station',
+                        taxa_var = 'AlgalGroup',
+                        factor_var = c('Survey','Magnification','SubRegion','SampleMethod','Lab','Region','Year','YearMonth'),
+                        measure_var = 'Biovolume_per_mL',
+                        distance = 'bray')
+```
+
+```{r}
+mcom_gD.1 <- as_tibble(com_gD.1$m_com)
+meta_gD.1 <- com_gD.1$m_meta
+
+wb_gD.1 <- export_primer(meta_gD.1, mcom_gD.1)
+# saveWorkbook(wb_gD.1, 'C:/Users/sperry/Desktop/PESP_gD1.xlsx', overwrite = TRUE)
+```
+
+### NMDS (Bray)
+
+```{r}
+nmds_gD.1 <- calc_nmds(df_gD.1,
+                       group_var = c('Survey','SubRegion','YearMonth'),
+                       avg_var = 'Station',
+                       taxa_var = 'AlgalGroup',
+                       factor_var = c('Survey','Magnification','SubRegion','SampleMethod','Lab','Region','Year','YearMonth'),
+                       measure_var = 'Biovolume_per_mL',
+                       distance = 'bray',
+                       try = 5, trymax = 5)
+
+# remove outlier
+nmds_gD.1$df_nmds <- nmds_gD.1$df_nmds %>%
+  filter(NMDS1 > -2 & NMDS1 < 5)
+```
+
+```{r}
+plot_nmds(nmds_gD.1$df_nmds, nmds_gD.1$meta_vars, fill_var = 'Survey')
+plot_nmds(nmds_gD.1$df_nmds, nmds_gD.1$meta_vars, fill_var = 'Survey', flip_order = TRUE)
+plot_nmds(nmds_gD.1$df_nmds, nmds_gD.1$meta_vars, fill_var = 'Magnification')
+plot_nmds(nmds_gD.1$df_nmds, nmds_gD.1$meta_vars, fill_var = 'Magnification', flip_order = TRUE)
+plot_nmds(nmds_gD.1$df_nmds, nmds_gD.1$meta_vars, fill_var = 'SampleMethod')
+plot_nmds(nmds_gD.1$df_nmds, nmds_gD.1$meta_vars, fill_var = 'SampleMethod', flip_order = TRUE)
+plot_nmds(nmds_gD.1$df_nmds, nmds_gD.1$meta_vars, fill_var = 'Region')
+plot_nmds(nmds_gD.1$df_nmds, nmds_gD.1$meta_vars, fill_var = 'Region', flip_order = TRUE)
+```
+
+### NMDS (Jaccard)
+
+```{r}
+nmds_gD.1 <- calc_nmds(df_gD.1,
+                       group_var = c('Survey','SubRegion','YearMonth'),
+                       avg_var = 'Station',
+                       taxa_var = 'AlgalGroup',
+                       factor_var = c('Survey','Magnification','SubRegion','SampleMethod','Lab','Region','Year','YearMonth'),
+                       measure_var = 'Biovolume_per_mL',
+                       distance = 'jaccard',
+                       try = 5, trymax = 5)
+
+# remove outlier
+nmds_gD.1$df_nmds <- nmds_gD.1$df_nmds %>%
+  filter(NMDS1 > -2 & NMDS1 < 5)
+```
+
+```{r}
+plot_nmds(nmds_gD.1$df_nmds, nmds_gD.1$meta_vars, fill_var = 'Survey')
+plot_nmds(nmds_gD.1$df_nmds, nmds_gD.1$meta_vars, fill_var = 'Survey', flip_order = TRUE)
+plot_nmds(nmds_gD.1$df_nmds, nmds_gD.1$meta_vars, fill_var = 'Magnification')
+plot_nmds(nmds_gD.1$df_nmds, nmds_gD.1$meta_vars, fill_var = 'Magnification', flip_order = TRUE)
+plot_nmds(nmds_gD.1$df_nmds, nmds_gD.1$meta_vars, fill_var = 'SampleMethod')
+plot_nmds(nmds_gD.1$df_nmds, nmds_gD.1$meta_vars, fill_var = 'SampleMethod', flip_order = TRUE)
+plot_nmds(nmds_gD.1$df_nmds, nmds_gD.1$meta_vars, fill_var = 'Region')
+plot_nmds(nmds_gD.1$df_nmds, nmds_gD.1$meta_vars, fill_var = 'Region', flip_order = TRUE)
+```
+
+Conclusion: USGS-BP is significantly different from the others.
+
+## Attempt 2
+
+Count Method (Sample): field/transect/halfchamber
+Depth Type: near surface
+Lab: BSA
+Density: Biovolume
+
+Note: Exclude USGS-BP
+
+### Map (All)
+
+```{r}
+df_gD <- df_pesp %>%
+  filter(CountMethodSample == 'field transect halfchamber',
+         Survey != 'USGS-BP',
+         DepthType == 'near surface'
+  ) %>%
+  group_by(Event_ID, Survey, Station, Date, Magnification, SampleMethod, Lab, AlgalGroup, Latitude, Longitude) %>%
+  summarize(Biovolume_per_mL = sum(Biovolume_per_mL)) %>%
+  ungroup() %>%
+  filter(!is.na(Latitude) & !is.na(Longitude)) %>%
+  mutate(YearMonth = paste0(year(Date),'-',month(Date)),
+         Year = year(Date))
+
+df_gD %>%
+  distinct(Lab, Survey, Magnification, SampleMethod)
+```
+
+```{r}
+sf_gD <- convert_to_sf(df_gD, sf_delta)
+
+sf_plt <- sf_gD %>%
+  distinct(Survey, Region, geometry)
+
+ggplot() +
+  geom_sf(data = sf_delta) +
+  geom_sf(data = sf_plt, aes(shape = Region, fill = Survey), size = 3, alpha = 0.7) +
+  scale_shape_manual(values = c(21, 22, 23, 24, 25, 25)) +
+  guides(fill = guide_legend(override.aes = list(shape = 21, color = 'black')))
+
+df_gD %>%
+  distinct(Lab, Survey, Magnification, SampleMethod)
+```
+
+### Map (Overlap)
+
+```{r}
+df_gD.1 <- as_tibble(sf_gD) %>%
+  mutate(Year = factor(year(Date)),
+         YearMonth = paste0(year(Date),'-',month(Date))) %>%
+  group_by(YearMonth, SubRegion) %>%
+  filter(n_distinct(Survey) > 1) %>%
+  ungroup()
+
+# check data
+sf_gD.1 <- sf_gD %>%
+  mutate(Year = factor(year(Date)),
+         YearMonth = paste0(year(Date),'-',month(Date))) %>%
+  group_by(YearMonth, SubRegion) %>%
+  filter(n_distinct(Survey) > 1) %>%
+  ungroup() %>%
+  distinct(Survey, Region, geometry)
+
+ggplot() +
+  geom_sf(data = sf_delta) +
+  geom_sf(data = sf_gD.1, aes(shape = Region, fill = Survey), size = 3, alpha = 0.7) +
+  scale_shape_manual(values = c(21, 23, 22, 24, 25, 25)) +
+  guides(fill = guide_legend(override.aes = list(shape = 21, color = 'black')))
+```
+
+```{r}
+df_gD.1 %>%
+  distinct(Survey, Magnification, SampleMethod)
+```
+
+
+### Community Matrix
+
+```{r}
+com_gD.1 <- create_mcom(df_gD.1,
+                        group_var = c('Survey','SubRegion','YearMonth'),
+                        avg_var = 'Station',
+                        taxa_var = 'AlgalGroup',
+                        factor_var = c('Survey','Magnification','SubRegion','SampleMethod','Lab','Region','Year','YearMonth'),
+                        measure_var = 'Biovolume_per_mL',
+                        distance = 'bray')
+```
+
+```{r}
+mcom_gD.1 <- as_tibble(com_gD.1$m_com)
+meta_gD.1 <- com_gD.1$m_meta
+
+wb_gD.1 <- export_primer(meta_gD.1, mcom_gD.1)
+saveWorkbook(wb_gD.1, 'C:/Users/sperry/Desktop/PESP_gD1.xlsx', overwrite = TRUE)
+```
+
+### NMDS (Bray)
+
+```{r}
+nmds_gD.1 <- calc_nmds(df_gD.1,
+                       group_var = c('Survey','SubRegion','YearMonth'),
+                       avg_var = 'Station',
+                       taxa_var = 'AlgalGroup',
+                       factor_var = c('Survey','Magnification','SubRegion','SampleMethod','Lab','Region','Year','YearMonth'),
+                       measure_var = 'Biovolume_per_mL',
+                       distance = 'bray')
+```
+
+```{r}
+plot_nmds(nmds_gD.1$df_nmds, nmds_gD.1$meta_vars, fill_var = 'Year')
+plot_nmds(nmds_gD.1$df_nmds, nmds_gD.1$meta_vars, fill_var = 'Survey')
+plot_nmds(nmds_gD.1$df_nmds, nmds_gD.1$meta_vars, fill_var = 'Survey', flip_order = TRUE)
+plot_nmds(nmds_gD.1$df_nmds, nmds_gD.1$meta_vars, fill_var = 'Magnification')
+plot_nmds(nmds_gD.1$df_nmds, nmds_gD.1$meta_vars, fill_var = 'Magnification', flip_order = TRUE)
+plot_nmds(nmds_gD.1$df_nmds, nmds_gD.1$meta_vars, fill_var = 'SampleMethod')
+plot_nmds(nmds_gD.1$df_nmds, nmds_gD.1$meta_vars, fill_var = 'SampleMethod', flip_order = TRUE)
+plot_nmds(nmds_gD.1$df_nmds, nmds_gD.1$meta_vars, fill_var = 'Region')
+plot_nmds(nmds_gD.1$df_nmds, nmds_gD.1$meta_vars, fill_var = 'Region', flip_order = TRUE)
+plot_nmds(nmds_gD.1$df_nmds, nmds_gD.1$meta_vars, fill_var = 'SubRegion')
+plot_nmds(nmds_gD.1$df_nmds, nmds_gD.1$meta_vars, fill_var = 'SubRegion', flip_order = TRUE)
+```
+
+### NMDS (Jaccard)
+
+```{r}
+nmds_gD.1 <- calc_nmds(df_gD.1,
+                       group_var = c('Survey','SubRegion','YearMonth'),
+                       avg_var = 'Station',
+                       taxa_var = 'AlgalGroup',
+                       factor_var = c('Survey','Magnification','SubRegion','SampleMethod','Lab','Region','Year','YearMonth'),
+                       measure_var = 'Biovolume_per_mL',
+                       distance = 'jaccard')
+```
+
+```{r}
+plot_nmds(nmds_gD.1$df_nmds, nmds_gD.1$meta_vars, fill_var = 'Year')
+plot_nmds(nmds_gD.1$df_nmds, nmds_gD.1$meta_vars, fill_var = 'Survey')
+plot_nmds(nmds_gD.1$df_nmds, nmds_gD.1$meta_vars, fill_var = 'Survey', flip_order = TRUE)
+plot_nmds(nmds_gD.1$df_nmds, nmds_gD.1$meta_vars, fill_var = 'Magnification')
+plot_nmds(nmds_gD.1$df_nmds, nmds_gD.1$meta_vars, fill_var = 'Magnification', flip_order = TRUE)
+plot_nmds(nmds_gD.1$df_nmds, nmds_gD.1$meta_vars, fill_var = 'SampleMethod')
+plot_nmds(nmds_gD.1$df_nmds, nmds_gD.1$meta_vars, fill_var = 'SampleMethod', flip_order = TRUE)
+plot_nmds(nmds_gD.1$df_nmds, nmds_gD.1$meta_vars, fill_var = 'Region')
+plot_nmds(nmds_gD.1$df_nmds, nmds_gD.1$meta_vars, fill_var = 'Region', flip_order = TRUE)
+plot_nmds(nmds_gD.1$df_nmds, nmds_gD.1$meta_vars, fill_var = 'SubRegion')
+plot_nmds(nmds_gD.1$df_nmds, nmds_gD.1$meta_vars, fill_var = 'SubRegion', flip_order = TRUE)
+```
+
+## Attempt 3
+
+Count Method (Sample): field/transect/halfchamber
+Depth Type: near surface
+Lab: BSA
+Density: Biovolume
+
+Note: Exclude USGS-BP
+Note: Exclude pole corer (surface sample?)
+
+### Map (All)
+
+```{r}
+df_gD <- df_pesp %>%
+  filter(CountMethodSample == 'field transect halfchamber',
+         Survey != 'USGS-BP',
+         SampleMethod != 'pole corer',
+         DepthType == 'near surface'
+  ) %>%
+  group_by(Event_ID, Survey, Station, Date, Magnification, SampleMethod, Lab, AlgalGroup, Latitude, Longitude) %>%
+  summarize(Biovolume_per_mL = sum(Biovolume_per_mL)) %>%
+  ungroup() %>%
+  filter(!is.na(Latitude) & !is.na(Longitude)) %>%
+  mutate(YearMonth = paste0(year(Date),'-',month(Date)),
+         Year = year(Date))
+
+df_gD %>%
+  distinct(Lab, Survey, Magnification, SampleMethod)
+```
+
+```{r}
+sf_gD <- convert_to_sf(df_gD, sf_delta)
+
+sf_plt <- sf_gD %>%
+  distinct(Survey, Region, geometry)
+
+ggplot() +
+  geom_sf(data = sf_delta) +
+  geom_sf(data = sf_plt, aes(shape = Region, fill = Survey), size = 3, alpha = 0.7) +
+  scale_shape_manual(values = c(21, 22, 23, 24, 25, 25)) +
+  guides(fill = guide_legend(override.aes = list(shape = 21, color = 'black')))
+
+df_gD %>%
+  distinct(Lab, Survey, Magnification, SampleMethod)
+```
+
+### Map (Overlap)
+
+```{r}
+df_gD.1 <- as_tibble(sf_gD) %>%
+  mutate(Year = factor(year(Date)),
+         YearMonth = paste0(year(Date),'-',month(Date))) %>%
+  group_by(YearMonth, SubRegion) %>%
+  filter(n_distinct(Survey) > 1) %>%
+  ungroup()
+
+# check data
+sf_gD.1 <- sf_gD %>%
+  mutate(Year = factor(year(Date)),
+         YearMonth = paste0(year(Date),'-',month(Date))) %>%
+  group_by(YearMonth, SubRegion) %>%
+  filter(n_distinct(Survey) > 1) %>%
+  ungroup() %>%
+  distinct(Survey, Region, geometry)
+
+ggplot() +
+  geom_sf(data = sf_delta) +
+  geom_sf(data = sf_gD.1, aes(shape = Region, fill = Survey), size = 3, alpha = 0.7) +
+  scale_shape_manual(values = c(21, 23, 22, 24, 25, 25)) +
+  guides(fill = guide_legend(override.aes = list(shape = 21, color = 'black')))
+```
+
+```{r}
+df_gD.1 %>%
+  distinct(Survey, Magnification, SampleMethod)
+```
+
+```{r}
+df_pesp %>%
+  filter(Survey == 'USGS-BGC') %>%
+  filter(SampleMethod == 'pole corer') %>%
+  distinct(Survey, Lab, Magnification, SampleMethod, CountMethodSample, SampleDepth)
+```
+
+### Community Matrix
+
+```{r}
+com_gD.1 <- create_mcom(df_gD.1,
+                        group_var = c('Survey','SubRegion','YearMonth'),
+                        avg_var = 'Station',
+                        taxa_var = 'AlgalGroup',
+                        factor_var = c('Survey','Magnification','SubRegion','SampleMethod','Lab','Region','Year','YearMonth'),
+                        measure_var = 'Biovolume_per_mL',
+                        distance = 'bray')
+```
+
+```{r}
+mcom_gD.1 <- as_tibble(com_gD.1$m_com)
+meta_gD.1 <- com_gD.1$m_meta
+
+wb_gD.1 <- export_primer(meta_gD.1, mcom_gD.1)
+saveWorkbook(wb_gD.1, 'C:/Users/sperry/Desktop/PESP_gD1.xlsx', overwrite = TRUE)
+```
+
+### NMDS (Bray)
+
+```{r}
+nmds_gD.1 <- calc_nmds(df_gD.1,
+                       group_var = c('Survey','SubRegion','YearMonth'),
+                       avg_var = 'Station',
+                       taxa_var = 'AlgalGroup',
+                       factor_var = c('Survey','Magnification','SubRegion','SampleMethod','Lab','Region','Year','YearMonth'),
+                       measure_var = 'Biovolume_per_mL',
+                       distance = 'bray')
+```
+
+```{r}
+plot_nmds(nmds_gD.1$df_nmds, nmds_gD.1$meta_vars, fill_var = 'Year')
+plot_nmds(nmds_gD.1$df_nmds, nmds_gD.1$meta_vars, fill_var = 'Survey')
+plot_nmds(nmds_gD.1$df_nmds, nmds_gD.1$meta_vars, fill_var = 'Survey', flip_order = TRUE)
+plot_nmds(nmds_gD.1$df_nmds, nmds_gD.1$meta_vars, fill_var = 'Magnification')
+plot_nmds(nmds_gD.1$df_nmds, nmds_gD.1$meta_vars, fill_var = 'Magnification', flip_order = TRUE)
+plot_nmds(nmds_gD.1$df_nmds, nmds_gD.1$meta_vars, fill_var = 'SampleMethod')
+plot_nmds(nmds_gD.1$df_nmds, nmds_gD.1$meta_vars, fill_var = 'SampleMethod', flip_order = TRUE)
+plot_nmds(nmds_gD.1$df_nmds, nmds_gD.1$meta_vars, fill_var = 'Region')
+plot_nmds(nmds_gD.1$df_nmds, nmds_gD.1$meta_vars, fill_var = 'Region', flip_order = TRUE)
+plot_nmds(nmds_gD.1$df_nmds, nmds_gD.1$meta_vars, fill_var = 'SubRegion')
+plot_nmds(nmds_gD.1$df_nmds, nmds_gD.1$meta_vars, fill_var = 'SubRegion', flip_order = TRUE)
+```
+
+### NMDS (Jaccard)
+
+```{r}
+nmds_gD.1 <- calc_nmds(df_gD.1,
+                       group_var = c('Survey','SubRegion','YearMonth'),
+                       avg_var = 'Station',
+                       taxa_var = 'AlgalGroup',
+                       factor_var = c('Survey','Magnification','SubRegion','SampleMethod','Lab','Region','Year','YearMonth'),
+                       measure_var = 'Biovolume_per_mL',
+                       distance = 'jaccard')
+```
+
+```{r}
+plot_nmds(nmds_gD.1$df_nmds, nmds_gD.1$meta_vars, fill_var = 'Year')
+plot_nmds(nmds_gD.1$df_nmds, nmds_gD.1$meta_vars, fill_var = 'Survey')
+plot_nmds(nmds_gD.1$df_nmds, nmds_gD.1$meta_vars, fill_var = 'Survey', flip_order = TRUE)
+plot_nmds(nmds_gD.1$df_nmds, nmds_gD.1$meta_vars, fill_var = 'Magnification')
+plot_nmds(nmds_gD.1$df_nmds, nmds_gD.1$meta_vars, fill_var = 'Magnification', flip_order = TRUE)
+plot_nmds(nmds_gD.1$df_nmds, nmds_gD.1$meta_vars, fill_var = 'SampleMethod')
+plot_nmds(nmds_gD.1$df_nmds, nmds_gD.1$meta_vars, fill_var = 'SampleMethod', flip_order = TRUE)
+plot_nmds(nmds_gD.1$df_nmds, nmds_gD.1$meta_vars, fill_var = 'Region')
+plot_nmds(nmds_gD.1$df_nmds, nmds_gD.1$meta_vars, fill_var = 'Region', flip_order = TRUE)
+plot_nmds(nmds_gD.1$df_nmds, nmds_gD.1$meta_vars, fill_var = 'SubRegion')
+plot_nmds(nmds_gD.1$df_nmds, nmds_gD.1$meta_vars, fill_var = 'SubRegion', flip_order = TRUE)
+```
+

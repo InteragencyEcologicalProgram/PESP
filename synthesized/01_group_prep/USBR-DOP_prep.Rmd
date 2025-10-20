@@ -120,9 +120,20 @@ needs_hierarchy <- attr(df_dop, 'log')$unmatched_taxa
 print(needs_hierarchy)
 ```
 
+## Add ID column
+```{r}
+df_dop <- add_id_col(df_dop)
+```
+
 ## Subset relevant columns
 ```{r}
 df_dop <- subset_cols(df_dop)
+```
+
+## Combine taxa (multiple sizes, standardized unknowns)
+```{r}
+df_dop <- combine_taxons(df_dop)
+combine_checks <- attr(df_dop, 'log')$combined_conflicts
 ```
 
 ## Save .Rdata

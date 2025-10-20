@@ -110,10 +110,35 @@ needs_hierarchy <- attr(df_emp, 'log')$unmatched_taxa
 print(needs_hierarchy)
 ```
 
+## Add ID column
+```{r}
+df_emp <- add_id_col(df_emp, loc_col = 'Station')
+```
+
 ## Subset relevant columns
 ```{r}
 df_emp <- subset_cols(df_emp)
 ```
+
+## Combine taxa (multiple sizes, standardized unknowns)
+```{r}
+df_emp <- combine_taxons(df_emp, key_cols = c('Date','Station','CountMethodSample','CountMethodTaxa'))
+combine_checks <- attr(df_emp, 'log')$combined_taxa
+combine_checks
+```
+```{r}
+df_dupes <- df_emp %>%
+  group_by(Event_ID, Kingdom, Phylum, Class, AlgalGroup, Genus, Species, Taxon,CountMethodTaxa) %>%
+  filter(n()  > 1) %>%
+  ungroup()
+
+df_dupes
+```
+
+```{r}
+view(df_dupes)
+```
+
 
 ## Save .Rdata
 ```{r}

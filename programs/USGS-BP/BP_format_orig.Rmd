@@ -111,7 +111,6 @@ df_data_one <- add_debris_col(df_data_one, comment_col = NULL)
 df_data_one <- add_notes_col(df_data_one, comment_col = NULL)
 ```
 
-
 ## Update synonyms
 ```{r}
 df_data_one <- update_synonyms(df_data_one)
@@ -120,6 +119,7 @@ write_log_file(updated_synonyms, 'Groups/USGS-BP/02 Program Data/QC files/tables
 
 print(updated_synonyms)
 ```
+
 
 ## Add in higher-level taxa
 ```{r}
@@ -380,15 +380,16 @@ attr(df_data, 'log')$nondistinct_keyrows
 ```{r}
 df_data <- subset_cols_bp(df_data)
 ```
-
-
 ## Combine taxa (multiple sizes, standardized unknowns)
 ```{r}
-df_data <- combine_taxons(df_data, key_cols = c('Station','Date','Depth_m'), measurement_cols = c('Biovolume_per_mL','Cells_per_mL'))
+df_data <- combine_taxons(df_data, key_cols = c('Station','Date','Depth_m','Lab','SampleMethod'), measurement_cols = c('Biovolume_per_mL','Cells_per_mL'))
 combined_taxa <- attr(df_data, 'log')$combined_taxa
 write_log_file(combined_taxa, 'Groups/USGS-BP/02 Program Data/QC files/tables/BP_All_combined_taxa.csv')
 
 print(combined_taxa)
+```
+```{r}
+view(df_data)
 ```
 
 ## Checks

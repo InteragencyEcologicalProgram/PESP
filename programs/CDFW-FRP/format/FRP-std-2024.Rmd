@@ -1,4 +1,5 @@
 # Taxa Check
+
 Update FRP taxa with PESP list (2024)
 
 Date: 05/01/2025
@@ -12,8 +13,20 @@ source('admin/global_functions/check_funcs.R')
 ```{r}
 df_phyto <- get_edi_file('269','phyto_FRP2023')
 ```
+```{r}
+check <- df_phyto %>%
+  group_by(VisitNo, Location, DepthOfSample, Substrate) %>%
+  filter(n_distinct(VisitNo, Location, DepthOfSample, Substrate, LatitudeStart, LongitudeStart) > 1) %>%
+  distinct(VisitNo, Location, DepthOfSample, Substrate, LatitudeStart, LongitudeStart) %>%
+  arrange(VisitNo, Location, DepthOfSample, Substrate, LatitudeStart, LongitudeStart) %>%
+  ungroup() %>%
+  select(VisitNo, Location, DepthOfSample, Substrate, LatitudeStart, LongitudeStart)
+
+write_csv(check, 'C:/Users/sperry/Desktop/FRP_dup_latlons.csv')
+```
 
 ## Check how EMP taxa match with current list
+
 ```{r}
 # read in FRP data
 df_phyto <- df_phyto %>%
@@ -27,18 +40,21 @@ df_taxa <- read_phyto_taxa()
 ```
 
 ## Standardize unknowns
+
 ```{r}
 df_phyto <- clean_unknowns(df_phyto, std_sp = TRUE, std_suffix = TRUE)
 attr(df_phyto, 'log')$clean_unknowns
 ```
 
 ## Correct typos
+
 ```{r}
 df_frp <- correct_taxon_typos(df_phyto)
 attr(df_frp, 'log')$taxon_corrections
 ```
 
 ## Add QC column
+
 ```{r}
 df_frp <- df_frp %>%
   distinct(SampleID_frp, Units_permL, Cells_permL, Biov_permL, OriginalTaxon, .keep_all = TRUE)
@@ -55,18 +71,21 @@ attr(df_frp, 'log')$unmatched_comments
 ```
 
 ## Standardize unknowns (again, just in case)
+
 ```{r}
 df_frp <- clean_unknowns(df_frp, std_sp = TRUE, std_suffix = TRUE)
 attr(df_frp, 'log')$clean_unknowns
 ```
 
 ## Update synonyms
+
 ```{r}
 df_frp <- update_synonyms(df_frp)
 attr(df_frp, 'log')$synonym_updates
 ```
 
 ## Add in higher-level taxa
+
 ```{r}
 df_frp <- higher_lvl_taxa(df_frp, std_type = 'program')
 checking <- attr(df_frp, 'log')$unmatched_taxa
@@ -114,12 +133,14 @@ attr(df_frp, 'log')$unmatched_taxa_updated
 ```
 
 ## Combine taxa (multiple sizes, standardized unknowns)
+
 ```{r}
 df_frp <- combine_taxons(df_frp, key_cols = 'SampleID_frp', measurement_cols = c('Biov_permL', 'Units_permL', 'Cells_permL'))
 attr(df_frp, 'log')$combined_taxa
 ```
 
 ## Format like FRP desires
+
 ```{r}
 df_frp <- df_frp %>%
   mutate(Taxonomy_PESP = paste(Kingdom,Phylum,Class,Genus,Species, sep='/')) %>%
@@ -128,6 +149,7 @@ df_frp <- df_frp %>%
 ```
 
 ## Write csv
+
 ```{r}
 write_csv(df_frp, abs_pesp_path('Groups/CDFW-FRP/02 Program Data/FRP_program_draft.csv'), na = '')
 ```

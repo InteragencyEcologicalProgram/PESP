@@ -232,11 +232,16 @@ attr(df_data, 'log')$nondistinct_allrows
 df_data <- check_distinct(df_data, type = 'key_cols')
 attr(df_data, 'log')$nondistinct_keyrows
 ```
+## Subset columns
+
+```{r}
+df_data <- subset_cols_emp(df_data)
+```
 
 ## Combine taxa (multiple sizes, standardized unknowns)
 
 ```{r}
-df_data <- combine_taxons(df_data)
+df_data <- combine_taxons(df_data, key_cols = c('Date','Station','CountMethod'))
 combined_taxa <- attr(df_data, 'log')$combined_taxa
 write_log_file(combined_taxa, 'Groups/DWR-EMP/02 Program Data/QC files/2024/tables/EMP_combined_taxa.csv')
 
@@ -244,12 +249,6 @@ print(combined_taxa)
 ```
 
 # Finish Formatting
-
-## Subset columns
-
-```{r}
-df_data <- subset_cols_emp(df_data)
-```
 
 # Checks
 

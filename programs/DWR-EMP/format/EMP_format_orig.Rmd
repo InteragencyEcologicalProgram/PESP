@@ -253,16 +253,6 @@ df_data <- check_distinct(df_data, type = 'key_cols')
 attr(df_data, 'log')$nondistinct_keyrows
 ```
 
-## Combine taxa (multiple sizes, standardized unknowns)
-
-```{r}
-df_data <- combine_taxons(df_data)
-combined_taxa <- attr(df_data, 'log')$combined_taxa
-write_log_file(combined_taxa, 'Groups/DWR-EMP/02 Program Data/QC files/tables/EMP_combined_taxa.csv')
-
-print(combined_taxa)
-```
-
 # Finish Formatting
 
 ## Add Count Method column
@@ -281,6 +271,16 @@ df_data <- df_data %>%
 
 ```{r}
 df_data <- subset_cols_emp(df_data)
+```
+
+## Combine taxa (multiple sizes, standardized unknowns)
+
+```{r}
+df_data <- combine_taxons(df_data)
+combined_taxa <- attr(df_data, 'log')$combined_taxa
+write_log_file(combined_taxa, 'Groups/DWR-EMP/02 Program Data/QC files/tables/EMP_combined_taxa.csv')
+
+print(combined_taxa)
 ```
 
 # Checks

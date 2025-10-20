@@ -27,11 +27,6 @@ df_pesp <- dplyr::bind_rows(ls_combined)
 nrow(df_pesp) == sum(sapply(ls_combined, nrow))
 ```
 
-```{r}
-unique(df_pesp$AlgalGroup)
-```
-
-
 ## Fix SampleMethod names
 ```{r}
 rename_map <- c('unspecified surface grab' = 'unspecified grab sample')
@@ -56,17 +51,17 @@ df_pesp <- rename_values(df_pesp, 'SampleDepth', rename_map)
 
 ## Set unknown surface depths to 0 (for filtering)
 ```{r}
-df_pesp <- df_pesp %>%
- mutate(SampleDepth = case_when(
-   SampleMethod %in% c('syringe','unspecified surface grab','putty knife') & is.na(SampleDepth) ~ '0',
-   TRUE ~ SampleDepth
-   )
- )
+# df_pesp <- df_pesp %>%
+#  mutate(SampleDepth = case_when(
+#    SampleMethod %in% c('unspecified surface grab','putty knife') & is.na(SampleDepth) ~ '0',
+#    TRUE ~ SampleDepth
+#    )
+#  )
 ```
 
 ## Remove unneeded cols
 ```{r}
-df_pesp <- df_pesp %>% select(-c(TowNetRadius,DepthType)) # same for everyone
+df_pesp <- df_pesp %>% select(-c(TowNetRadius)) # same for everyone
 ```
 
 ```{r}

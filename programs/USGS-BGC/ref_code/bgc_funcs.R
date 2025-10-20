@@ -120,7 +120,7 @@ update_stations_bgc <- function(df_data) {
   df_updated <- df_with_original %>%
     left_join(
       alias_lookup %>% select(alias, site_no, station),
-      by = c("Station" = "alias", "site_no" = "site_no")
+      by = c('Station' = 'alias', 'site_no' = 'site_no')
     ) %>%
     mutate(
       Station = ifelse(!is.na(station) & station != Station, station, Station)

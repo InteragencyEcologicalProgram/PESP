@@ -108,9 +108,20 @@ needs_hierarchy <- attr(df_aeu, 'log')$unmatched_taxa
 print(needs_hierarchy)
 ```
 
+## Add ID column
+```{r}
+df_aeu <- add_id_col(df_aeu, loc_col = 'Station')
+```
+
 ## Subset relevant columns
 ```{r}
 df_aeu <- subset_cols(df_aeu)
+```
+
+## Combine taxa (multiple sizes, standardized unknowns)
+```{r}
+df_aeu <- combine_taxons(df_aeu)
+combine_checks <- attr(df_aeu, 'log')$combined_conflicts
 ```
 
 ## Save .Rdata

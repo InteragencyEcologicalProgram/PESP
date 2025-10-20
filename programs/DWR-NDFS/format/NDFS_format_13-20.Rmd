@@ -531,17 +531,6 @@ df_data <- check_distinct(df_data, type = 'key_cols')
 attr(df_data, 'log')$nondistinct_keyrows
 ```
 
-## Combine taxa (multiple sizes, standardized unknowns)
-```{r}
-df_data <- combine_taxons(df_data, key_cols = c('Date', 'Time', 'Station', 'SampleDepth'))
-combined_taxa <- attr(df_data, 'log')$combined_taxa
-write_log_file(combined_taxa, 'Groups/DWR-NDFS/02 Program Data/2013-2020/QC files/tables/NDFS_combined_taxa.csv')
-
-print(combined_taxa)
-```
-
-# Export
-
 ## Add sample method
 ```{r}
 df_data <- add_meta_col(df_data, 'DWR-NDFS', 'SampleMethod')
@@ -559,6 +548,17 @@ keep_cols <- c('Date', 'Time', 'Station', 'Latitude', 'Longitude', 'SampleMethod
 df_data <- df_data %>%
   select(all_of(keep_cols))
 ```
+
+## Combine taxa (multiple sizes, standardized unknowns)
+```{r}
+df_data <- combine_taxons(df_data, key_cols = c('Date', 'Time', 'Station', 'SampleDepth'))
+combined_taxa <- attr(df_data, 'log')$combined_taxa
+write_log_file(combined_taxa, 'Groups/DWR-NDFS/02 Program Data/2013-2020/QC files/tables/NDFS_combined_taxa.csv')
+
+print(combined_taxa)
+```
+
+# Export
 
 ## Check NAs
 ```{r}

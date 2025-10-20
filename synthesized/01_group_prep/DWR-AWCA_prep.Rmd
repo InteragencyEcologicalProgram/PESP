@@ -54,6 +54,11 @@ df_awca <- df_awca %>%
   )
 ```
 
+```{r}
+unique(df_awca$SampleDepth)
+```
+
+
 ## Extract Location
 ```{r}
 df_awca <- df_awca %>%
@@ -75,7 +80,7 @@ df_awca <- df_awca %>%
 df_awca <- df_awca %>%
   mutate(
     Date = as.Date(Datetime),
-    Time = format(Datetime, '%H:%M')
+    Time = format(Datetime, '%H:%M:%S')
   )
 ```
 
@@ -115,6 +120,10 @@ df_awca <- add_meta_col(df_awca, 'DWR-AWCA', 'CountMethodSample')
 
 df_awca <- df_awca %>%
   mutate(CountMethodTaxa = CountMethodSample) # must be the same
+
+# convert "NA" to NA
+df_awca <- df_awca %>%
+  mutate(across(where(is.character), ~na_if(.x, 'NA')))
 ```
 
 ## Add extra columns
@@ -165,6 +174,11 @@ needs_hierarchy <- attr(df_awca, 'log')$unmatched_taxa
 print(needs_hierarchy)
 ```
 
+## Add ID column
+```{r}
+df_awca <- add_id_col(df_awca, loc_col = 'Station')
+```
+
 ## Subset relevant columns
 ```{r}
 df_awca <- subset_cols(df_awca)
@@ -203,6 +217,14 @@ unique(df_awca$Notes)
 unique(df_awca$QualityCheck)
 ```
 
+## Combine taxa (multiple sizes, standardized unknowns)
+```{r}
+df_awca <- combine_taxons(df_awca, c('Date','Station','Time'))
+combine_issues <- attr(df_awca, 'log')$combined_conflicts
+combine_checks <- attr(df_awca, 'log')$combined_taxa
+
+combine_checks
+```
 
 # Save .Rdata
 ```{r}

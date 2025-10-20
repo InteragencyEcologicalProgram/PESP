@@ -59,7 +59,6 @@ df_bgc <- df_bgc %>%
 
 ## Update SampleMethods
 ```{r}
-
 rename_map <- c(
   'centrifugal pump' = 'Submersible centrifugal pump',
   'Van Dorn' = 'Van Dorn sampler',
@@ -67,10 +66,16 @@ rename_map <- c(
   'unspecified grab sample' = 'Grab sample',
   'diaphragm pump' = 'Diaphragm pump',
   'diaphragm pump' = 'Diaphragm pump and churn',
-  'net tow' ='Phytoplankton net'
+  'net tow' ='Phytoplankton net',
+  'pole corer' = 'Bed Material -- pole corer',
+  'unspecified grab sample' = 'Other',
+  'wide mouth bottle' = 'Open-Mouth Bottle',
+  'multiple sample methods' = 'Mulitple samplers used'
 )
 
 df_bgc <- rename_values(df_bgc, 'SampleMethod', rename_map)
+
+
 ```
 
 ## Add extra columns
@@ -122,10 +127,21 @@ needs_hierarchy <- attr(df_bgc, 'log')$unmatched_taxa
 print(needs_hierarchy)
 ```
 
+## Add ID column
+```{r}
+df_bgc <- add_id_col(df_bgc, loc_col = 'Station')
+```
 
 ## Subset relevant columns
 ```{r}
 df_bgc <- subset_cols(df_bgc)
+```
+
+## Combine taxa (multiple sizes, standardized unknowns)
+```{r}
+df_bgc <- combine_taxons(df_bgc, key_cols = c('Date', 'Time', 'Station', 'SampleDepth'))
+combine_issues <- attr(df_bgc, 'log')$combined_conflicts
+combine_checks <- attr(df_bgc, 'log')$combined_taxa
 ```
 
 ## Save .Rdata

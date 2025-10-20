@@ -16,6 +16,7 @@ source('admin/global_functions/global_funcs.R')
 source('admin/global_functions/syn_funcs.R')
 source('admin/global_functions/bsa_funcs.R')
 source('admin/global_functions/check_funcs.R')
+source('programs/CDFW-FRP/format/frp_funcs.R')
 ```
 
 # Read in data
@@ -46,6 +47,11 @@ rename_map <- c(
 
 df_frp <- rename_cols(df_frp, rename_map)
 ```
+## Add location abbreviations
+```{r}
+df_frp <- update_locs_frp(df_frp)
+```
+
 
 ## Convert Time
 ```{r}
@@ -58,8 +64,8 @@ write_log_file(converted_times, 'Synthesized Dataset/01 Group Checks/CDFW-FRP/ta
 ## Add DepthType
 ```{r}
 df_frp <- df_frp %>%
-  mutate(DepthType =
-           case_when(Substrate == 'epiphytic' ~ 'surface',
+  mutate(DepthType = 
+           case_when(Substrate == 'epiphytic' ~ 'epiphytic',
                      Substrate == 'pelagic' ~ 'near surface',
                      Substrate == 'benthic' ~ 'bottom'),
          SampleMethod =
@@ -75,7 +81,6 @@ df_frp <- df_frp %>%
                      TRUE ~ SampleDepth)
          )
 ```
-
 
 ## Add in Metadata
 ```{r}
@@ -93,10 +98,6 @@ df_frp <- add_meta_col(df_frp, 'CDFW-FRP', 'CountMethodSample')
 
 df_frp <- df_frp %>%
   mutate(CountMethodTaxa = CountMethodSample) # don't have more info
-
-# Location
-df_frp <- df_frp %>%
-  mutate(Location = Station) # same for this study
 ```
 
 ## Add extra columns
@@ -130,16 +131,14 @@ df_frp <- add_debris_col(df_frp)
 df_frp <- add_notes_col(df_frp)
 
 taxon_notes <- attr(df_frp, 'log')$taxa_notes
-write_log_file(taxon_notes, 'Synthesized Dataset/01 Group Checks/CDFW-FRP/tables/FRP_taxon_notes.csv')
 print(taxon_notes)
 
 unmatched_notes <- attr(df_frp, 'log')$unmatched_notes
-write_log_file(unmatched_notes, 'Synthesized Dataset/01 Group Checks/CDFW-FRP/tables/FRP_unmatched_taxon_notes.csv')
+
 print(unmatched_notes)
 
 df_frp <- extract_unstandardized_comments(df_frp, 'Comments', delimiter = '. ')
 unmatched_comments <- attr(df_frp, 'log')$unmatched_comments
-write_log_file(unmatched_comments, 'Synthesized Dataset/01 Group Checks/CDFW-FRP/tables/FRP_leftover_comments.csv')
 print(unmatched_comments)
 ```
 
@@ -170,6 +169,29 @@ needs_hierarchy <- attr(df_frp, 'log')$unmatched_taxa
 print(needs_hierarchy)
 ```
 
+## fix capitalization
+
+```{r}
+df_frp <- df_frp %>%
+  mutate(
+    Taxon = case_when(
+      Taxon == 'Unknown Cyanophyte'   ~ 'Unknown cyanophyte',
+      Taxon == 'Unknown Chlorophyte'  ~ 'Unknown chlorophyte',
+      Taxon == 'Unknown Chlorophyta'  ~ 'Unknown chlorophyte',
+      TRUE ~ Taxon
+    )
+  )
+```
+
+
+## Add ID column
+```{r}
+df_frp <- df_frp %>% mutate(ForID = paste0(LocationAbbrev,Station))
+df_frp <- add_id_col(df_frp, loc_col = 'ForID')
+
+df_frp <- df_frp %>% select(-ForID)
+```
+
 ## Subset relevant columns
 ```{r}
 df_frp <- subset_cols(df_frp)
@@ -183,18 +205,15 @@ df_frp <- df_frp %>%
   )
 ```
 
-# fix capitalization
-
+## Combine taxa (multiple sizes, standardized unknowns)
 ```{r}
-df_frp <- df_frp %>%
-  mutate(
-    Taxon = case_when(
-      Taxon == 'Unknown Cyanophyte'   ~ 'Unknown cyanophyte',
-      Taxon == 'Unknown Chlorophyte'  ~ 'Unknown chlorophyte',
-      Taxon == 'Unknown Chlorophyta'  ~ 'Unknown chlorophyte',
-      TRUE ~ Taxon
-    )
-  )
+df_frp <- combine_taxons(df_frp, key_cols = c('Date','Time','Location','Station','SampleDepth','DepthType'), measurement_cols = c('Biovolume_per_mL', 'Units_per_mL', 'Cells_per_mL'))
+check <- attr(df_frp, 'log')$combined_conflicts
+```
+
+## Re-arrange columns
+```{r}
+df_frp <- subset_cols(df_frp)
 ```
 
 # Save .Rdata

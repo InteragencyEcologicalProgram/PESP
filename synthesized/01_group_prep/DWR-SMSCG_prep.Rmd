@@ -155,9 +155,12 @@ needs_hierarchy <- attr(df_smscg, 'log')$unmatched_taxa
 
 print(needs_hierarchy)
 ```
+## Add ID column
+```{r}
+df_smscg <- add_id_col(df_smscg, loc_col = 'Station')
+```
 
 ## Subset relevant columns
-
 ```{r}
 df_smscg <- subset_cols(df_smscg)
 
@@ -175,10 +178,6 @@ df_smscg <- df_smscg %>%
 ```{r}
 df_smscg <- df_smscg %>%
   mutate(Station = str_replace(Station, '^[^_]+_', ''))
-```
-
-```{r}
-df_smscg
 ```
 
 # Rename QC col codes
@@ -204,6 +203,13 @@ df_smscg <- df_smscg %>%
 unique(df_smscg$Debris)
 unique(df_smscg$Notes)
 unique(df_smscg$QualityCheck)
+```
+
+## Combine taxa (multiple sizes, standardized unknowns)
+```{r}
+df_smscg <- combine_taxons(df_smscg, key_cols = c('Date', 'Time', 'Station', 'SampleDepth'))
+combine_issues <- attr(df_smscg, 'log')$combined_conflicts
+combine_checks <- attr(df_smscg, 'log')$combined_taxa
 ```
 
 # Save .Rdata
