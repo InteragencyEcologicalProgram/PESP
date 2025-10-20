@@ -58,6 +58,7 @@ df_data <- rename_cols(df_data, rename_map)
 ```{r}
 df_data <- remove_taxa_info(df_data)
 ```
+
 ## Calculate measurement columns
 
 ### Check non-numeric values

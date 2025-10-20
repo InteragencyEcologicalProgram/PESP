@@ -4,6 +4,10 @@
 #' @noRd
 '%!in%' <- function(x,y)!('%in%'(x,y))
 
+#' @importFrom readr col_date
+#' @noRd
+NULL
+
 # Input/Output Helpers ----------------------------------------------------
 
 #' @noRd
@@ -13,6 +17,17 @@ read_quiet_csv <- function(fp, ...){
   return(df)
 }
 
+#' @title Write a log dataframe to a CSV file
+#'
+#' @description
+#' Writes a log dataframe (`df_log`) to a CSV file at the specified path.
+#' The function only writes if `df_log` exists, is a dataframe, and
+#' has at least one row. The path is resolved using `abs_pesp_path()`.
+#'
+#' @param df_log a dataframe containing log entries to write
+#' @param fp character string giving the file path for the CSV
+#'
+#' @importFrom readr write_csv
 #' @noRd
 write_log_file <- function(df_log, fp) {
   if (exists('df_log') && is.data.frame(df_log) && nrow(df_log) > 0) {
@@ -1028,7 +1043,7 @@ add_id_col <- function(df, loc_col) {
 #' @return
 #' Dataframe with cleaned `Taxon` values and a `log` attribute listing changed entries
 #'
-#' @importFrom stringr str_replace_all str_replace str_remove_all str_detect str_match str_squish str_to_lower regex
+#' @importFrom stringr str_replace_all str_replace str_remove_all str_detect str_match str_squish str_to_lower regex str_remove
 #' @importFrom dplyr case_when distinct
 #' @importFrom tibble tibble
 #' @export

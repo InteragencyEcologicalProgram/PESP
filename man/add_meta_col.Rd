@@ -4,7 +4,13 @@
 \alias{add_meta_col}
 \title{Add Metadata Column for Program}
 \usage{
-add_meta_col(df, program, col_name, match_cols = NULL)
+add_meta_col(
+  df,
+  program,
+  col_name,
+  match_cols = NULL,
+  read_func = read_meta_file
+)
 }
 \arguments{
 \item{df}{A dataframe to which the metadata column will be added}
