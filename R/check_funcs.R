@@ -101,12 +101,33 @@ check_distinct <- function(df, return_df = FALSE, coerce = TRUE,
   }
 }
 
+#' @title Extract unstandardized comments from a dataframe
+#'
+#' @description
+#' Identifies and extracts comment text fragments that do not match a predefined
+#' set of known quality or debris phrases. Normalizes delimiters, removes known
+#' phrases, and appends unmatched comment fragments to the dataframe's log
+#' attribute under `unmatched_comments`.
+#'
+#' @param df a dataframe containing comment text
+#' @param comment_col unquoted column name containing comments to parse
+#' @param delimiter character string giving the delimiter used to separate comment fragments (default `' '`)
+#'
+#' @return the input dataframe with an updated `'log'` attribute containing a tibble of unmatched comment fragments (if any)
+#'
+#' @importFrom rlang ensym
+#' @importFrom dplyr pull case_when
+#' @importFrom stringr str_remove_all str_replace_all str_split str_trim
+#' @importFrom purrr map discard
+#' @importFrom tibble tibble
+#'
+#' @export
 extract_unstandardized_comments <- function(df, comment_col, delimiter = ' ') {
-  comment_col <- rlang::ensym(comment_col)
+  comment_col <- ensym(comment_col)
   
   # normalize common delimiters to regex equivalents
   if (!is.null(delimiter) && delimiter != '') {
-    delimiter <- dplyr::case_when(
+    delimiter <- case_when(
       delimiter == '. '  ~ '\\.\\s*',
       delimiter == '.'   ~ '\\.',
       delimiter == ', '  ~ ',\\s*',
@@ -165,7 +186,7 @@ extract_unstandardized_comments <- function(df, comment_col, delimiter = ' ') {
     unique() %>%
     discard(is.na)
   
-  cleaned_comments <- stringr::str_remove_all(raw_comments, regex(known_pattern, ignore_case = TRUE))
+  cleaned_comments <- str_remove_all(raw_comments, regex(known_pattern, ignore_case = TRUE))
   
   # isolate unmatched fragments
   if (!is.null(delimiter) && delimiter != '') {
