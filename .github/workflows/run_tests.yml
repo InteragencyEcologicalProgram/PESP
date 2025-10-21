@@ -23,6 +23,7 @@ jobs:
           extra-packages: |
             local::.
             any::testthat
+          cache: true
         env:
           GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
 

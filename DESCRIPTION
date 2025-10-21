@@ -17,12 +17,16 @@ RoxygenNote: 7.3.3
 Depends: R (>= 4.1)
 Imports:
     lubridate,
+    memoise,
+    stringi,
     readxl,
     dplyr (>= 1.0.4),
     tidyr,
     readr,
     purrr,
     tibble,
+    glue,
+    hms,
     stringr,
     rlang,
     fuzzyjoin,
