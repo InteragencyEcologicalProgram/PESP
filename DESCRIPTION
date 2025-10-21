@@ -27,6 +27,7 @@ Imports:
     tibble,
     glue,
     hms,
+    devtools,
     stringr,
     rlang,
     fuzzyjoin,
