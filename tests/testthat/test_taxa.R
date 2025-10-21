@@ -160,7 +160,7 @@ test_that('combine_taxa calculates densities correctly, Notes/QualityCheck/Debri
     PhytoForm = c('c','c','f','f','i','i','c','c')
   )
   
-  out <- combine_taxons(df)
+  out <- combine_taxa(df)
   
   # Microcystis aeruginosa @ A (merged)
   mA <- out %>% filter(Station == 'A', Taxon == 'Microcystis aeruginosa')
