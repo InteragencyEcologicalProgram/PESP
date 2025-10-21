@@ -14,7 +14,7 @@ check_distinct <- function(df, return_df = FALSE, coerce = TRUE,
     df_check <- df_check %>%
       mutate(
         across(where(is.factor), as.character),
-        across(where(is.numeric), ~ round(.x, 6))
+        across(where(is.numeric), ~ round(.x, 6))  
       )
   }
   
