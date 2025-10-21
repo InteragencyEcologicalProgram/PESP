@@ -269,7 +269,7 @@ df_data <- subset_cols_emp(df_data)
 ## Combine taxa (multiple sizes, standardized unknowns)
 
 ```{r}
-df_data <- combine_taxons(df_data)
+df_data <- combine_taxa(df_data)
 combined_taxa <- attr(df_data, 'log')$combined_taxa
 write_log_file(combined_taxa, 'Groups/DWR-EMP/02 Program Data/QC files/tables/EMP_combined_taxa.csv')
 
@@ -291,7 +291,7 @@ unique_check(df_data, 'Station')
 ```
 
 ```{r}
-# set <measurements> == 0 to NA (have to do later in code)
+# set densities == 0 to NA (have to do later in code)
 df_data <- df_data %>%
   mutate(
     Cells_per_mL = case_when(Cells_per_mL == 0 ~ NA,

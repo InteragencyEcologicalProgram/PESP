@@ -1372,7 +1372,7 @@ update_synonyms <- function(df, read_func = read_phyto_taxa) {
     }
   }
   
-  # memoize for performance
+  # memoise for performance
   memo_resolve_synonym <- memoise(resolve_synonym)
   
   unique_taxa <- unique(df$Taxon)
@@ -1685,8 +1685,8 @@ higher_lvl_taxa <- function(df, after_col = NULL, std_type, read_func = read_phy
 #' - **OrigTaxon** — concatenated with `"; "` if multiple distinct values exist;
 #'   remains `NA` if all source values were missing
 #'
-#' @importFrom dplyr group_by ungroup mutate across all_of if_else summarize filter select count first n
-#' @importFrom tidyr pivot_longer
+#' @importFrom data.table as.data.table uniqueN melt fifelse
+#' @importFrom dplyr first
 #' @importFrom stringr str_squish str_detect
 #' @importFrom stats na.omit
 #' @export
@@ -1694,27 +1694,28 @@ combine_taxa <- function(df,
                          key_cols = c('Date','Station'),
                          measurement_cols = c('Biovolume_per_mL','Units_per_mL','Cells_per_mL')) {
   
+  # suppress data.table progress bar
+  old_opt <- getOption('datatable.showProgress')
+  options(datatable.showProgress = FALSE)
+  on.exit(options(datatable.showProgress = old_opt), add = TRUE)
+
   original_cols <- names(df)
   message('Combining on key_cols: ', paste(key_cols, collapse = ', '))
   
   measurement_cols <- intersect(measurement_cols, names(df))
   
-  # --- helpers ---
-  # orig taxon
+  # --- helpers (unchanged logic) ---
   combine_origtaxon <- function(orig, taxon) {
     x <- str_squish(as.character(orig))
     x[x == ''] <- NA_character_
     non_na <- unique(na.omit(x))
     if (length(non_na) == 0) return(NA_character_)
-    
     had_any_na <- any(is.na(x))
     out <- non_na
     if (had_any_na && !(taxon[1] %in% non_na)) out <- c(out, taxon[1])
-    
     paste(out, collapse = '; ')
   }
   
-  # text column helper
   combine_textcol <- function(x, none_label) {
     vals <- unique(str_squish(na.omit(x)))
     vals <- vals[vals != none_label]
@@ -1723,15 +1724,8 @@ combine_taxa <- function(df,
     paste(toks, collapse = ' ')
   }
   
-  # combine "text" columns
-  combine_notes     <- function(x) combine_textcol(x, 'NoNote') 
-  combine_qccheck <- function(x) {
-    vals <- unique(str_squish(na.omit(x)))
-    vals <- vals[vals != 'NoCode']
-    if (length(vals) == 0) return('NoCode')
-    toks <- unique(strsplit(paste(vals, collapse = ' '), '\\s+')[[1]])
-    paste(toks, collapse = ' ')
-  }
+  combine_notes     <- function(x) combine_textcol(x, 'NoNote')
+  combine_qccheck   <- function(x) combine_textcol(x, 'NoCode')
   combine_phytoform <- function(x) paste(sort(unique(na.omit(str_squish(x)))), collapse = ', ')
   combine_debris    <- function(x) {
     vals <- unique(na.omit(str_squish(x)))
@@ -1745,77 +1739,91 @@ combine_taxa <- function(df,
   for (col in c('GALD','Notes','QualityCheck','Debris','PhytoForm','OrigTaxon'))
     if (!col %in% names(df)) df[[col]] <- if (col == 'GALD') NA_real_ else NA_character_
   
-  # K/P/C mismatch handling (single pass)
-  if (all(c('Kingdom','Phylum','Class') %in% names(df))) {
-    df <- df %>%
-      group_by(across(all_of(c(key_cols, 'Taxon')))) %>%
-      mutate(
-        .diff_dim = case_when(
-          n_distinct(Class,   na.rm = TRUE) > 1 ~ 'Class',
-          n_distinct(Phylum,  na.rm = TRUE) > 1 ~ 'Phylum',
-          n_distinct(Kingdom, na.rm = TRUE) > 1 ~ 'Kingdom',
-          TRUE ~ NA_character_
-        ),
-        .key_val = coalesce(
-          if_else(.diff_dim == 'Class',   Class,   NA_character_),
-          if_else(.diff_dim == 'Phylum',  Phylum,  NA_character_),
-          if_else(.diff_dim == 'Kingdom', Kingdom, NA_character_),
-          .diff_dim
-        ),
-        Taxon = if_else(!is.na(.diff_dim),
-                               paste('Unknown', tolower(.key_val)),
-                               Taxon)
-      ) %>%
-      ungroup() %>%
-      select(-.diff_dim, -.key_val)
+  # convert to data.table
+  DT <- as.data.table(df)
+  
+  # --- K/P/C mismatch handling ---
+  if (all(c('Kingdom','Phylum','Class') %in% names(DT))) {
+    group_cols_kpc <- c(key_cols, 'Taxon')
+    
+    # flag groups with mismatches (computed once)
+    mismatch_flags <- DT[, .(
+      has_class = uniqueN(Class, na.rm = TRUE) > 1,
+      has_phyl  = uniqueN(Phylum, na.rm = TRUE) > 1,
+      has_king  = uniqueN(Kingdom, na.rm = TRUE) > 1
+    ), by = group_cols_kpc]
+    
+    # join flags back efficiently
+    DT <- mismatch_flags[DT, on = group_cols_kpc]
+    
+    # apply Unknown substitution using vectorized logic
+    DT[has_class == TRUE, Taxon := paste('Unknown', tolower(Class))]
+    DT[has_class != TRUE & has_phyl == TRUE, Taxon := paste('Unknown', tolower(Phylum))]
+    DT[has_class != TRUE & has_phyl != TRUE & has_king == TRUE, Taxon := paste('Unknown', tolower(Kingdom))]
+    
+    # drop temp flags
+    DT[, c('has_class','has_phyl','has_king') := NULL]
   }
   
   group_cols <- c(key_cols, 'Taxon')
   
-  # precompute carry columns
   carry_cols <- setdiff(
-    names(df),
-    c(group_cols, measurement_cols, 'GALD','Notes','QualityCheck','Debris','PhytoForm','OrigTaxon')
+    names(DT),
+    c(group_cols, measurement_cols,
+      'GALD','Notes','QualityCheck','Debris','PhytoForm','OrigTaxon')
   )
   
-  # main aggregation (track group size)
-  df_out <- df %>%
-    group_by(across(all_of(group_cols))) %>%
-    summarize(
-      .n_in_group = n(),
-      across(all_of(measurement_cols), \(x) sum(x, na.rm = TRUE)),
-      GALD        = if (all(is.na(GALD))) NA_real_ else max(GALD, na.rm = TRUE),
-      Notes       = combine_notes(Notes),
-      QualityCheck= combine_qccheck(QualityCheck),
-      Debris      = combine_debris(Debris),
-      PhytoForm   = combine_phytoform(PhytoForm),
-      OrigTaxon   = combine_origtaxon(OrigTaxon, Taxon),
-      across(all_of(carry_cols), \(x) first(x)),
-      .groups = 'drop'
-    ) %>%
-    mutate(
-      # append 'MultipleEntries' iff merged and not already present
-      Notes = case_when(
-        .n_in_group > 1 & Notes == 'NoNote' ~ 'MultipleEntries',
-        .n_in_group > 1 & !stringr::str_detect(Notes, '\\bMultipleEntries\\b') ~
-          stringr::str_squish(paste(Notes, 'MultipleEntries')),
-        TRUE ~ Notes
-      )
-    ) %>%
-    select(any_of(original_cols))
+  # --- main aggregation ---
+  DT_out <- DT[, {
+    .n_in_group <- .N
+    
+    # summarize measurement columns (from .SD defined by .SDcols)
+    sums <- lapply(.SD, function(x) sum(x, na.rm = TRUE))
+    
+    list_vals <- list(
+      .n_in_group = .n_in_group,
+      GALD = if (all(is.na(GALD))) NA_real_ else max(GALD, na.rm = TRUE),
+      Notes = combine_notes(Notes),
+      QualityCheck = combine_qccheck(QualityCheck),
+      Debris = combine_debris(Debris),
+      PhytoForm = combine_phytoform(PhytoForm),
+      OrigTaxon = combine_origtaxon(OrigTaxon, Taxon)
+    )
+    
+    # combine measurement results
+    for (nm in names(sums)) list_vals[[nm]] <- sums[[nm]]
+    
+    # carry columns
+    for (col in carry_cols) list_vals[[col]] <- first(get(col))
+    
+    list_vals
+  },
+  by = group_cols,
+  .SDcols = measurement_cols, verbose = FALSE]
   
-  # logs
-  combine_log <- df %>%
-    count(across(all_of(group_cols))) %>%
-    filter(n > 1)
+  # --- append MultipleEntries notes ---
+  DT_out[, Notes := fifelse(
+    .n_in_group > 1 & Notes == 'NoNote', 'MultipleEntries',
+    fifelse(.n_in_group > 1 & !str_detect(Notes, '\\bMultipleEntries\\b'),
+            str_squish(paste(Notes, 'MultipleEntries')),
+            Notes)
+  )]
+  
+  # keep original column order
+  DT_out <- DT_out[, intersect(original_cols, names(DT_out)), with = FALSE]
+  
+  # --- logs (same logic) ---
+  combine_log <- DT[, .N, by = group_cols][N > 1]
   
   conflict_log <- NULL
   if (length(carry_cols)) {
-    conflict_log <- df %>%
-      group_by(across(all_of(group_cols))) %>%
-      summarize(across(all_of(carry_cols), \(x) n_distinct(x, na.rm = TRUE)), .groups = 'drop') %>%
-      tidyr::pivot_longer(all_of(carry_cols), names_to = 'column', values_to = 'n_distinct_values') %>%
-      filter(n_distinct_values > 1)
+    conflict_log <- DT[, lapply(.SD, function(x) uniqueN(x, na.rm = TRUE)),
+                       by = group_cols, .SDcols = carry_cols]
+    conflict_log <- melt(conflict_log,
+                         id.vars = group_cols,
+                         variable.name = 'column',
+                         value.name = 'n_distinct_values')
+    conflict_log <- conflict_log[n_distinct_values > 1]
     if (nrow(conflict_log)) {
       cols <- paste(unique(conflict_log$column), collapse = ', ')
       message(nrow(conflict_log), ' conflicts detected in unexpected columns (', cols, ')')
@@ -1823,9 +1831,14 @@ combine_taxa <- function(df,
   }
   
   message('Taxon rows combined: ', nrow(combine_log))
-  attr(df_out, 'log') <- list(combined_taxa = combine_log, combined_conflicts = conflict_log)
-  df_out
+  attr(DT_out, 'log') <- list(
+    combined_taxa = as.data.frame(combine_log),
+    combined_conflicts = if (is.null(conflict_log)) NULL else as.data.frame(conflict_log)
+  )
+  
+  return(as.data.frame(DT_out))
 }
+
 
 #' @title Remove taxonomic classification columns
 #'

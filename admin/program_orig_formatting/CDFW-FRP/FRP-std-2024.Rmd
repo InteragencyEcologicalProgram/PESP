@@ -135,7 +135,7 @@ attr(df_frp, 'log')$unmatched_taxa_updated
 ## Combine taxa (multiple sizes, standardized unknowns)
 
 ```{r}
-df_frp <- combine_taxons(df_frp, key_cols = 'SampleID_frp', measurement_cols = c('Biov_permL', 'Units_permL', 'Cells_permL'))
+df_frp <- combine_taxa(df_frp, key_cols = 'SampleID_frp', measurement_cols = c('Biov_permL', 'Units_permL', 'Cells_permL'))
 attr(df_frp, 'log')$combined_taxa
 ```
 

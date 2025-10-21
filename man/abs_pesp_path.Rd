@@ -2,7 +2,7 @@
 % Please edit documentation in R/global_funcs.R
 \name{abs_pesp_path}
 \alias{abs_pesp_path}
-\title{Absolute Path to PESP Data Folder}
+\title{Absolute path to PESP data folder}
 \usage{
 abs_pesp_path(fp_rel = NULL)
 }

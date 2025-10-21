@@ -2,7 +2,7 @@
 % Please edit documentation in R/global_funcs.R
 \name{from_meta}
 \alias{from_meta}
-\title{Add Metadata Values to Main Dataframe by Date}
+\title{Add metadata values to main dataframe by Date}
 \usage{
 from_meta(df, df_meta, column)
 }

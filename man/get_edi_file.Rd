@@ -2,7 +2,7 @@
 % Please edit documentation in R/global_funcs.R
 \name{get_edi_file}
 \alias{get_edi_file}
-\title{Download and Read Specific Files from an EDI Data Package}
+\title{Download and read specific files from an EDI data package}
 \usage{
 get_edi_file(pkg_id, fname)
 }

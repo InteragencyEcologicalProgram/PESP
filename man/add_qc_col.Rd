@@ -2,7 +2,7 @@
 % Please edit documentation in R/global_funcs.R
 \name{add_qc_col}
 \alias{add_qc_col}
-\title{Add Automated Quality Control Flags}
+\title{Add quality control flags}
 \usage{
 add_qc_col(
   df,

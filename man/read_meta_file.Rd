@@ -2,7 +2,7 @@
 % Please edit documentation in R/global_funcs.R
 \name{read_meta_file}
 \alias{read_meta_file}
-\title{Read-in Metadata File for Programs}
+\title{Read-in metadata file for programs}
 \usage{
 read_meta_file(program_name)
 }

@@ -2,7 +2,7 @@
 % Please edit documentation in R/global_funcs.R
 \name{rename_values}
 \alias{rename_values}
-\title{Rename Values in a Column}
+\title{Rename values in a column}
 \usage{
 rename_values(df, column, rename_map)
 }

@@ -2,7 +2,7 @@
 % Please edit documentation in R/global_funcs.R
 \name{read_phyto_taxa}
 \alias{read_phyto_taxa}
-\title{Read-in Phyto Taxonomy Key List}
+\title{Read-in phyto taxonomy key list}
 \usage{
 read_phyto_taxa()
 }
