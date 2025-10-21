@@ -27,5 +27,7 @@ jobs:
         env:
           GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Run R CMD check (fail on test errors)
-        run: Rscript -e "rcmdcheck::rcmdcheck(args = '--no-manual', error_on = 'error', check_dir = 'check')"
+      - name: Run R CMD check (show errors)
+        run: |
+          Rscript -e "rcmdcheck::rcmdcheck(args = c('--no-manual', '--as-cran', '--timings'), error_on = 'error', check_dir = 'check', build_args = '--no-resave-data', quiet = FALSE)"
+
