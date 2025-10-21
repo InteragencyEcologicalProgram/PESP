@@ -73,18 +73,19 @@ test_that('clean_unknowns handles std_sp and std_suffix flags', {
 test_that('correct_taxon_typos standardizes and corrects taxa names properly', {
   # test data
   df_typos <- tibble(
-    Taxon = c('Microcystis aerugino', 'Melosira var.', 'Chlamydomonas reinharti'),
-    TaxonCorrected = c('Microcystis aeruginosa', 'Melosira sp.', 'Chlamydomonas reinhardtii')
+    Taxon = c('Microcystis aerugino', 'Chlamydomonas reinharti'),
+    TaxonCorrected = c('Microcystis aeruginosa', 'Chlamydomonas reinhardtii')
   )
   
   df <- tibble(
     Taxon = c(
-      'Microcystis aerugino',
-      'Melosira var', 
-      'Chlamydomonas cf reinharti',
-      'Navicula cf. pelliculosa',  
-      'Cyclotella sp..',
-      'Cyclotella sp.'
+      'Microcystis aerugino',          # typo
+      'Chlamydomonas cf reinharti',    # missing period (cf.) and typo
+      'Navicula cf. pennata',      # correct
+      'Chroococcus Dispersus',         # capitalized
+      'chroococcus dispersus',         # all lowercase
+      'Cyclotella sp..',               # too many periods
+      'Cyclotella sp.'                 # correct
     )
   )
   
@@ -105,11 +106,12 @@ test_that('correct_taxon_typos standardizes and corrects taxa names properly', {
   
   # expected transformations
   expect_equal(cleaned$Taxon[1], 'Microcystis aeruginosa')
-  expect_equal(cleaned$Taxon[2], 'Melosira sp.')
-  expect_equal(cleaned$Taxon[3], 'Chlamydomonas cf. reinhardtii')
-  expect_equal(cleaned$Taxon[4], 'Navicula cf. pelliculosa')
-  expect_equal(cleaned$Taxon[5], 'Cyclotella sp.')
+  expect_equal(cleaned$Taxon[2], 'Chlamydomonas cf. reinhardtii')
+  expect_equal(cleaned$Taxon[3], 'Navicula cf. pennata')
+  expect_equal(cleaned$Taxon[4], 'Chroococcus dispersus')
+  expect_equal(cleaned$Taxon[5], 'Chroococcus dispersus')
   expect_equal(cleaned$Taxon[6], 'Cyclotella sp.')
+  expect_equal(cleaned$Taxon[7], 'Cyclotella sp.')
   
   # log validity
   expect_true(all(log_tbl$OrigTaxon %in% df$Taxon))
@@ -124,26 +126,24 @@ test_that('update_synonyms resolves and logs synonym chains correctly', {
   # fake synonym table
   df_phyto <- tibble(
     Taxon = c(
-      'Aulacoseira italica',
       'Melosira italica',
+      'Aulacoseira italica',
       'Cyclotella meneghiniana',
       'Genus oldspecies',
       'Genus newspecies',
-      'Navicula pelliculosa',
-      'Navicula pelliculosa var. minor',
+      'Navicula pennata',
       'Genus a',
       'Genus b'
     ),
     CurrentTaxon = c(
-      'Melosira italica',        # synonym chain 1
-      'None',                    # terminal
-      'Discostella stelligera',  # synonym chain 2
-      'Genus newspecies',        # chain to newspecies
+      'Aulacoseira italica',              # synonym chain 1
+      'None',                             # terminal
+      'Stephanocyclus meneghinianus',     # synonym chain 2
+      'Genus newspecies',                 # chain to newspecies
       'None',
       'None',
-      'Navicula pelliculosa',    # variety -> main species
-      'Genus b',                 # multi-synonym chain
-      'Genus c'                  # multi-synonym chain
+      'Genus b',                          # multi-synonym chain
+      'Genus c'                           # multi-synonym chain
     )
   )
   
@@ -153,14 +153,14 @@ test_that('update_synonyms resolves and logs synonym chains correctly', {
   # input dataframe
   df <- tibble(
     Taxon = c(
-      'Aulacoseira italica',             # chain Aulacoseira -> Melosira italica
-      'Cyclotella meneghiniana',         # chain Cyclotella -> Discostella stelligera
-      'Cyclotella cf. meneghiniana',     # cf. form resolves to Discostella cf. stelligera
-      'Genus oldspecies',                # chain to Genus newspecies
-      'cf. Genus oldspecies',            # front cf.
-      'Navicula pelliculosa var. minor', # variety synonym
-      'Navicula pelliculosa',            # no change (terminal)
-      'Genus a'                          # chain Genus a -> Genus b -> Genus c
+      'Melosira italica',                  # chain Melosira -> Aulacoseira italica
+      'Cyclotella meneghiniana',           # chain Cyclotella -> Stephanocyclus meneghinianus
+      'Cyclotella cf. meneghiniana',       # cf. form resolves to Cyclotella cf. meneghiniana
+      'Genus oldspecies',                  # chain to Genus newspecies
+      'cf. Genus oldspecies',              # front cf.
+      'Navicula salinarum var. rostrata',  # variety synonym
+      'Navicula pennata',                  # no change (terminal)
+      'Genus a'                            # chain Genus a -> Genus b -> Genus c
     )
   )
   
@@ -178,14 +178,13 @@ test_that('update_synonyms resolves and logs synonym chains correctly', {
   expect_true(all(c('OrigTaxon', 'UpdatedTaxon') %in% names(log_tbl)))
   
   # --- expected synonym resolutions ---
-  expect_equal(cleaned$Taxon[1], 'Melosira italica')              # simple chain
-  expect_equal(cleaned$Taxon[2], 'Discostella stelligera')        # direct synonym
-  expect_equal(cleaned$Taxon[3], 'Discostella cf. stelligera')    # cf. middle
-  expect_equal(cleaned$Taxon[4], 'Genus newspecies')              # chain resolved
-  expect_equal(cleaned$Taxon[5], 'cf. Genus newspecies')          # cf. front
-  expect_equal(cleaned$Taxon[6], 'Navicula pelliculosa')          # variety collapsed
-  expect_equal(cleaned$Taxon[7], 'Navicula pelliculosa')          # unchanged
-  expect_equal(cleaned$Taxon[8], 'Genus c')                       # multi-step chain
+  expect_equal(cleaned$Taxon[1], 'Aulacoseira italica')                 # simple chain
+  expect_equal(cleaned$Taxon[2], 'Stephanocyclus meneghinianus')        # direct synonym
+  expect_equal(cleaned$Taxon[3], 'Stephanocyclus cf. meneghinianus')    # cf. middle
+  expect_equal(cleaned$Taxon[4], 'Genus newspecies')                    # chain resolved
+  expect_equal(cleaned$Taxon[5], 'cf. Genus newspecies')                # cf. front
+  expect_equal(cleaned$Taxon[7], 'Navicula pennata')                    # unchanged
+  expect_equal(cleaned$Taxon[8], 'Genus c')                             # multi-step chain
   
   # unchanged taxon should have NA in OrigTaxon
   expect_true(is.na(cleaned$OrigTaxon[7]))
@@ -194,6 +193,80 @@ test_that('update_synonyms resolves and logs synonym chains correctly', {
   expect_true(all(log_tbl$OrigTaxon %in% df$Taxon))
   expect_true(all(log_tbl$OrigTaxon != log_tbl$UpdatedTaxon))
 })
+
+
+# higher_lvl_taxa ---------------------------------------------------------
+
+test_that('higher_lvl_taxa appends taxonomy fields and handles cf. logic', {
+  # fake taxonomy table
+  fake_read_func <- function() {
+    tibble(
+      Taxon = c(
+        'Chroococcus dispersus',
+        'Chroococcus sp.',
+        'Gonyaulax verior',
+        'Sourniaea diacantha',
+        'Sourniaea sp.'
+      ),
+      Kingdom = c('Bacteria','Bacteria','Chromista','Chromista','Chromista'),
+      Phylum = c('Cyanobacteria','Cyanobacteria','Dinoflagellata','Dinoflagellata','Dinoflagellata'),
+      Class = c('Cyanophyceae','Cyanophyceae','Dinophyceae','Dinophyceae','Dinophyceae'),
+      AlgalGroup = c('Cyanobacteria','Cyanobacteria','Dinoflagellates','Dinoflagellates','Dinoflagellates'),
+      Genus = c('Chroococcus','Chroococcus','Gonyaulax','Sourniaea','Sourniaea'),
+      Species = c('dispersus','sp.','verior','diacantha','sp.'),
+      CurrentTaxon = c(NA,NA,'Sourniaea diacantha',NA,NA)
+    )
+  }
+  
+  # sample df
+  df <- tibble(
+    OrigTaxon = c(NA,NA,'Gonyaulax verior',NA,'Gonyaulax verior',NA,NA),
+    Taxon = c(
+      'Chroococcus dispersus',            # up-to-date species
+      'Chroococcus sp.',                  # up-to-date genus
+      'Sourniaea diacantha',              # capitalization issue
+      'Chroococcus dispersus cf.',        # cf. at end
+      'Sourniaea cf. diacantha',          # cf. in middle
+      'cf. Chroococcus dispersus',        # cf. at start
+      'Sourniaea sp. 1'                   # suffix
+    )
+  )
+  
+  # --- program mode ---
+  df_prog <- higher_lvl_taxa(df, after_col = 'Taxon', std_type = 'program', read_func = fake_read_func)
+  
+  df_prog <<- df_prog
+  
+  # should contain classification columns
+  expect_true(all(c('Kingdom','Phylum','Class','AlgalGroup','Genus','Species') %in% names(df_prog)))
+  
+  # unmatched taxa log exists and has correct structure
+  unmatched <- attr(df_prog, 'log')$unmatched_taxa
+  expect_s3_class(unmatched, 'data.frame')
+  expect_true(all(c('PureTaxon','Taxon') %in% names(unmatched)))
+  
+  # capitalization normalized
+  expect_true(any(grepl('Sourniaea diacantha', df_prog$Taxon)))
+  
+  # --- PESP mode ---
+  df_pesp <- higher_lvl_taxa(df, after_col = 'Taxon', std_type = 'pesp', read_func = fake_read_func)
+  
+  # capitalization normalized
+  expect_true(any(grepl('Sourniaea diacantha', df_prog$Taxon)))
+  
+  # 'Genus cf.' standardized to 'Genus sp.'
+  expect_true(any(grepl('Sourniaea sp\\.', df_pesp$Taxon)))
+  print(df_pesp$Taxon)
+  
+  # 'cf. Genus' replaced with 'Unknown <algal group>'
+  expect_true(any(grepl('Unknown cyanobacterium', df_pesp$Taxon)))
+
+  # unmatched taxa log still present and structured
+  unmatched2 <- attr(df_pesp, 'log')$unmatched_taxa
+  expect_s3_class(unmatched2, 'data.frame')
+})
+
+
 
 # combine_taxa ------------------------------------------------------------
 

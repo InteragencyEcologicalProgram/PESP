@@ -56,7 +56,7 @@ append_log <- function(df, new_log) {
 
 # Path and Metadata Readers -----------------------------------------------
 
-#' @title Absolute Path to PESP Data Folder
+#' @title Absolute path to PESP data folder
 #' @description
 #' Constructs an absolute path to the shared PESP data directory under the user's home directory.
 #' Optionally appends a relative path inside the folder.
@@ -77,7 +77,7 @@ abs_pesp_path <- function(fp_rel = NULL) {
   }
 }
 
-#' @title Read-in Phyto Taxonomy Key List
+#' @title Read-in phyto taxonomy key list
 #' 
 #' @description
 #' Read in phytoplankton taxonomy key list (based on AlgaeBase; Algal Groups from Tiffany Brown at DWR).
@@ -96,7 +96,7 @@ read_phyto_taxa <- function(){
   return(df)
 }
 
-#' @title Read-in Metadata File for Programs
+#' @title Read-in metadata file for programs
 #' @description
 #' Reads in the PESP metadata Excel file and filters it to include only rows for the specified program.
 #' Any missing `Ending Date` values are replaced with the current system date.
@@ -116,7 +116,7 @@ read_meta_file <- function(program_name){
   return(df)
 }
 
-#' @title Download and Read Specific Files from an EDI Data Package
+#' @title Download and read specific files from an EDI data package
 #' @description
 #' Downloads specified files by name from the latest revision of an EDI data package,
 #' and reads them into a named list of dataframes.
@@ -166,7 +166,7 @@ get_edi_file <- function(pkg_id, fname) {
 
 # Modify Dataframe --------------------------------------------------------
 
-#' @title Add Metadata Values to Main Dataframe by Date
+#' @title Add metadata values to main dataframe by Date
 #' 
 #' @description
 #' Expands date ranges from the metadata dataframe, then joins selected columns from that metadata
@@ -236,7 +236,7 @@ rename_cols <- function(df, rename_map = NULL) {
   return(df)
 }
 
-#' @title Rename Values in a Column
+#' @title Rename values in a column
 #'
 #' @description
 #' Renames values in a specified dataframe column according to a named vector
@@ -512,7 +512,7 @@ coalesce_cols <- function(df, combine_map = NULL) {
 
 # Add Columns -------------------------------------------------------------
 
-#' @title Add Automated Quality Control Flags
+#' @title Add quality control flags
 #'
 #' @description
 #' Scans comment text and measurement fields to generate standardized quality control
@@ -1214,6 +1214,15 @@ correct_taxon_typos <- function(df, read_func = read_quiet_csv) {
   df <- df %>%
     mutate(Taxon = map_chr(Taxon, correct_taxon))
   
+  # fix capitalization (ie. Genus species)
+  df <- df %>%
+    mutate(
+      Taxon = case_when(
+        str_detect(Taxon, '^[A-Z][a-z]+(\\s[a-z]+)*$') ~ Taxon,
+        TRUE ~ str_to_sentence(str_to_lower(Taxon))
+      )
+    )
+  
   # log corrections
   typo_log <- df %>%
     filter(str_squish(.orig_taxon) != str_squish(Taxon)) %>%
@@ -1391,7 +1400,7 @@ update_synonyms <- function(df, read_func = read_phyto_taxa) {
   return(df)
 }
 
-#' @title Add Higher-Level Taxonomic Information
+#' @title Add higher-level taxonomic information
 #'
 #' @description
 #' Appends hierarchical taxonomic classification fields to each record using a reference
@@ -1421,6 +1430,7 @@ update_synonyms <- function(df, read_func = read_phyto_taxa) {
 #' @param df A dataframe with a `Taxon` column to enrich with classification metadata.
 #' @param after_col Optional column name after which to insert the taxonomy fields (e.g., `"Taxon"`).
 #' @param std_type Character; either `"program"` (default) or `"pesp"`, controlling how `cf.` taxa are standardized.
+#' @param read_func Internal argument used for testing; defaults to `read_phyto_taxa`.
 #'
 #' @return
 #' A dataframe with additional taxa columns and a `log` attribute containing unmatched taxa
@@ -1436,7 +1446,7 @@ update_synonyms <- function(df, read_func = read_phyto_taxa) {
 #' @importFrom readr read_csv
 #' @importFrom stringi stri_trans_general stri_replace_all_regex stri_trim_both
 #' @export
-higher_lvl_taxa <- function(df, after_col = NULL, std_type) {
+higher_lvl_taxa <- function(df, after_col = NULL, std_type, read_func = read_phyto_taxa) {
   std_type <- tolower(std_type)
   
   df <- df %>%
@@ -1502,7 +1512,7 @@ higher_lvl_taxa <- function(df, after_col = NULL, std_type) {
   df$PureTaxon <- str_replace_all(df$PureTaxon, 'spp\\.', 'sp.')
   
   # read in taxa sheet and add PureTaxon
-  df_taxa <- read_phyto_taxa()
+  df_taxa <- read_func()
   df_taxa <- df_taxa %>%
     mutate(
       PureTaxon = str_trim(Taxon),
