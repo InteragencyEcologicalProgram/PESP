@@ -30,7 +30,8 @@ Imports:
     data.table,
     tidyselect (>= 1.0.0),
     stats,
-    utils
+    utils,
+    EDIutils
 Suggests:
     testthat
 Remotes:

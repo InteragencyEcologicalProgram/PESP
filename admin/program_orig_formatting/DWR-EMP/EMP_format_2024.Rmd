@@ -127,18 +127,10 @@ df_data$Date <- as.Date(df_data$Date,'%m/%d/%Y')
 <!-- write_log_file(missing_wq, 'Groups/DWR-EMP/02 Program Data/QC files/2024/tables/EMP_missing_wq.csv') -->
 <!-- ``` -->
 
-<!-- ```{r} -->
-<!-- # add lat/lon for fixed stations -->
-<!-- df_data <- add_latlon(df_data, 'Groups/DWR-EMP/Metadata/Stations-EMP.csv', merge_cols = c('Location','Station','Latitude','Longitude')) -->
-
-<!-- # merge the two -->
-<!-- # df_data <- df_data %>% -->
-<!-- #   mutate( -->
-<!-- #     Latitude = coalesce(Latitude.x, Latitude.y), -->
-<!-- #     Longitude = coalesce(Longitude.x, Longitude.y) -->
-<!-- #   ) %>% -->
-<!-- #   select(-Latitude.x, -Latitude.y, -Longitude.x, -Longitude.y) -->
-<!-- ``` -->
+```{r}
+# add lat/lon for fixed stations
+df_data <- add_latlon(df_data, 'Groups/DWR-EMP/Metadata/Stations-EMP.csv', merge_cols = c('Location','Station','Latitude','Longitude'))
+```
 
 ## Add metadata columns
 
@@ -220,6 +212,7 @@ attr(df_data, 'log')$nondistinct_allrows
 df_data <- check_distinct(df_data, type = 'key_cols')
 attr(df_data, 'log')$nondistinct_keyrows
 ```
+
 ## Subset columns
 
 ```{r}
