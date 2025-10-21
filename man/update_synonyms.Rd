@@ -4,10 +4,12 @@
 \alias{update_synonyms}
 \title{Update Taxon Names To Current Synonyms}
 \usage{
-update_synonyms(df)
+update_synonyms(df, read_func = read_phyto_taxa)
 }
 \arguments{
 \item{df}{Dataframe containing a \code{Taxon} column of names to standardize}
+
+\item{read_func}{Internal argument used for testing; defaults to \code{read_phyto_taxa}}
 }
 \value{
 Dataframe with updated \code{Taxon} names, a new \code{OrigTaxon} column showing

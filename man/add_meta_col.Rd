@@ -18,6 +18,8 @@ add_meta_col(
 \item{program}{A character string specifying the program used to select the metadata file}
 
 \item{col_name}{A column name (unquoted) used to perform the join with the metadata sheet}
+
+\item{read_func}{Internal argument used for testing; defaults to \code{read_meta_file}}
 }
 \value{
 A dataframe with the specified metadata column added
