@@ -6,19 +6,9 @@
 
 # Initial Setup
 
-```{r}
-# Import Packages ---------------------------------------------------------
-library(tidyverse)
-library(fuzzyjoin)
-library(glue)
-library(lubridate)
-
-source('admin/global_functions/global_funcs.R')
-source('admin/global_functions/bsa_funcs.R')
-source('programs/USGS-BGC/ref_code/bgc_funcs.R')
-source('admin/global_functions/check_funcs.R')
-
-options(scipen = 999)
+```{r, message=FALSE, warning=FALSE}
+# import packages
+devtools::load_all()
 ```
 
 ```{r}
@@ -168,7 +158,7 @@ df_data <- df_data %>%
 
 ## Combine taxa (multiple sizes, standardized unknowns)
 ```{r}
-df_data <- combine_taxons(df_data, key_cols = c('Date', 'Time', 'Station', 'SampleDepth'))
+df_data <- combine_taxa(df_data, key_cols = c('Date', 'Time', 'Station', 'SampleDepth'))
 combined_taxa <- attr(df_data, 'log')$combined_taxa
 write_log_file(combined_taxa, 'Groups/USGS-BGC/02 Program Data/QC files/tables/BGC_combined_taxa.csv')
 

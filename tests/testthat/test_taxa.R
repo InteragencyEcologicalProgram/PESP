@@ -84,6 +84,8 @@ test_that('correct_taxon_typos standardizes and corrects taxa names properly', {
       'Navicula cf. pennata',      # correct
       'Chroococcus Dispersus',         # capitalized
       'chroococcus dispersus',         # all lowercase
+      'cf. Chroococcus dispersus',     # correct
+      'cf. chroococcus dispersus',     # lowercase genus
       'Cyclotella sp..',               # too many periods
       'Cyclotella sp.'                 # correct
     )
@@ -93,7 +95,7 @@ test_that('correct_taxon_typos standardizes and corrects taxa names properly', {
   fake_reader <- function(path) df_typos
   
   cleaned <- correct_taxon_typos(df, read_func = fake_reader)
-  
+
   # structure
   expect_s3_class(cleaned, 'tbl_df')
   expect_true('Taxon' %in% names(cleaned))
@@ -110,8 +112,10 @@ test_that('correct_taxon_typos standardizes and corrects taxa names properly', {
   expect_equal(cleaned$Taxon[3], 'Navicula cf. pennata')
   expect_equal(cleaned$Taxon[4], 'Chroococcus dispersus')
   expect_equal(cleaned$Taxon[5], 'Chroococcus dispersus')
-  expect_equal(cleaned$Taxon[6], 'Cyclotella sp.')
-  expect_equal(cleaned$Taxon[7], 'Cyclotella sp.')
+  expect_equal(cleaned$Taxon[6], 'cf. Chroococcus dispersus')
+  expect_equal(cleaned$Taxon[7], 'cf. Chroococcus dispersus')
+  expect_equal(cleaned$Taxon[8], 'Cyclotella sp.')
+  expect_equal(cleaned$Taxon[9], 'Cyclotella sp.')
   
   # log validity
   expect_true(all(log_tbl$OrigTaxon %in% df$Taxon))
@@ -274,17 +278,19 @@ test_that('combine_taxa calculates densities correctly, Notes/QualityCheck/Debri
   
   # create example dataframe
   df <- tibble(
-    Date = as.Date(rep('2024-05-01', 8)),
-    Station = c('A','A','A','A','B','B','C','C'),
-    Kingdom = c('Bacteria','Bacteria','Bacteria','Bacteria','Plantae','Plantae','Bacteria','Bacteria'),
+    Date = as.Date(rep('2024-05-01', 10)),
+    Station = c('A','A','A','A','B','B','C','C','B','B'),
+    Kingdom = c('Bacteria','Bacteria','Bacteria','Bacteria',
+                'Plantae','Plantae','Bacteria','Bacteria','Bacteria','Bacteria'),
     Phylum  = c('Cyanobacteria','Cyanobacteria','Cyanobacteria','Cyanobacteria',
-                'Bacillariophyta','Bacillariophyta','Cyanobacteria','Cyanobacteria'),
+                'Bacillariophyta','Bacillariophyta','Cyanobacteria','Cyanobacteria','Cyanobacteria','Cyanobacteria'),
     Class   = c('Cyanophyceae','Cyanophyceae','Cyanophyceae','Cyanophyceae',
-                'Coscinodiscophyceae','Fragilariophyceae','Cyanophyceae','Cyanophyceae'),
+                'Coscinodiscophyceae','Fragilariophyceae','Cyanophyceae','Cyanophyceae','Cyanophyceae','Cyanophyceae'),
     
     OrigTaxon = c(
       'Anacystis cyanea', 'Another example', NA,
       NA,
+      NA, NA,
       NA, NA,
       NA, NA
     ),
@@ -293,23 +299,24 @@ test_that('combine_taxa calculates densities correctly, Notes/QualityCheck/Debri
       'Microcystis aeruginosa','Microcystis aeruginosa','Microcystis aeruginosa',
       'Anabaena flos-aquae',
       'Aulacoseira ambigua','Aulacoseira ambigua',
-      'Microcystis flos-aquae','Microcystis flos-aquae'
+      'Microcystis flos-aquae','Microcystis flos-aquae',
+      'Chroococcus dispersus','Chroococcus dispersus'
     ),
     
-    Biovolume_per_mL = c(1,2,3,5,10,20,1,2),
-    Units_per_mL     = c(10,20,30,40,50,60,5,5),
-    Cells_per_mL     = c(100,200,300,400,500,600,10,20),
+    Biovolume_per_mL = c(1,2,3,5,10,20,1,2,4,6),
+    Units_per_mL     = c(10,20,30,40,50,60,5,5,10,20),
+    Cells_per_mL     = c(100,200,300,400,500,600,10,20,35,40),
     
-    GALD = c(5, 7, 4, 2, 10, 12, NA, 15),
+    GALD = c(5,7,4,2,10,12,NA,15,8,10),
     
-    Notes = c('good','good','NoNote','bad','NoNote','Unknown','a','b'),
-    QualityCheck = c('NoCode','A1','NoCode','B2','A2','B3','X1','X2'),
-    Debris = c('Low','Moderate','None','High','Low','Moderate','Low','Low'),
-    PhytoForm = c('c','c','f','f','i','i','c','c')
+    Notes = c('good','good','NoNote','bad','NoNote','Unknown','a','b','NoNote','NoNote'),
+    QualityCheck = c('NoCode','A1','NoCode','B2','A2','B3','X1','X2','NoCode','NoCode'),
+    Debris = c('Low','Moderate','None','High','Low','Moderate','Low','Low','Unknown','Unknown'),
+    PhytoForm = c('c','c','f','f','i','i','c','c','i','c')
   )
   
   out <- combine_taxa(df)
-  
+
   # Microcystis aeruginosa @ A (merged)
   mA <- out %>% filter(Station == 'A', Taxon == 'Microcystis aeruginosa')
   expect_equal(mA$OrigTaxon,
@@ -330,12 +337,12 @@ test_that('combine_taxa calculates densities correctly, Notes/QualityCheck/Debri
   expect_equal(aA$GALD, 2)
   
   # Station B (K/P/C mismatch should produce two Unknown taxa)
-  uB <- out %>% filter(Station == 'B', stringr::str_detect(Taxon, '^Unknown'))
+  uB <- out %>% filter(Station == 'B', str_detect(Taxon, '^Unknown'))
   expect_equal(nrow(uB), 2)
   expect_true(all(c('Unknown coscinodiscophyceae','Unknown fragilariophyceae') %in% uB$Taxon))
   expect_true(all(uB$Biovolume_per_mL %in% c(10,20)))
   expect_true(all(uB$Notes %in% c('NoNote','Unknown')))
-  expect_equal(sort(uB$GALD), c(10, 12))  # each keeps its own max GALD
+  expect_equal(sort(uB$GALD), c(10,12))
   
   # Microcystis flos-aquae @ C (merged)
   mC <- out %>% filter(Station == 'C', Taxon == 'Microcystis flos-aquae')
@@ -346,10 +353,21 @@ test_that('combine_taxa calculates densities correctly, Notes/QualityCheck/Debri
   expect_equal(mC$QualityCheck, 'X1 X2')
   expect_equal(mC$Debris, 'Low')
   expect_true(is.na(mC$OrigTaxon))
-  expect_equal(mC$GALD, 15) 
+  expect_equal(mC$GALD, 15)
+  
+  # Chroococcus dispersus @ B (merged)
+  cB <- out %>% filter(Station == 'B', Taxon == 'Chroococcus dispersus')
+  expect_equal(cB$Biovolume_per_mL, 10) 
+  expect_equal(cB$Units_per_mL, 30)    
+  expect_equal(cB$Cells_per_mL, 75) 
+  expect_equal(cB$QualityCheck, 'NoCode')
+  expect_equal(cB$Notes, 'MultipleEntries')
+  expect_equal(cB$Debris, 'Unknown')
+  expect_equal(cB$GALD, 10)
   
   # attributes log present
   lg <- attr(out, 'log')
   expect_true(is.list(lg))
   expect_true(all(c('combined_taxa','combined_conflicts') %in% names(lg)))
 })
+

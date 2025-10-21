@@ -182,7 +182,7 @@ df_data <- subset_cols_aeu(df_data)
 ## Combine taxa (multiple sizes, standardized unknowns)
 
 ```{r}
-df_data <- combine_taxons(df_data)
+df_data <- combine_taxa(df_data)
 combined_taxa <- attr(df_data, 'log')$combined_taxa
 write_log_file(combined_taxa, 'Groups/DWR-AEU/02 Program Data/QC files/tables/AEU_combined_taxa.csv')
 

@@ -7,16 +7,8 @@
 # Initial Setup
 
 ```{r, message=FALSE, warning=FALSE}
-# Import Packages ---------------------------------------------------------
-library(tidyverse)
-library(fuzzyjoin)
-library(glue)
-library(lubridate)
-
-source('admin/global_functions/global_funcs.R')
-source('programs/USBR-DOP/ref_code/DOP_funcs.R')
-source('admin/global_functions/bsa_funcs.R')
-source('admin/global_functions/check_funcs.R')
+# import packages
+devtools::load_all()
 ```
 
 ## Read in Data
@@ -159,7 +151,7 @@ attr(df_data, 'log')$nondistinct_keyrows
 
 ## Combine taxa (multiple sizes, standardized unknowns)
 ```{r}
-df_data <- combine_taxons(df_data, key_cols = c('Sortable_ID', 'Date', 'Time'), measurement_cols = c('Cells_per_mL'))
+df_data <- combine_taxa(df_data, key_cols = c('Sortable_ID', 'Date', 'Time'), measurement_cols = c('Cells_per_mL'))
 combined_taxa <- attr(df_data, 'log')$combined_taxa
 write_log_file(combined_taxa, 'Groups/USBR-DOP/02 Program Data/QC files/tables/DOP_combined_taxa.csv')
 

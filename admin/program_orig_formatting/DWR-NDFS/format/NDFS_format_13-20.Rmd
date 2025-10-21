@@ -7,16 +7,9 @@
 **Date Edited:** 05/05/2025
 
 # Initial Setup
-```{r}
-# Import Packages ---------------------------------------------------------
-library(tidyverse)
-library(fuzzyjoin)
-library(glue)
-library(lubridate)
-source('admin/global_functions/global_funcs.R')
-source('admin/global_functions/bsa_funcs.R')
-source('programs/DWR-NDFS/ref_code/ndfs_funcs.R')
-source('admin/global_functions/check_funcs.R')
+```{r, message=FALSE, warning=FALSE}
+# import packages
+devtools::load_all()
 ```
 
 # 2013-2015
@@ -551,7 +544,7 @@ df_data <- df_data %>%
 
 ## Combine taxa (multiple sizes, standardized unknowns)
 ```{r}
-df_data <- combine_taxons(df_data, key_cols = c('Date', 'Time', 'Station', 'SampleDepth'))
+df_data <- combine_taxa(df_data, key_cols = c('Date', 'Time', 'Station', 'SampleDepth'))
 combined_taxa <- attr(df_data, 'log')$combined_taxa
 write_log_file(combined_taxa, 'Groups/DWR-NDFS/02 Program Data/2013-2020/QC files/tables/NDFS_combined_taxa.csv')
 

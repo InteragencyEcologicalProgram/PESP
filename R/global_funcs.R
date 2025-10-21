@@ -5,8 +5,9 @@
 '%!in%' <- function(x,y)!('%in%'(x,y))
 
 #' @importFrom readr col_date
-#' @importFrom tidyr separate
+#' @importFrom tidyr separate pivot_longer pivot_wider
 #' @importFrom lubridate mdy
+#' @importFrom readxl read_excel
 #' @noRd
 NULL
 
@@ -1218,10 +1219,18 @@ correct_taxon_typos <- function(df, read_func = read_quiet_csv) {
   df <- df %>%
     mutate(
       Taxon = case_when(
+        # leave as-is if already properly formatted
         str_detect(Taxon, '^[A-Z][a-z]+(\\s[a-z]+)*$') ~ Taxon,
+        
+        # if starts with "cf.", preserve cf. and capitalize next word
+        str_detect(Taxon, '^cf\\.\\s*[A-Za-z]') ~
+          str_replace(Taxon,
+                      '^cf\\.\\s*([a-z])',
+                      function(m) paste0('cf. ', toupper(sub('cf\\.\\s*', '', m)))),
+        
+        # otherwise apply sentence case
         TRUE ~ str_to_sentence(str_to_lower(Taxon))
-      )
-    )
+      ))
   
   # log corrections
   typo_log <- df %>%

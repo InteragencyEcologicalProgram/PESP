@@ -5,17 +5,10 @@
 **Author:** Perry ([sarah.perry\@water.ca.gov](mailto:sarah.perry@water.ca.gov){.email})
 
 # Initial Setup
-```{r, message=FALSE, warning=FALSE}
-# Import Packages ---------------------------------------------------------
-library(tidyverse)
-library(fuzzyjoin)
-library(glue)
-library(lubridate)
 
-source('admin/global_functions/global_funcs.R')
-source('programs/USGS-BP/ref_code/bp_funcs.R')
-source('admin/global_functions/bsa_funcs.R')
-source('admin/global_functions/check_funcs.R')
+```{r, message=FALSE, warning=FALSE}
+# import packages
+devtools::load_all()
 ```
 
 # BSA File
@@ -162,7 +155,7 @@ df_data <- subset_cols_bp(df_data)
 
 ## Combine taxa (multiple sizes, standardized unknowns)
 ```{r}
-df_data <- combine_taxons(df_data, key_cols = c('Station','Date','Depth_m'), measurement_cols = c('Biovolume_per_mL','Cells_per_mL'))
+df_data <- combine_taxa(df_data, key_cols = c('Station','Date','Depth_m'), measurement_cols = c('Biovolume_per_mL','Cells_per_mL'))
 combined_taxa <- attr(df_data, 'log')$combined_taxa
 write_log_file(combined_taxa, 'Groups/USGS-BP/02 Program Data/QC files/tables/BP_All_combined_taxa_24.csv')
 
