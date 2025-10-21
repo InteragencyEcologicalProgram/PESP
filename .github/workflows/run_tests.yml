@@ -22,10 +22,12 @@ jobs:
       # install dependencies
       - uses: r-lib/actions/setup-r-dependencies@v2
         with:
-          extra-packages: local::.
+          extra-packages: |
+            local::.
+            any::testthat
+        env:
+          GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
 
       # run tests
       - name: Run tests
-        run: |
-          Rscript -e 'devtools::test()'
-          
+        run: Rscript -e 'devtools::test()'
