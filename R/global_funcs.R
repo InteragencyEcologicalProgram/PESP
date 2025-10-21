@@ -131,7 +131,7 @@ read_meta_file <- function(program_name){
 #' @importFrom stringr str_detect str_c
 #' @importFrom purrr map_chr map slowly rate_delay keep
 #' @importFrom readr read_csv
-#' @importFrom EDIutils list_data_entities read_data_entity_name
+#' @importFrom EDIutils list_data_entities read_data_entity_name list_data_package_revisions
 #' @export
 get_edi_file <- function(pkg_id, fname) {
   # get latest revision
@@ -1100,6 +1100,12 @@ clean_unknowns <- function(df, std_sp, std_suffix) {
     TRUE ~ df$Taxon
   )
   
+  # if just "Unknown", make "Unknown sp."
+  df$Taxon <- case_when(
+    str_trim(df$Taxon) == 'Unknown' ~ 'Unknown sp.',
+    TRUE ~ df$Taxon
+  )
+  
   # create log
   df_log <- tibble(
     OrigTaxon = original_taxon[original_taxon != df$Taxon],
@@ -1137,9 +1143,9 @@ clean_unknowns <- function(df, std_sp, std_suffix) {
 #' @importFrom stringr str_split str_replace_all str_trim str_squish
 #' @importFrom stringi stri_trans_general
 #' @export
-correct_taxon_typos <- function(df) {
+correct_taxon_typos <- function(df, read_func = read_quiet_csv) {
   # read in typo lookup table and create map
-  df_typos <- read_quiet_csv(abs_pesp_path('Reference Documents/TaxaTypos.csv'))
+  df_typos <- read_func(abs_pesp_path('Reference Documents/TaxaTypos.csv'))
   typo_map <- setNames(
     str_squish(stri_trans_general(df_typos$TaxonCorrected, 'Latin-ASCII')),
     str_squish(stri_trans_general(df_typos$Taxon, 'Latin-ASCII'))
@@ -1148,13 +1154,13 @@ correct_taxon_typos <- function(df) {
   # df$Taxon <- iconv(df$Taxon, from = 'ISO-8859-1', to = 'UTF-8')
   # df$Taxon <- unname(df$Taxon)
   
-  # helper to fix malformed 'cf' and 'sp'
+  # helper to fix malformed 'cf', 'sp', and 'var'
   standardize_affix <- function(taxon) {
     taxon %>%
       str_replace_all('\\bcf[.,]?\\s+', 'cf. ') %>%
       str_replace_all('\\bvar(?!\\.)\\b', 'var.') %>%  
       str_replace_all('\\b(sp\\.\\s*){2,}$', 'sp.') %>% 
-      str_replace_all('\\bsp[.,]?\\s*$', 'sp.') %>%
+      str_replace_all('\\bsp[.,]+\\s*$', 'sp.') %>%
       str_replace_all('\\s+', ' ') %>%
       str_trim()
   }
@@ -1662,103 +1668,115 @@ higher_lvl_taxa <- function(df, after_col = NULL, std_type) {
   return(df_joined)
 }
 
-#' @title Combine Taxon Records
+#' @title Combine taxa records
 #'
 #' @description
-#' Aggregates multiple taxon records within the same sampling event that differ only
-#' in size or label schema or are duplicate entries.  
-#' 
-#' Density columns are summed within each group. Text-based descriptor columns are merged
-#' intelligently to retain relevant information.
+#' Aggregates multiple taxon records within the same sampling event (based on `key_cols`) that
+#' differ only by size class, label formatting, or represent duplicate entries.
+#'
+#' Density and count fields are summed, while qualitative fields such as `Notes`,
+#' `QualityCheck`, and `Debris` are merged intelligently to retain relevant detail.
 #'
 #' - If multiple distinct `OrigTaxon` values occur within a group, they are concatenated
-#'   into a single semicolon-separated string. When `OrigTaxon` is missing, the
-#'   corresponding `Taxon` is used instead.
-#' - If higher-level classification fields (`Kingdom`, `Phylum`, `Class`) disagree
-#'   within a group, the `Taxon` is replaced with `"Unknown <level>"` (e.g., `"Unknown phylum"`).
-#' - Only one row per unique `(Date, Station, Taxon)` group is retained after aggregation.
-#' - A log of all combined taxa and column conflicts is attached as an attribute.
+#'   into a single semicolon-separated string. When all `OrigTaxon` entries are missing,
+#'   the resulting `OrigTaxon` is set to `NA`.
+#' - If higher-level classification fields disagree within a sampling event, the `Taxon` name is replaced with `"Unknown <level>"`,
+#'   (e.g. `"Unknown class"`). Each distinct `Unknown <level>` becomes a separate record.
+#' - Only one row per unique sampling event + taxon is retained after aggregation.
+#' - A log of all combined taxa and column conflicts is attached as a dataframe attribute.
 #'
-#' @param df A dataframe containing taxonomic records with columns such as
-#'   `Date`, `Station`, `Taxon`, and optional metadata fields.
-#' @param key_cols Character vector of columns used to group taxon entries  
-#'   (default: `c("Date", "Station")`).
-#' @param measurement_cols Character vector of numeric columns to sum  
-#'   (default: `c("Biovolume_per_mL", "Units_per_mL", "Cells_per_mL")`).
+#' @param df A dataframe containing taxonomic records with at least the columns
+#'   `Date`, `Station`, and `Taxon`. Optional columns such as `Notes`, `QualityCheck`,
+#'   `Debris`, `PhytoForm`, `GALD`, and `OrigTaxon` are processed if present.
+#' @param key_cols Character vector specifying the columns defining an event group.
+#'   Default is `c("Date", "Station")`.
+#' @param measurement_cols Character vector of numeric columns to sum within each group.
+#'   Default is `c("Biovolume_per_mL", "Units_per_mL", "Cells_per_mL")`.
 #'
 #' @return
-#' A dataframe where:
-#' - Duplicate taxon rows per event are aggregated into one
-#' - Numeric measurements are summed
-#' - Qualitative fields (e.g., `Notes`, `Debris`) are combined
+#' A dataframe where duplicate or size-variant taxon rows within a sampling event
+#' are aggregated into a single record:
+#' - Numeric measurement columns are summed
+#' - Text descriptors are merged intelligently
+#' - Higher-level mismatches are labeled as `"Unknown <level>"`
 #'
 #' The returned dataframe includes a `log` attribute containing:
-#' - **$combined_taxa**: dataframe of taxon groups that were merged  
-#' - **$combined_conflicts**: dataframe of columns where multiple distinct values were found within a group
+#' - **$combined_taxa** — a dataframe listing the groups that were merged  
+#' - **$combined_conflicts** — a dataframe of columns with multiple distinct values within a group
 #'
 #' @details
-#' The following helper rules are used during aggregation:
+#' Aggregation rules:
 #'
-#' - **Notes**: unique non-"NoNote" terms merged; `"MultipleEntries"` added if >1 distinct entry  
-#' - **QualityCheck**: merged similar to Notes, ignoring `"NoCode"`  
-#' - **Debris**: highest category preserved (`High > Moderate > Low > None > Unknown`)  
-#' - **PhytoForm**: merged unique forms alphabetically  
-#' - **GALD**: takes the maximum non-missing value  
-#' - **OrigTaxon**: concatenated with `"; "` if multiple distinct forms exist 
+#' - **Notes** — unique non-`"NoNote"` values are combined; `"MultipleEntries"` appended only
+#'   when multiple rows were merged (`.n_in_group > 1`)
+#' - **QualityCheck** — unique non-`"NoCode"` values combined (no extra flags)
+#' - **Debris** — ordered by category (`High > Moderate > Low > None > Unknown`)
+#' - **PhytoForm** — unique forms combined alphabetically
+#' - **GALD** — maximum non-missing value is retained
+#' - **OrigTaxon** — concatenated with `"; "` if multiple distinct values exist;
+#'   remains `NA` if all source values were missing
 #'
-#' @importFrom dplyr group_by ungroup mutate across slice all_of if_else summarize filter select count summarize first
+#' @importFrom dplyr group_by ungroup mutate across all_of if_else summarize filter select count first n
 #' @importFrom tidyr pivot_longer
-#' @importFrom stringr str_squish str_squish str_split
-#' @importFrom purrr map
+#' @importFrom stringr str_squish str_detect
 #' @importFrom stats na.omit
 #' @export
-combine_taxons <- function(df,
-                           key_cols = c('Date','Station'),
-                           measurement_cols = c('Biovolume_per_mL','Units_per_mL','Cells_per_mL')) {
-
+combine_taxa <- function(df,
+                         key_cols = c('Date','Station'),
+                         measurement_cols = c('Biovolume_per_mL','Units_per_mL','Cells_per_mL')) {
+  
   original_cols <- names(df)
   message('Combining on key_cols: ', paste(key_cols, collapse = ', '))
   
   measurement_cols <- intersect(measurement_cols, names(df))
-
+  
+  # --- helpers ---
+  # orig taxon
   combine_origtaxon <- function(orig, taxon) {
     x <- str_squish(as.character(orig))
     x[x == ''] <- NA_character_
     non_na <- unique(na.omit(x))
     if (length(non_na) == 0) return(NA_character_)
+    
     had_any_na <- any(is.na(x))
-    t_val <- taxon[1]
-    out <- if (had_any_na && !(t_val %in% non_na)) c(non_na, t_val) else non_na
-    out_str <- paste(out, collapse = '; ')
-    if (had_any_na) out_str <- sub('; ([^;]+)$', ', \\1', out_str)
-    out_str
+    out <- non_na
+    if (had_any_na && !(taxon[1] %in% non_na)) out <- c(out, taxon[1])
+    
+    paste(out, collapse = '; ')
   }
   
-  combine_textcol <- function(x, none_label, multi_label = NULL) {
+  # text column helper
+  combine_textcol <- function(x, none_label) {
     vals <- unique(str_squish(na.omit(x)))
     vals <- vals[vals != none_label]
     if (length(vals) == 0) return(none_label)
     toks <- unique(strsplit(paste(vals, collapse = ' '), '\\s+')[[1]])
-    if (!is.null(multi_label) && length(vals) > 1) toks <- c(toks, multi_label)
     paste(toks, collapse = ' ')
   }
   
-  combine_notes <- function(x) combine_textcol(x, 'NoNote', 'MultipleEntries')
-  combine_qccheck <- function(x) combine_textcol(x, 'NoCode')
+  # combine "text" columns
+  combine_notes     <- function(x) combine_textcol(x, 'NoNote') 
+  combine_qccheck <- function(x) {
+    vals <- unique(str_squish(na.omit(x)))
+    vals <- vals[vals != 'NoCode']
+    if (length(vals) == 0) return('NoCode')
+    toks <- unique(strsplit(paste(vals, collapse = ' '), '\\s+')[[1]])
+    paste(toks, collapse = ' ')
+  }
   combine_phytoform <- function(x) paste(sort(unique(na.omit(str_squish(x)))), collapse = ', ')
-  combine_debris <- function(x) {
+  combine_debris    <- function(x) {
     vals <- unique(na.omit(str_squish(x)))
     if (!length(vals)) return(NA_character_)
     debris_order <- c('High','Moderate','Low','None','Unknown')
     vals <- vals[order(match(vals, debris_order))]
     paste(vals, collapse = ', ')
   }
-
-  # ensure option columns exist
+  
+  # ensure optional columns exist
   for (col in c('GALD','Notes','QualityCheck','Debris','PhytoForm','OrigTaxon'))
     if (!col %in% names(df)) df[[col]] <- if (col == 'GALD') NA_real_ else NA_character_
   
-  # handle K/P/C mismatches
+  # K/P/C mismatch handling (single pass)
   if (all(c('Kingdom','Phylum','Class') %in% names(df))) {
     df <- df %>%
       group_by(across(all_of(c(key_cols, 'Taxon')))) %>%
@@ -1770,12 +1788,14 @@ combine_taxons <- function(df,
           TRUE ~ NA_character_
         ),
         .key_val = coalesce(
-          if_else(.diff_dim == 'Class', Class,
-                  if_else(.diff_dim == 'Phylum', Phylum,
-                          if_else(.diff_dim == 'Kingdom', Kingdom, NA_character_))), .diff_dim),
+          if_else(.diff_dim == 'Class',   Class,   NA_character_),
+          if_else(.diff_dim == 'Phylum',  Phylum,  NA_character_),
+          if_else(.diff_dim == 'Kingdom', Kingdom, NA_character_),
+          .diff_dim
+        ),
         Taxon = if_else(!is.na(.diff_dim),
-                        paste('Unknown', tolower(.key_val)),
-                        Taxon)
+                               paste('Unknown', tolower(.key_val)),
+                               Taxon)
       ) %>%
       ungroup() %>%
       select(-.diff_dim, -.key_val)
@@ -1783,24 +1803,49 @@ combine_taxons <- function(df,
   
   group_cols <- c(key_cols, 'Taxon')
   
-  # log
-  combine_log <- df %>%
-    count(across(all_of(group_cols))) %>%
-    filter(n > 1)
-  
-  # detect carry columns once
+  # precompute carry columns
   carry_cols <- setdiff(
     names(df),
     c(group_cols, measurement_cols, 'GALD','Notes','QualityCheck','Debris','PhytoForm','OrigTaxon')
   )
   
-  # conflict detection 
+  # main aggregation (track group size)
+  df_out <- df %>%
+    group_by(across(all_of(group_cols))) %>%
+    summarize(
+      .n_in_group = n(),
+      across(all_of(measurement_cols), \(x) sum(x, na.rm = TRUE)),
+      GALD        = if (all(is.na(GALD))) NA_real_ else max(GALD, na.rm = TRUE),
+      Notes       = combine_notes(Notes),
+      QualityCheck= combine_qccheck(QualityCheck),
+      Debris      = combine_debris(Debris),
+      PhytoForm   = combine_phytoform(PhytoForm),
+      OrigTaxon   = combine_origtaxon(OrigTaxon, Taxon),
+      across(all_of(carry_cols), \(x) first(x)),
+      .groups = 'drop'
+    ) %>%
+    mutate(
+      # append 'MultipleEntries' iff merged and not already present
+      Notes = case_when(
+        .n_in_group > 1 & Notes == 'NoNote' ~ 'MultipleEntries',
+        .n_in_group > 1 & !stringr::str_detect(Notes, '\\bMultipleEntries\\b') ~
+          stringr::str_squish(paste(Notes, 'MultipleEntries')),
+        TRUE ~ Notes
+      )
+    ) %>%
+    select(any_of(original_cols))
+  
+  # logs
+  combine_log <- df %>%
+    count(across(all_of(group_cols))) %>%
+    filter(n > 1)
+  
   conflict_log <- NULL
   if (length(carry_cols)) {
     conflict_log <- df %>%
       group_by(across(all_of(group_cols))) %>%
-      summarise(across(all_of(carry_cols), \(x) n_distinct(x, na.rm = TRUE)), .groups = 'drop') %>%
-      pivot_longer(all_of(carry_cols), names_to = 'column', values_to = 'n_distinct_values') %>%
+      summarize(across(all_of(carry_cols), \(x) n_distinct(x, na.rm = TRUE)), .groups = 'drop') %>%
+      tidyr::pivot_longer(all_of(carry_cols), names_to = 'column', values_to = 'n_distinct_values') %>%
       filter(n_distinct_values > 1)
     if (nrow(conflict_log)) {
       cols <- paste(unique(conflict_log$column), collapse = ', ')
@@ -1808,28 +1853,12 @@ combine_taxons <- function(df,
     }
   }
   
-  # main aggregation (keep only orig cols)
-  df_out <- df %>%
-    group_by(across(all_of(group_cols))) %>%
-    summarise(
-      across(all_of(measurement_cols), \(x) sum(x, na.rm = TRUE)),
-      GALD = if (all(is.na(GALD))) NA_real_ else max(GALD, na.rm = TRUE),
-      Notes = combine_notes(Notes),
-      QualityCheck = combine_qccheck(QualityCheck),
-      Debris = combine_debris(Debris),
-      PhytoForm = combine_phytoform(PhytoForm),
-      OrigTaxon = combine_origtaxon(OrigTaxon, Taxon),
-      across(all_of(carry_cols), \(x) first(x)),
-      .groups = 'drop'
-    ) %>%
-    select(any_of(original_cols))
-  
   message('Taxon rows combined: ', nrow(combine_log))
   attr(df_out, 'log') <- list(combined_taxa = combine_log, combined_conflicts = conflict_log)
   df_out
 }
 
-#' @title Remove Taxonomic Classification Columns
+#' @title Remove taxonomic classification columns
 #'
 #' @description
 #' Removes taxonomic hierarchy columns (e.g., `Kingdom`, `Phylum`, `Class`,

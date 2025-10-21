@@ -222,7 +222,7 @@ df_data <- subset_cols_emp(df_data)
 ## Combine taxa (multiple sizes, standardized unknowns)
 
 ```{r}
-df_data <- combine_taxons(df_data, key_cols = c('Date','Station','CountMethod'))
+df_data <- combine_taxa(df_data, key_cols = c('Date','Station','CountMethod'))
 combined_taxa <- attr(df_data, 'log')$combined_taxa
 write_log_file(combined_taxa, 'Groups/DWR-EMP/02 Program Data/QC files/2024/tables/EMP_combined_taxa.csv')
 

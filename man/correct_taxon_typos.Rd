@@ -4,7 +4,7 @@
 \alias{correct_taxon_typos}
 \title{Correct Taxon Names Using a Typo Lookup Table}
 \usage{
-correct_taxon_typos(df)
+correct_taxon_typos(df, read_func = read_quiet_csv)
 }
 \arguments{
 \item{df}{Dataframe containing a \code{Taxon} column to correct}

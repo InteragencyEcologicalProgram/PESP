@@ -2,7 +2,7 @@
 % Please edit documentation in R/global_funcs.R
 \name{remove_taxa_info}
 \alias{remove_taxa_info}
-\title{Remove Taxonomic Classification Columns}
+\title{Remove taxonomic classification columns}
 \usage{
 remove_taxa_info(df)
 }
