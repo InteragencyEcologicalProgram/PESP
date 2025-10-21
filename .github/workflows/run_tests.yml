@@ -19,6 +19,7 @@ jobs:
           r-version: 'release'
 
       - name: Install EDIutils manually
+        run: Rscript -e "install.packages('remotes')"
         run: Rscript -e "remotes::install_github('EDIorg/EDIutils', upgrade = 'never')"
         env:
           GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
