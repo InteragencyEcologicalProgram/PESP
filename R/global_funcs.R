@@ -848,6 +848,7 @@ add_notes_col <- function(df, comment_col = 'Comments', taxa_col = 'Taxon') {
 #' @param df A dataframe to which the metadata column will be added
 #' @param program A character string specifying the program used to select the metadata file
 #' @param col_name A column name (unquoted) used to perform the join with the metadata sheet
+#' @param read_func Internal argument used for testing; defaults to `read_meta_file`
 #'
 #' @return
 #' A dataframe with the specified metadata column added
@@ -1133,6 +1134,7 @@ clean_unknowns <- function(df, std_sp, std_suffix) {
 #' - Reattaches `cf.` qualifiers to corrected names
 #'
 #' @param df Dataframe containing a `Taxon` column to correct
+#' @param read_func Internal argument used for testing; defaults to `read_quiet_csv`
 #'
 #' @return
 #' Dataframe with corrected `Taxon` values and a `log` attribute containing
@@ -1246,6 +1248,7 @@ correct_taxon_typos <- function(df, read_func = read_quiet_csv) {
 #' - Uses memoization for faster repeated lookups.  
 #'
 #' @param df Dataframe containing a `Taxon` column of names to standardize
+#' @param read_func Internal argument used for testing; defaults to `read_phyto_taxa`
 #'
 #' @return
 #' Dataframe with updated `Taxon` names, a new `OrigTaxon` column showing
@@ -1256,8 +1259,8 @@ correct_taxon_typos <- function(df, read_func = read_quiet_csv) {
 #' @importFrom stringr str_detect str_match str_split str_trim str_replace_all
 #' @importFrom memoise memoise
 #' @export
-update_synonyms <- function(df) {
-  df_syn <- read_phyto_taxa() %>%
+update_synonyms <- function(df, read_func = read_phyto_taxa) {
+  df_syn <- read_func() %>%
     select(Taxon, CurrentTaxon) %>%
     rename(PureTaxon = Taxon)
   
@@ -1372,7 +1375,7 @@ update_synonyms <- function(df) {
   df <- df %>%
     mutate(
       OrigTaxon = Taxon,
-      Taxon = resolved_taxa_map[Taxon]
+      Taxon = unname(resolved_taxa_map[Taxon])
     ) %>%
     # only keep OrigTaxon if it differs from Taxon when case-normalized
     mutate(OrigTaxon = ifelse(normalize_taxon(OrigTaxon) == normalize_taxon(Taxon), NA, OrigTaxon)) %>%
@@ -1386,50 +1389,6 @@ update_synonyms <- function(df) {
   attr(df, 'log') <- list(synonym_updates = update_log)
   
   return(df)
-}
-
-#' @title Remove Non-Phytoplankton Taxa from a Dataset
-#'
-#' @description
-#' Removes rows from a dataframe where the \code{Taxon} matches an entry in an external
-#' CSV file of known non-phytoplankton taxa. Returns the filtered dataframe and logs
-#' the number and names of removed taxa.
-#'
-#' @param df A dataframe with a \code{Taxon} column
-#' @param exclude_file Path to a CSV file with a single column named \code{Taxon}
-#'        containing taxa to be excluded
-#'
-#' @return The filtered dataframe, with an attribute \code{'log'} containing
-#'         a list named \code{non_phyto_removed}, including a character vector of
-#'         removed taxa
-#'
-#' @importFrom readr read_csv
-#' @importFrom dplyr filter distinct pull
-#' @export
-remove_non_phyto <- function(df) {
-  exclude_taxa <- read_quiet_csv(abs_pesp_path('Reference Documents/TaxaNotPhyto.csv')) %>%
-    pull(Taxon)
-  
-  removed <- df %>%
-    filter(Taxon %in% exclude_taxa) %>%
-    pull(Taxon) %>%
-    unique()
-  
-  if (length(removed) > 0) {
-    message('Non-phytoplankton taxa removed: ', length(removed))
-  } else {
-    message('No non-phytoplankton taxa found.')
-  }
-  
-  df_clean <- df %>%
-    filter(!Taxon %in% exclude_taxa)
-  
-  removed_log <- tibble(RemovedTaxon = removed)
-  
-  existing_log <- attr(df, 'log')
-  invisible(attr(df_clean, 'log') <- c(existing_log, list(non_phyto_removed = removed_log)))
-  
-  return(df_clean)
 }
 
 #' @title Add Higher-Level Taxonomic Information

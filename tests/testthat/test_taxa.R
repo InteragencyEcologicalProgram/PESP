@@ -117,10 +117,85 @@ test_that('correct_taxon_typos standardizes and corrects taxa names properly', {
 })
 
 
+# update_synonyms ---------------------------------------------------------
+
+test_that('update_synonyms resolves and logs synonym chains correctly', {
+  
+  # fake synonym table
+  df_phyto <- tibble(
+    Taxon = c(
+      'Aulacoseira italica',
+      'Melosira italica',
+      'Cyclotella meneghiniana',
+      'Genus oldspecies',
+      'Genus newspecies',
+      'Navicula pelliculosa',
+      'Navicula pelliculosa var. minor',
+      'Genus a',
+      'Genus b'
+    ),
+    CurrentTaxon = c(
+      'Melosira italica',        # synonym chain 1
+      'None',                    # terminal
+      'Discostella stelligera',  # synonym chain 2
+      'Genus newspecies',        # chain to newspecies
+      'None',
+      'None',
+      'Navicula pelliculosa',    # variety -> main species
+      'Genus b',                 # multi-synonym chain
+      'Genus c'                  # multi-synonym chain
+    )
+  )
+  
+  # fake reader
+  fake_reader <- function() df_phyto
+  
+  # input dataframe
+  df <- tibble(
+    Taxon = c(
+      'Aulacoseira italica',             # chain Aulacoseira -> Melosira italica
+      'Cyclotella meneghiniana',         # chain Cyclotella -> Discostella stelligera
+      'Cyclotella cf. meneghiniana',     # cf. form resolves to Discostella cf. stelligera
+      'Genus oldspecies',                # chain to Genus newspecies
+      'cf. Genus oldspecies',            # front cf.
+      'Navicula pelliculosa var. minor', # variety synonym
+      'Navicula pelliculosa',            # no change (terminal)
+      'Genus a'                          # chain Genus a -> Genus b -> Genus c
+    )
+  )
+  
+  # call function
+  cleaned <- update_synonyms(df, read_func = fake_reader)
+  
+  # --- structure checks ---
+  expect_s3_class(cleaned, 'tbl_df')
+  expect_true(all(c('OrigTaxon', 'Taxon') %in% names(cleaned)))
+  expect_true(!is.null(attr(cleaned, 'log')))
+  expect_true('synonym_updates' %in% names(attr(cleaned, 'log')))
+  
+  log_tbl <- attr(cleaned, 'log')$synonym_updates
+  expect_s3_class(log_tbl, 'tbl_df')
+  expect_true(all(c('OrigTaxon', 'UpdatedTaxon') %in% names(log_tbl)))
+  
+  # --- expected synonym resolutions ---
+  expect_equal(cleaned$Taxon[1], 'Melosira italica')              # simple chain
+  expect_equal(cleaned$Taxon[2], 'Discostella stelligera')        # direct synonym
+  expect_equal(cleaned$Taxon[3], 'Discostella cf. stelligera')    # cf. middle
+  expect_equal(cleaned$Taxon[4], 'Genus newspecies')              # chain resolved
+  expect_equal(cleaned$Taxon[5], 'cf. Genus newspecies')          # cf. front
+  expect_equal(cleaned$Taxon[6], 'Navicula pelliculosa')          # variety collapsed
+  expect_equal(cleaned$Taxon[7], 'Navicula pelliculosa')          # unchanged
+  expect_equal(cleaned$Taxon[8], 'Genus c')                       # multi-step chain
+  
+  # unchanged taxon should have NA in OrigTaxon
+  expect_true(is.na(cleaned$OrigTaxon[7]))
+  
+  # all changed taxa should appear in the log
+  expect_true(all(log_tbl$OrigTaxon %in% df$Taxon))
+  expect_true(all(log_tbl$OrigTaxon != log_tbl$UpdatedTaxon))
+})
 
 # combine_taxa ------------------------------------------------------------
-
-
 
 test_that('combine_taxa calculates densities correctly, Notes/QualityCheck/Debris/PhytoForm/GALD handled correctly, OrigTaxon rules exist', {
   
