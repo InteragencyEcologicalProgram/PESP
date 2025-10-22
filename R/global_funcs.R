@@ -5,8 +5,8 @@
 '%!in%' <- function(x,y)!('%in%'(x,y))
 
 #' @importFrom readr col_date
-#' @importFrom tidyr separate pivot_longer pivot_wider
-#' @importFrom lubridate mdy
+#' @importFrom tidyr separate pivot_longer pivot_wider separate_rows
+#' @importFrom lubridate mdy year month day
 #' @importFrom readxl read_excel
 #' @noRd
 NULL
@@ -994,7 +994,16 @@ add_id_col <- function(df, loc_col) {
                    'epiphytic'    = 'E',
                    .default = DepthType
       ),
-      SampleDepth = as.numeric(SampleDepth),
+      # parse SampleDepth — may include units (m or ft)
+      SampleDepth = case_when(
+        str_detect(as.character(SampleDepth), regex('m(eter)?s?$', ignore_case = TRUE)) ~
+          suppressWarnings(as.numeric(str_extract(SampleDepth, '[0-9.]+'))),
+        str_detect(as.character(SampleDepth), regex('f(eet|t)$', ignore_case = TRUE)) ~
+          suppressWarnings(as.numeric(str_extract(SampleDepth, '[0-9.]+')) * 0.3048),
+        str_detect(as.character(SampleDepth), '^[0-9.]+$') ~
+          suppressWarnings(as.numeric(SampleDepth)),
+        TRUE ~ NA_real_
+      ),
       # parse time to hms; NA stays NA
       .time_hms = suppressWarnings(as_hms(Time))
     ) %>%

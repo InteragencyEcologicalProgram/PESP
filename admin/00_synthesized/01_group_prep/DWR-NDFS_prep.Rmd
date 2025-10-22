@@ -6,16 +6,8 @@
 
 # Initial Setup
 ```{r, message=FALSE, warning=FALSE}
-# Import Packages ---------------------------------------------------------
-library(tidyverse)
-library(fuzzyjoin)
-library(glue)
-library(lubridate)
-
-source('admin/global_functions/global_funcs.R')
-source('admin/global_functions/syn_funcs.R')
-source('admin/global_functions/bsa_funcs.R')
-source('admin/global_functions/check_funcs.R')
+# import packages
+devtools::load_all()
 ```
 
 # Read in data
@@ -72,7 +64,7 @@ df_ndfs <- df_ndfs %>%
 ## Format PESP Taxon
 ## Extract Taxon
 ```{r}
-df_ndfs <- extract_program_taxons(df_ndfs)
+df_ndfs <- extract_program_taxa(df_ndfs)
 ```
 
 ## Correct typos
@@ -111,6 +103,7 @@ needs_hierarchy <- attr(df_ndfs, 'log')$unmatched_taxa
 
 print(needs_hierarchy)
 ```
+
 ## Add ID column
 ```{r}
 df_ndfs <- add_id_col(df_ndfs, loc_col = 'Station')
@@ -123,12 +116,12 @@ df_ndfs <- subset_cols(df_ndfs)
 
 ## Combine taxa (multiple sizes, standardized unknowns)
 ```{r}
-df_ndfs <- combine_taxons(df_ndfs, key_cols = c('Date', 'Time', 'Station', 'SampleDepth'))
+df_ndfs <- combine_taxa(df_ndfs, key_cols = c('Date', 'Time', 'Station', 'SampleDepth'))
 combine_checks <- attr(df_ndfs, 'log')$combined_conflicts
 ```
 
 ## Save .Rdata
 ```{r}
-save(df_ndfs, file = 'synthesized/02_group_data/DWR-NDFS.Rdata')
+save(df_ndfs, file = 'admin/standardized_data/DWR-NDFS.Rda')
 ```
 

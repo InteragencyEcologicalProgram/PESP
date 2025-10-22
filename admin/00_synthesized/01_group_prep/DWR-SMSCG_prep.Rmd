@@ -4,19 +4,10 @@
 
 **Author:** Perry ([sarah.perry\@water.ca.gov](mailto:sarah.perry@water.ca.gov){.email})
 
-# Initial Setup
-
+# Initial setup
 ```{r, message=FALSE, warning=FALSE}
-# Import Packages ---------------------------------------------------------
-library(tidyverse)
-library(fuzzyjoin)
-library(glue)
-library(lubridate)
-
-source('admin/global_functions/global_funcs.R')
-source('admin/global_functions/syn_funcs.R')
-source('admin/global_functions/bsa_funcs.R')
-source('admin/global_functions/check_funcs.R')
+# import packages
+devtools::load_all()
 ```
 
 # Read in data
@@ -54,7 +45,7 @@ rename_map <- c(
 df_smscg <- rename_cols(df_smscg, rename_map)
 
 # pull original taxon for taxon column
-df_smscg <- extract_program_taxons(df_smscg)
+df_smscg <- extract_program_taxa(df_smscg)
 
 # note: time is already in PST
 ```
@@ -207,7 +198,7 @@ unique(df_smscg$QualityCheck)
 
 ## Combine taxa (multiple sizes, standardized unknowns)
 ```{r}
-df_smscg <- combine_taxons(df_smscg, key_cols = c('Date', 'Time', 'Station', 'SampleDepth'))
+df_smscg <- combine_taxa(df_smscg, key_cols = c('Date', 'Time', 'Station', 'SampleDepth'))
 combine_issues <- attr(df_smscg, 'log')$combined_conflicts
 combine_checks <- attr(df_smscg, 'log')$combined_taxa
 ```
@@ -215,5 +206,5 @@ combine_checks <- attr(df_smscg, 'log')$combined_taxa
 # Save .Rdata
 
 ```{r}
-save(df_smscg, file = 'synthesized/02_group_data/DWR-SMSCG.Rdata')
+save(df_smscg, file = 'admin/standardized_data/DWR-SMSCG.Rda')
 ```

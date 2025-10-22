@@ -6,17 +6,8 @@
 
 # Initial Setup
 ```{r, message=FALSE, warning=FALSE}
-# Import Packages ---------------------------------------------------------
-library(tidyverse)
-library(fuzzyjoin)
-library(glue)
-library(lubridate)
-
-source('admin/global_functions/global_funcs.R')
-source('admin/global_functions/syn_funcs.R')
-source('admin/global_functions/bsa_funcs.R')
-source('admin/global_functions/check_funcs.R')
-source('programs/CDFW-FRP/format/frp_funcs.R')
+# import packages
+devtools::load_all()
 ```
 
 # Read in data
@@ -207,7 +198,7 @@ df_frp <- df_frp %>%
 
 ## Combine taxa (multiple sizes, standardized unknowns)
 ```{r}
-df_frp <- combine_taxons(df_frp, key_cols = c('Date','Time','Location','Station','SampleDepth','DepthType'), measurement_cols = c('Biovolume_per_mL', 'Units_per_mL', 'Cells_per_mL'))
+df_frp <- combine_taxa(df_frp, key_cols = c('Date','Time','Location','Station','SampleDepth','DepthType'), measurement_cols = c('Biovolume_per_mL', 'Units_per_mL', 'Cells_per_mL'))
 check <- attr(df_frp, 'log')$combined_conflicts
 ```
 
@@ -218,5 +209,5 @@ df_frp <- subset_cols(df_frp)
 
 # Save .Rdata
 ```{r}
-save(df_frp, file = 'synthesized/02_group_data/CDFW-FRP.Rda')
+save(df_frp, file = 'admin/standardized_data/CDFW-FRP.Rda')
 ```

@@ -6,16 +6,8 @@
 
 # Initial Setup
 ```{r, message=FALSE, warning=FALSE}
-# Import Packages ---------------------------------------------------------
-library(tidyverse)
-library(fuzzyjoin)
-library(glue)
-library(lubridate)
-
-source('admin/global_functions/global_funcs.R')
-source('admin/global_functions/syn_funcs.R')
-source('admin/global_functions/bsa_funcs.R')
-source('admin/global_functions/check_funcs.R')
+# import packages
+devtools::load_all()
 ```
 
 # Read in data
@@ -73,7 +65,7 @@ df_emp <- df_emp %>%
 ## Format PESP Taxon
 ## Extract Taxon
 ```{r}
-df_emp <- extract_program_taxons(df_emp)
+df_emp <- extract_program_taxa(df_emp)
 ```
 
 ## Correct typos
@@ -122,7 +114,7 @@ df_emp <- subset_cols(df_emp)
 
 ## Combine taxa (multiple sizes, standardized unknowns)
 ```{r}
-df_emp <- combine_taxons(df_emp, key_cols = c('Date','Station','CountMethodSample','CountMethodTaxa'))
+df_emp <- combine_taxa(df_emp, key_cols = c('Date','Station','CountMethodSample','CountMethodTaxa'))
 combine_checks <- attr(df_emp, 'log')$combined_taxa
 combine_checks
 ```
@@ -135,12 +127,7 @@ df_dupes <- df_emp %>%
 df_dupes
 ```
 
-```{r}
-view(df_dupes)
-```
-
-
 ## Save .Rdata
 ```{r}
-save(df_emp, file = 'synthesized/02_group_data/DWR-EMP.Rdata')
+save(df_emp, file = 'admin/standardized_data/DWR-EMP.Rda')
 ```

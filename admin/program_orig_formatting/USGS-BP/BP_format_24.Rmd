@@ -131,6 +131,15 @@ df_data <- df_data %>%
          )
 ```
 
+## Ensure negative longitudes
+```{r}
+df_data <- df_data %>%
+  mutate(Longitude = case_when(
+    Longitude > 0 ~ -Longitude,
+    TRUE ~ Longitude
+  ))
+```
+
 ## Check distinct cols before combining rows
 ```{r}
 df_data <- check_distinct(df_data, type = 'full')

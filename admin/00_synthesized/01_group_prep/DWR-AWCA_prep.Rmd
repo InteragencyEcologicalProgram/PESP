@@ -6,16 +6,8 @@
 
 # Initial Setup
 ```{r, message=FALSE, warning=FALSE}
-# Import Packages ---------------------------------------------------------
-library(tidyverse)
-library(fuzzyjoin)
-library(glue)
-library(lubridate)
-
-source('admin/global_functions/global_funcs.R')
-source('admin/global_functions/syn_funcs.R')
-source('admin/global_functions/bsa_funcs.R')
-source('admin/global_functions/check_funcs.R')
+# import packages
+devtools::load_all()
 ```
 
 # Read in data
@@ -219,7 +211,7 @@ unique(df_awca$QualityCheck)
 
 ## Combine taxa (multiple sizes, standardized unknowns)
 ```{r}
-df_awca <- combine_taxons(df_awca, c('Date','Station','Time'))
+df_awca <- combine_taxa(df_awca, c('Date','Station','Time'))
 combine_issues <- attr(df_awca, 'log')$combined_conflicts
 combine_checks <- attr(df_awca, 'log')$combined_taxa
 
@@ -228,5 +220,5 @@ combine_checks
 
 # Save .Rdata
 ```{r}
-save(df_awca, file = 'synthesized/02_group_data/DWR-AWCA.Rdata')
+save(df_awca, file = 'admin/standardized_data/DWR-AWCA.Rda')
 ```

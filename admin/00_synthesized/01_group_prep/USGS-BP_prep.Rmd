@@ -4,18 +4,10 @@
 
 **Author:** Perry ([sarah.perry\@water.ca.gov](mailto:sarah.perry@water.ca.gov){.email})
 
-# Initial Setup
+# Initial setup
 ```{r, message=FALSE, warning=FALSE}
-# Import Packages ---------------------------------------------------------
-library(tidyverse)
-library(fuzzyjoin)
-library(glue)
-library(lubridate)
-
-source('admin/global_functions/global_funcs.R')
-source('admin/global_functions/syn_funcs.R')
-source('admin/global_functions/bsa_funcs.R')
-source('admin/global_functions/check_funcs.R')
+# import packages
+devtools::load_all()
 ```
 
 # Read in data
@@ -67,7 +59,7 @@ df_bp <- df_bp %>%
 ## Format PESP Taxon
 ## Extract Taxon
 ```{r}
-df_bp <- extract_program_taxons(df_bp)
+df_bp <- extract_program_taxa(df_bp)
 ```
 
 ## Correct typos
@@ -116,12 +108,12 @@ df_bp <- subset_cols(df_bp)
 
 ## Combine taxa (multiple sizes, standardized unknowns)
 ```{r}
-df_bp <- combine_taxons(df_bp, key_cols = c('Station','Date','SampleDepth','Lab','SampleMethod'), measurement_cols = c('Biovolume_per_mL','Cells_per_mL'))
+df_bp <- combine_taxa(df_bp, key_cols = c('Station','Date','SampleDepth','Lab','SampleMethod'), measurement_cols = c('Biovolume_per_mL','Cells_per_mL'))
 combine_issues <- attr(df_bp, 'log')$combined_conflicts
 combine_checks <- attr(df_bp, 'log')$combined_taxa
 ```
 
 ## Save .Rdata
 ```{r}
-save(df_bp, file = 'synthesized/02_group_data/USGS-BP.Rdata')
+save(df_bp, file = 'admin/standardized_data/USGS-BP.Rda')
 ```

@@ -1,16 +1,10 @@
 # Check Groupings
-
-```{r}
-library(tidyverse)
-library(lme4)
-library(stats)
-library(vegan)
+```{r, message=FALSE, warning=FALSE}
+# import packages
+devtools::load_all()
 library(deltamapr)
-library(openxlsx)
-library(sf)
 library(sp)
-source('admin/global_functions/global_funcs.R')
-source('admin/global_functions/check_funcs.R')
+library(sf)
 ```
 
 ```{r}

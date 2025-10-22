@@ -1,14 +1,14 @@
 # Synthesize Datasets
 
-```{r}
-library(tidyverse)
-source('admin/global_functions/global_funcs.R')
+```{r, message=FALSE, warning=FALSE}
+# import packages
+devtools::load_all()
 ```
 
 ## Synthesize data
 ```{r}
-data_dir <- here::here('synthesized', '02_group_data')
-fp_data <- list.files(data_dir, pattern = '\\.Rdata$', full.names = TRUE)
+data_dir <- here::here('admin/standardized_data')
+fp_data <- list.files(data_dir, pattern = '\\.Rda$', full.names = TRUE)
 ls_combined <- list()
 
 for (file in fp_data) {

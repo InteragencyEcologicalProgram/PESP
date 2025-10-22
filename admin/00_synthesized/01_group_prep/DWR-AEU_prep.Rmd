@@ -6,16 +6,8 @@
 
 # Initial Setup
 ```{r, message=FALSE, warning=FALSE}
-# Import Packages ---------------------------------------------------------
-library(tidyverse)
-library(fuzzyjoin)
-library(glue)
-library(lubridate)
-
-source('admin/global_functions/global_funcs.R')
-source('admin/global_functions/syn_funcs.R')
-source('admin/global_functions/bsa_funcs.R')
-source('admin/global_functions/check_funcs.R')
+# import packages
+devtools::load_all()
 ```
 
 # Read in data
@@ -71,7 +63,7 @@ df_aeu <- df_aeu %>%
 ## Format PESP Taxon
 ## Extract Taxon
 ```{r}
-df_aeu <- extract_program_taxons(df_aeu)
+df_aeu <- extract_program_taxa(df_aeu)
 ```
 
 ## Correct typos
@@ -120,11 +112,11 @@ df_aeu <- subset_cols(df_aeu)
 
 ## Combine taxa (multiple sizes, standardized unknowns)
 ```{r}
-df_aeu <- combine_taxons(df_aeu)
+df_aeu <- combine_taxa(df_aeu)
 combine_checks <- attr(df_aeu, 'log')$combined_conflicts
 ```
 
 ## Save .Rdata
 ```{r}
-save(df_aeu, file = 'synthesized/02_group_data/DWR-AEU.Rdata')
+save(df_aeu, file = 'admin/standardized_data/DWR-AEU.Rda')
 ```
