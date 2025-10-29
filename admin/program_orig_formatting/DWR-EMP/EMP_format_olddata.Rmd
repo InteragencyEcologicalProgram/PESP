@@ -1,0 +1,330 @@
+# Format Old EMP data
+
+**Purpose:** Code to format older EMP data NOT FOR PESP.
+
+**Author:** Perry ([sarah.perry\@water.ca.gov](mailto:sarah.perry@water.ca.gov){.email})
+
+# Initial setup
+
+```{r, message=FALSE, warning=FALSE}
+# import packages
+devtools::load_all()
+```
+
+## Read in data
+
+```{r}
+# specify the file path
+data_path <- abs_pesp_path('Groups/DWR-EMP/01 Raw Data/EMP_Phyto Data Old.csv')
+
+# read in data
+df_data <- read_quiet_csv(data_path)
+```
+
+## Remove Special Study data
+
+```{r}
+df_data <- df_data %>%
+  filter(MethodCode == 'PHYTO')
+```
+
+
+## Check distinct columns
+
+```{r}
+df_data <- check_distinct(df_data, type = 'full')
+nondistinct_rows <- attr(df_data, 'log')$nondistinct_allrows
+write_log_file(nondistinct_rows, 'Groups/DWR-EMP/02 Program Data/QC files/Old/tables/EMP_nondistinct_rows.csv')
+
+# remove duplicates
+df_data <- df_data %>% distinct()
+
+print(nondistinct_rows)
+
+check_distinct(df_data, type = 'full')
+```
+
+## Rename columns
+```{r}
+colnames(df_data)
+```
+
+
+```{r}
+rename_map <- c(
+  'Station' = 'StationCode',
+  'Date' = 'SampleDate',
+  'Time' = 'SampleTime',
+  'PhytoForm' = 'Group'
+)
+
+df_data <- rename_cols(df_data, rename_map)
+```
+## rename EZs
+```{r}
+df_data <- df_data %>%
+  mutate(Station = case_when(
+    Station == 'EZ2' ~ 'LSZ2',
+    Station == 'EZ6' ~ 'LSZ6',
+    Station == 'EZ2-SJR' ~ 'LSZ2-SJR',
+    Station == 'EZ6-SJR' ~ 'LSZ6-SJR',
+    TRUE ~ Station
+  )
+)
+
+sort(unique(df_data$Station))
+```
+
+## Add Lab
+```{r}
+df_data$Lab <- 'EcoAnalysts'
+```
+
+
+## Remove old taxa info
+
+```{r}
+df_data <- remove_taxa_info(df_data)
+```
+
+## Calculate measurement columns
+
+### Calculate
+```{r}
+# calc Units per mL (just rounding)
+df_data <- df_data %>%
+  calc_data_ea(calc_cols = 'Units')
+```
+## Clean PhytoForm column
+
+```{r}
+df_data <- clean_phytoform_bsa(df_data)
+```
+
+## Fix Date/Time; add lat/lon
+
+```{r}
+df_data$Date <- as.Date(df_data$Date,'%m/%d/%Y')
+```
+
+### Read in WQ data (for Dates/Times/Lats/Lons)
+```{r}
+# read in WQ data
+fp_wq <- abs_pesp_path('Groups/DWR-EMP/01 Raw Data/EMP_DWQ_1975_2023.csv')
+
+df_wq <- read_quiet_csv(fp_wq, col_types = cols(Date = col_date(format = '%m/%d/%Y')))
+
+df_wq$Time <- sub(':00$', '', df_wq$Time)
+
+df_wq <- df_wq %>%
+  mutate(Station = case_when(
+    Station == 'EZ2' ~ 'LSZ2',
+    Station == 'EZ6' ~ 'LSZ6',
+    Station == 'EZ2-SJR' ~ 'LSZ2-SJR',
+    Station == 'EZ6-SJR' ~ 'LSZ6-SJR',
+    TRUE ~ Station
+  ))
+```
+
+### find mismatched dates
+```{r}
+df_mismatch <- df_data %>%
+  mutate(Time_phyto = substr(Time, 1, 5)) %>%  
+  select(Station, Date, Time_phyto) %>%
+  left_join(
+    df_wq %>%
+      mutate(Time_wq = substr(Time, 1, 5)) %>%
+      select(Station, Date, Time_wq),
+    by = c('Station', 'Date')
+  ) %>%
+  filter(is.na(Time_wq) | Time_phyto != Time_wq) %>%
+  arrange(Station, Date) %>%
+  unique()
+
+write_csv(df_mismatch, abs_pesp_path('Groups/DWR-EMP/02 Program Data/QC files/Old/tables/EMP_mismatched_times.csv'))
+```
+
+
+<!-- ### Fix Dates -->
+<!-- ```{r} -->
+<!-- # read the fixed date mappings -->
+<!-- fp_dates <- abs_pesp_path('Groups/DWR-EMP/01 Raw Data/mismatched_phyto_wq_dates.csv') -->
+
+<!-- df_fixed_dates <- read_quiet_csv(fp_dates,  col_types = cols(Station = col_character(), -->
+<!--                                                              PhytoDate = col_date(format = '%m/%d/%Y'), -->
+<!--                                                              WQDate = col_date(format = '%m/%d/%Y') -->
+<!--                                                              )) -->
+
+<!-- # update date/times -->
+<!-- df_data <- update_dates_emp(df_data, df_fixed_dates) -->
+<!-- fixed_dates <- attr(df_data, 'log')$fixed_dates -->
+<!-- write_log_file(fixed_dates, 'Groups/DWR-EMP/02 Program Data/QC files/Old/tables/EMP_fixed_dates.csv') -->
+<!-- ``` -->
+
+<!-- ### Add lat/lons/times -->
+<!-- ```{r} -->
+<!-- # join WQ data (add times and lat/lon for EZ stations) -->
+<!-- df_data <- add_wq_emp(df_data, df_wq) -->
+<!-- missing_wq <- attr(df_data, 'log')$missing_wq -->
+<!-- write_log_file(missing_wq, 'Groups/DWR-EMP/02 Program Data/QC files/Old/tables/EMP_missing_wq.csv') -->
+<!-- ``` -->
+
+```{r}
+# add lat/lon for fixed stations
+df_data <- add_latlon(df_data, 'Groups/DWR-EMP/Metadata/Stations-EMP.csv', merge_cols = c('Location','Station','Latitude','Longitude'))
+
+# # merge the two
+# df_data <- df_data %>%
+#   mutate(
+#     Latitude = coalesce(Latitude.x, Latitude.y),
+#     Longitude = coalesce(Longitude.x, Longitude.y)
+#   ) %>%
+#   select(-Latitude.x, -Latitude.y, -Longitude.x, -Longitude.y)
+```
+
+## Add metadata columns
+
+```{r}
+# df_data <- add_meta_col(df_data, 'DWR-EMP', 'SampleDepth')
+ 
+# df_data <- add_meta_col(df_data, 'DWR-EMP', 'SampleMethod')
+```
+
+# Add Taxonomy (and QC column)
+
+## Standardize unknowns
+
+```{r}
+df_data <- clean_unknowns(df_data, std_sp = TRUE, std_suffix = TRUE)
+standardized_unknowns <- attr(df_data, 'log')$clean_unknowns
+write_log_file(standardized_unknowns, 'Groups/DWR-EMP/02 Program Data/QC files/Old/tables/EMP_standardized_unknowns.csv')
+
+print(standardized_unknowns)
+```
+
+## Correct typos
+
+```{r}
+df_data <- correct_taxon_typos(df_data)
+corrected_typos <- attr(df_data, 'log')$taxon_corrections
+write_log_file(corrected_typos, 'Groups/DWR-EMP/02 Program Data/QC files/Old/tables/EMP_corrected_typos.csv')
+
+print(corrected_typos)
+```
+
+## Add QC column
+
+```{r}
+# manually set for EA
+df_data <- df_data %>%
+  mutate(
+    QualityCheck = case_when(
+      Lab == 'EcoAnalysts' ~ 'Unknown'
+    ),
+    Debris = case_when(
+      Lab == 'EcoAnalysts' ~ 'Unknown'
+    ),
+    Notes = case_when(
+      Lab == 'EcoAnalysts' ~ 'Unknown'
+    )
+  )
+```
+
+## Update synonyms
+
+```{r}
+df_data <- update_synonyms(df_data)
+updated_synonyms <- attr(df_data, 'log')$synonym_updates
+write_log_file(updated_synonyms, 'Groups/DWR-EMP/02 Program Data/QC files/Old/tables/EMP_updated_synonyms.csv')
+
+print(updated_synonyms)
+```
+
+
+
+
+## Add in higher-level taxa
+
+```{r}
+df_data <- higher_lvl_taxa(df_data, std_type = 'program')
+needs_hierarchy <- attr(df_data, 'log')$unmatched_taxa
+write_log_file(needs_hierarchy, 'Groups/DWR-EMP/02 Program Data/QC files/Old/tables/EMP_needs_hierarchy.csv')
+
+print(needs_hierarchy)
+```
+
+## Check distinct cols before combining
+
+```{r}
+df_data <- check_distinct(df_data, type = 'full')
+attr(df_data, 'log')$nondistinct_allrows
+
+df_data <- check_distinct(df_data, type = 'key_cols')
+attr(df_data, 'log')$nondistinct_keyrows
+```
+
+# Finish Formatting
+
+## Add Count Method column
+
+```{r}
+df_data <- df_data %>%
+  mutate(CountMethod = 'Field')
+```
+
+
+## Subset columns
+
+```{r}
+df_data <- df_data %>%
+  mutate(
+    Cells_per_mL = NA,
+    Biovolume_per_mL = NA,
+    GALD = NA
+  )
+
+df_data <- subset_cols_emp(df_data)
+```
+
+## Combine taxa (multiple sizes, standardized unknowns)
+
+```{r}
+df_data <- combine_taxa(df_data)
+combined_taxa <- attr(df_data, 'log')$combined_taxa
+write_log_file(combined_taxa, 'Groups/DWR-EMP/02 Program Data/QC files/Old/tables/EMP_combined_taxa.csv')
+
+print(combined_taxa)
+```
+
+# Checks
+
+```{r}
+# check for NAs
+df_data <- check_nas(df_data)
+na_check <- attr(df_data, 'log')$na_check
+
+print(na_check) # one NA in PhytoForm is real
+```
+
+```{r}
+unique_check(df_data, 'Station')
+```
+
+```{r}
+# set densities == 0 to NA (have to do later in code)
+df_data <- df_data %>%
+  mutate(
+    Cells_per_mL = case_when(Cells_per_mL == 0 ~ NA,
+                                      TRUE ~ Cells_per_mL),
+    Units_per_mL = case_when(Units_per_mL == 0 ~ NA,
+                                      TRUE ~ Units_per_mL),
+    Biovolume_per_mL = case_when(Biovolume_per_mL == 0 ~ NA,
+                                      TRUE ~ Biovolume_per_mL)
+    )
+```
+
+# Export
+
+```{r}
+write_csv(df_data, abs_pesp_path('Groups/DWR-EMP/02 Program Data/EMP_old_data.csv'))
+```

@@ -199,49 +199,53 @@ standardize_cols_bsa <- function(df, meta_df){
 
 # calc reporting units
 calc_data_ea <- function(df,
-                          unit_col = 'Organisms per mL',
-                          cell_col = 'Cells per Unit',
-                          calc_cols = c('Units', 'Cells', 'Biovolume')) {
+                         unit_col = 'Organisms per mL',
+                         cell_col = 'Cells per Unit',
+                         calc_cols = c('Units', 'Cells', 'Biovolume')) {
   
   calc_cols <- match.arg(calc_cols, choices = c('Units', 'Cells', 'Biovolume'), several.ok = TRUE)
   calculated <- character()
   
-  # find the factor column
-  factor_col <- names(df)[grepl('factor', names(df), ignore.case = TRUE)]
-  if (length(factor_col) == 0) {
-    stop('Factor column not found')
+  # only require factor column if Biovolume is calculated
+  if ('Biovolume' %in% calc_cols) {
+    factor_col <- names(df)[grepl('factor', names(df), ignore.case = TRUE)]
+    if (length(factor_col) == 0) stop('Factor column not found')
+  } else {
+    factor_col <- NULL
   }
   
-  # convert relevant cols to numeric
+  # convert only existing numeric columns
   df <- df %>%
-    dplyr::mutate(across(all_of(c(unit_col, cell_col)), as.numeric),
-                  across(matches('Biovolume', ignore.case = TRUE), as.numeric),
-                  Factor = as.numeric(.data[[factor_col]])) 
+    mutate(across(any_of(c(unit_col, cell_col)), as.numeric),
+           across(matches('Biovolume', ignore.case = TRUE), as.numeric))
+  
+  if (!is.null(factor_col))
+    df <- df %>% mutate(Factor = as.numeric(.data[[factor_col]]))
   
   if ('Units' %in% calc_cols) {
     df <- df %>%
-      dplyr::mutate(Units_per_mL = round(.data[[unit_col]], 2))
+      mutate(Units_per_mL = round(.data[[unit_col]], 2))
     calculated <- c(calculated, 'Units_per_mL')
   }
   
-  if ('Cells' %in% calc_cols) {
+  if ('Cells' %in% calc_cols && cell_col %in% names(df)) {
     df <- df %>%
-      dplyr::mutate(Cells_per_mL = round(.data[[unit_col]] * .data[[cell_col]], 2))
+      mutate(Cells_per_mL = round(.data[[unit_col]] * .data[[cell_col]], 2))
     calculated <- c(calculated, 'Cells_per_mL')
   }
   
-  # biovol is calc'd by averaging biovol columns
-  if ('Biovolume' %in% calc_cols) {
+  if ('Biovolume' %in% calc_cols && !is.null(factor_col)) {
     df <- df %>%
-      dplyr::mutate(Biovolume_per_mL = round(
-        rowMeans(select(., matches('Biovolume', ignore.case = TRUE)), na.rm = TRUE) * .data[[factor_col]] * .data[[cell_col]],
+      mutate(Biovolume_per_mL = round(
+        rowMeans(select(., matches('Biovolume', ignore.case = TRUE)), na.rm = TRUE) *
+          .data[[factor_col]] * .data[[cell_col]],
         2
       ))
     calculated <- c(calculated, 'Biovolume_per_mL')
   }
   
   message('Calculated: ', paste(calculated, collapse = ', '))
-  
-  return(df)
+  df
 }
+
 

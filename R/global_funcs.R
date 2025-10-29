@@ -1652,6 +1652,10 @@ higher_lvl_taxa <- function(df, after_col = NULL, std_type, read_func = read_phy
   existing_log <- attr(df_joined, 'log')
   attr(df_joined, 'log') <- c(existing_log, list(unmatched_taxa = unmatched_log))
   
+  na_rows <- df_joined %>%
+    mutate(PureTaxon_check = df$PureTaxon) %>%   # keep original PureTaxon for context
+    filter(is.na(Taxon) & is.na(PureTaxon_check))
+  
   return(df_joined)
 }
 
