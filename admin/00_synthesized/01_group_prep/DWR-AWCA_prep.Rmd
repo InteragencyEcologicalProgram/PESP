@@ -218,6 +218,28 @@ combine_checks <- attr(df_awca, 'log')$combined_taxa
 combine_checks
 ```
 
+## Remove rows with no data
+```{r}
+df_awca <- remove_nodata(df_awca)
+no_data <- attr(df_awca, 'log')$nodata
+```
+
+## Check for outliers
+```{r}
+# Cells per mL
+df_awca <- flag_outliers(df_awca, Cells_per_mL)
+```
+
+```{r}
+# Units per mL
+df_awca <- flag_outliers(df_awca, Units_per_mL, cutoff = 3.2)
+```
+
+```{r}
+# Biovolume per mL
+df_awca <- flag_outliers(df_awca, Biovolume_per_mL)
+```
+
 # Save .Rdata
 ```{r}
 save(df_awca, file = 'admin/standardized_data/DWR-AWCA.Rda')

@@ -73,6 +73,7 @@ df_data <- remove_taxa_info(df_data)
 # dependent on if lab is BSA or EA
 df_data <- calc_data_bsa(df_data)
 ```
+
 ## Clean PhytoForm column
 
 ```{r}
@@ -246,16 +247,9 @@ unique_check(df_data, 'Station')
 ```
 
 ```{r}
-# set <measurements> == 0 to NA (have to do later in code)
-df_data <- df_data %>%
-  mutate(
-    Cells_per_mL = case_when(Cells_per_mL == 0 ~ NA,
-                                      TRUE ~ Cells_per_mL),
-    Units_per_mL = case_when(Units_per_mL == 0 ~ NA,
-                                      TRUE ~ Units_per_mL),
-    Biovolume_per_mL = case_when(Biovolume_per_mL == 0 ~ NA,
-                                      TRUE ~ Biovolume_per_mL)
-    )
+# remove rows with no data
+df_data <- remove_nodata(df_data)
+no_data <- attr(df_data, 'log')$nodata
 ```
 
 # Merge with Old Data
@@ -270,6 +264,23 @@ nrow(df_join) == nrow(df_old)+nrow(df_data)
 
 df_join <- df_join %>%
   arrange(Date, Time, Location)
+```
+
+# Check for outliers (and add QC Code)
+
+```{r}
+# Cells per mL
+df_join <- flag_outliers(df_join, Cells_per_mL)
+```
+
+```{r}
+# Units per mL
+df_join <- flag_outliers(df_join, Units_per_mL)
+```
+
+```{r}
+# Biovolume per mL
+df_join <- flag_outliers(df_join, Biovolume_per_mL)
 ```
 
 # Export

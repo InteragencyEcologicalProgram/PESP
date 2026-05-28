@@ -120,6 +120,28 @@ df_ndfs <- combine_taxa(df_ndfs, key_cols = c('Date', 'Time', 'Station', 'Sample
 combine_checks <- attr(df_ndfs, 'log')$combined_conflicts
 ```
 
+## Remove rows with no data
+```{r}
+df_ndfs <- remove_nodata(df_ndfs)
+no_data <- attr(df_ndfs, 'log')$nodata
+```
+
+## Check for outliers
+```{r}
+# Cells per mL
+df_ndfs <- flag_outliers(df_ndfs, Cells_per_mL)
+```
+
+```{r}
+# Units per mL
+df_ndfs <- flag_outliers(df_ndfs, Units_per_mL, cutoff = 3.2)
+```
+
+```{r}
+# Biovolume per mL
+df_ndfs <- flag_outliers(df_ndfs, Biovolume_per_mL)
+```
+
 ## Save .Rdata
 ```{r}
 save(df_ndfs, file = 'admin/standardized_data/DWR-NDFS.Rda')

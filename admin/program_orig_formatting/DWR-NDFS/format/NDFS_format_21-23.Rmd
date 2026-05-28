@@ -276,6 +276,31 @@ nrow(df_join) == nrow(df_old)+nrow(df_data)
 df_join <- df_join %>%
   arrange(Date, Time, Station)
 ```
+```{r}
+# remove columns with no data
+df_join <- remove_nodata(df_join)
+no_join <- attr(df_data, 'log')$nodata
+```
+
+
+# Check for Outliers (and add QC Code)
+
+```{r}
+# Cells per mL
+df_join <- flag_outliers(df_join, Cells_per_mL)
+```
+
+```{r}
+# Units per mL
+df_join <- flag_outliers(df_join, Units_per_mL, cutoff = 3.1)
+```
+
+```{r}
+# Biovolume per mL
+df_join <- flag_outliers(df_join, Biovolume_per_mL, cutoff = 2.7)
+```
+
+
 
 ```{r}
 write_csv(df_data, abs_pesp_path('Groups/DWR-NDFS/02 Program Data/2021-2023/NDFS_draft_2013-2023.csv'))

@@ -54,9 +54,39 @@ df_pesp <- rename_values(df_pesp, 'SampleDepth', rename_map)
 df_pesp <- df_pesp %>% select(-c(TowNetRadius)) # same for everyone
 ```
 
+## Arrange cols
 ```{r}
 df_pesp <- df_pesp %>% arrange(Survey, Date, Station)
 ```
+
+## Remove rows with no data
+```{r}
+df_pesp <- remove_nodata(df_pesp)
+no_data <- attr(df_pesp, 'log')$nodata
+```
+## Convert density columns to numeric
+```{r}
+df_pesp <- df_pesp %>%
+  mutate(across(contains('per_mL'), ~ as.numeric(.)))
+```
+
+## Check for outliers
+```{r}
+# Cells per mL
+df_pesp <- flag_outliers(df_pesp, Cells_per_mL)
+```
+
+
+```{r}
+# Units per mL
+df_pesp <- flag_outliers(df_pesp, Units_per_mL)
+```
+
+```{r}
+# Biovolume per mL
+df_pesp <- flag_outliers(df_pesp, Biovolume_per_mL, cutoff = 3.5)
+```
+
 
 ## Write
 ```{r}

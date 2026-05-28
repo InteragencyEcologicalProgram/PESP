@@ -142,10 +142,10 @@ nondistinct_rows
 df_data <- check_distinct(df_data, type = 'key_measure_cols', key_cols = c('Station','Date', 'Time'), measurement_cols = c('Biovolume_per_mL','Cells_per_mL'))
 ```
 
-## Change 0 to NA
+# Remove rows with no data
 ```{r}
-df_data$Cells_per_mL[df_data$Cells_per_mL == 0] <- NA
-df_data$Biovolume_per_mL[df_data$Biovolume_per_mL == 0.00] <- NA
+df_data <- remove_nodata(df_data, density_cols = c('Cells_per_mL','Biovolume_per_mL'))
+no_data <- attr(df_data, 'log')$nodata
 ```
 
 ## Remove data where both Cells per mL and Biovolume per mL are NA
@@ -188,6 +188,18 @@ unique_check(df_data, Station)
 ```{r}
 df_data <- df_data %>%
   rename('site_abbrev' = 'Station')
+```
+
+# Check for outliers (and add QC Code)
+
+```{r}
+# Cells per mL
+df_data <- flag_outliers(df_data, Cells_per_mL, station_col = 'site_no')
+```
+
+```{r}
+# Units per mL
+df_data <- flag_outliers(df_data, Biovolume_per_mL, station_col = 'site_no', cutoff = 5)
 ```
 
 ## Export

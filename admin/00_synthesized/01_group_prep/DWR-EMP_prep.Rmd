@@ -62,6 +62,27 @@ df_emp <- df_emp %>%
   mutate(TowNetRadius = NA)
 ```
 
+## Remove TB, set LSZ locations, and remove BadData
+```{r}
+df_emp <- df_emp %>%
+  filter(Station != 'TB')
+
+df_emp <- df_emp %>%
+  mutate(
+    Location = case_when(
+      Station == 'LSZ2' ~ 'LSZ2',
+      Station == 'LSZ6' ~ 'LSZ6',
+      Station == 'LSZ2-SJR' ~ 'LSZ2-SJR',
+      Station == 'LSZ6-SJR' ~ 'LSZ6-SJR',
+      TRUE ~ Location
+    )
+  )
+
+df_emp <- df_emp %>%
+  filter(QualityCheck != 'BadData')
+```
+
+
 ## Format PESP Taxon
 ## Extract Taxon
 ```{r}
@@ -125,6 +146,28 @@ df_dupes <- df_emp %>%
   ungroup()
 
 df_dupes
+```
+
+## Remove rows with no data
+```{r}
+df_emp <- remove_nodata(df_emp)
+no_data <- attr(df_emp, 'log')$nodata
+```
+
+## Check for outliers
+```{r}
+# Cells per mL
+df_emp <- flag_outliers(df_emp, Cells_per_mL)
+```
+
+```{r}
+# Units per mL
+df_emp <- flag_outliers(df_emp, Units_per_mL)
+```
+
+```{r}
+# Biovolume per mL
+df_emp <- flag_outliers(df_emp, Biovolume_per_mL)
 ```
 
 ## Save .Rdata

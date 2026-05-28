@@ -382,6 +382,13 @@ attr(df_data, 'log')$nondistinct_keyrows
 ```{r}
 df_data <- subset_cols_bp(df_data)
 ```
+
+## Remove rows with no data
+```{r}
+df_data <- remove_nodata(df_data, c('Cells_per_mL','Biovolume_per_mL'))
+no_data <- attr(df_data, 'log')$nodata
+```
+
 ## Combine taxa (multiple sizes, standardized unknowns)
 ```{r}
 df_data <- combine_taxa(df_data, key_cols = c('Station','Date','Depth_m','Lab','SampleMethod'), measurement_cols = c('Biovolume_per_mL','Cells_per_mL'))
@@ -389,9 +396,6 @@ combined_taxa <- attr(df_data, 'log')$combined_taxa
 write_log_file(combined_taxa, 'Groups/USGS-BP/02 Program Data/QC files/tables/BP_All_combined_taxa.csv')
 
 print(combined_taxa)
-```
-```{r}
-view(df_data)
 ```
 
 ## Checks
@@ -401,6 +405,19 @@ df_data <- check_nas(df_data)
 na_check <- attr(df_data, 'log')$na_check
 
 print(na_check)
+```
+
+
+# Check for outliers (and add QC Code)
+
+```{r}
+# Cells per mL
+df_data <- flag_outliers(df_data, Cells_per_mL)
+```
+
+```{r}
+# Biovolume per mL
+df_data <- flag_outliers(df_data, Biovolume_per_mL)
 ```
 
 ## Export

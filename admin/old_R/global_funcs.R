@@ -511,6 +511,73 @@ coalesce_cols <- function(df, combine_map = NULL) {
   return(df)
 }
 
+#' @title Remove rows with no density data
+#'
+#'@description
+#' Replaces zeros with NA in the specified density columns and 
+#' removes rows where all of those columns are NA.
+#'
+#' @param df A dataframe containing density measurement columns
+#' @param density_cols A character vector of column names to check for zero or NA values.
+#'   Defaults to c('Cells_per_mL', 'Units_per_mL', 'Biovolume_per_mL')
+#'
+#' @return A dataframe with zeros replaced by NA and rows removed where all specified
+#'   columns are NA.
+#' @importFrom dplyr mutate across if_all filter all_of
+#' @export
+remove_nodata <- function(df, 
+                          density_cols = c('Cells_per_mL', 'Units_per_mL', 'Biovolume_per_mL')) {
+  
+  # check for required columns
+  if (!all(density_cols %in% names(df))) {
+    stop('Missing one or more required columns: ',
+         paste(setdiff(density_cols, names(df)), collapse = ', '))
+  }
+  
+  n_before <- nrow(df)
+  
+  # identify rows with zeros before changing them
+  df_zeros <- df %>%
+    filter(if_any(all_of(density_cols), ~ !is.na(.) & . == 0))
+  
+  n_zero <- df_zeros %>%
+    select(all_of(density_cols)) %>%
+    mutate(across(everything(), ~ ifelse(!is.na(.) & . == 0, 1, 0))) %>%
+    rowSums(na.rm = TRUE) %>%
+    sum()
+  
+  # set zeros to NA
+  df <- df %>%
+    mutate(across(all_of(density_cols), ~ ifelse(!is.na(.) & . == 0, NA_real_, .)))
+  
+  # identify rows to remove (all density columns are NA, but keep "No organisms observed")
+  df_removed <- df %>%
+    filter(if_all(all_of(density_cols), is.na),
+           Taxon != 'No organisms observed')
+  
+  # remove them from main df
+  df <- df %>%
+    filter(!(if_all(all_of(density_cols), is.na) & Taxon != 'No organisms observed'))
+  
+  # messages
+  message('Converted ', n_zero, ' zero value(s) to NA in ', 
+          paste(density_cols, collapse = ', '), '.')
+  
+  message('Removed ', nrow(df_removed), ' row(s) with no ', 
+          paste(density_cols, collapse = ', '), ' data when organisms were observed.')
+  
+  # attach logs if applicable
+  logs <- list()
+  if (nrow(df_zeros) > 0) logs$zeros_to_na <- df_zeros
+  if (nrow(df_removed) > 0) logs$nodata <- df_removed
+  
+  if (length(logs) > 0) {
+    attr(df, 'log') <- logs
+  }
+  
+  return(df)
+}
+
 # Add Columns -------------------------------------------------------------
 
 #' @title Add quality control flags
@@ -624,6 +691,130 @@ add_qc_col <- function(df, comment_col = 'Comments', key_cols = c('Date', 'Stati
   
   return(df)
 }
+
+#' @title Flag statistical outliers in a measurement column
+#'
+#' @description
+#' Identifies outliers in log-transformed measurement data using robust z-scores 
+#' (median and MAD), flags them in the \code{QualityCheck} column, and optionally 
+#' generates a scatter plot showing flagged points. The function also appends a 
+#' dataframe of flagged rows to the \code{log} attribute.
+#'
+#' @param df input dataframe containing the specified measurement column and 
+#'   \code{QualityCheck}, \code{Notes}, \code{Date}, \code{Station}, and \code{Taxon} columns
+#' @param col unquoted column name of the measurement variable to evaluate 
+#'   (must be one of \code{Cells_per_mL}, \code{Units_per_mL}, or 
+#'   \code{Biovolume_per_mL})
+#' @param cutoff numeric value for the absolute robust z-score threshold 
+#'   used to identify outliers (default = 3)
+#' @param show_plot logical; if \code{TRUE}, prints a scatter plot with 
+#'   flagged outliers in red (default = TRUE)
+#'   
+#' @return the input dataframe with updated \code{QualityCheck} values and 
+#' an updated \code{log} attribute containing a dataframe of flagged rows
+#'   
+#' @importFrom rlang enquo as_name
+#' @importFrom dplyr mutate filter pull select case_when
+#' @importFrom ggplot2 ggplot aes geom_point scale_fill_manual scale_color_manual scale_y_log10 labs theme_minimal
+#' @importFrom scales alpha
+#' @importFrom stringr str_detect
+#' @importFrom stats median mad
+#' @importFrom lubridate year
+#' @export
+flag_outliers <- function(df, col, station_col = Station, cutoff = 3, add_flag = FALSE, show_plot = TRUE) {
+  col <- enquo(col)
+  col_name <- as_name(col)
+  station <- enquo(station_col)
+  station_name <- as_name(station)
+  
+  # determine code label based on column name (case-insensitive, flexible)
+  switch_label <- case_when(
+    str_detect(tolower(col_name), 'cells') ~ 'Cells',
+    str_detect(tolower(col_name), 'units') ~ 'Units',
+    str_detect(tolower(col_name), 'biovol') ~ 'Biovol',
+    TRUE ~ NA_character_
+  )
+  if (is.na(switch_label)) {
+    stop('colname must contain one of: "cells", "units", or "biovolume"')
+  }
+  
+  # compute robust z-scores (upper outliers only)
+  df_flagged <- df %>%
+    mutate(
+      log_val = if_else(!!col > 0, log10(!!col), NA_real_),
+      z_robust = 0.6745 * (log_val - median(log_val, na.rm = TRUE)) /
+        mad(log_val, na.rm = TRUE),
+      outlier = if_else(!is.na(z_robust) & z_robust > cutoff, TRUE, FALSE)
+    )
+  
+  n_out <- sum(df_flagged$outlier, na.rm = TRUE)
+  message(n_out, ' outlier(s) flagged in ', col_name)
+  
+  # compute percentage above
+  pct_above <- mean(df_flagged$z_robust > cutoff, na.rm = TRUE)
+  if (pct_above > 0) {
+    message(sprintf('%.3f%% of data above %.2f MAD threshold', pct_above * 100, cutoff))
+  } else {
+    message(sprintf('No data above %.2f MAD threshold', cutoff))
+  }
+  
+  df_out <- df
+  
+  if(add_flag){
+    # update QualityCheck column
+    qc_update <- df_flagged %>%
+      mutate(
+        QualityCheck_clean = str_remove_all(QualityCheck, paste0('\\s*;?\\s*Outlier', switch_label)) %>%
+          str_squish() %>%
+          na_if(''),
+        QualityCheck_clean = case_when(
+          is.na(QualityCheck_clean) ~ 'NoCode',
+          TRUE ~ QualityCheck_clean
+        ),
+        QualityCheck_new = case_when(
+          outlier & QualityCheck_clean == 'NoCode' ~ paste0('Outlier', switch_label),
+          outlier & QualityCheck_clean != 'NoCode' ~ paste(QualityCheck_clean, paste0('Outlier', switch_label), sep = '; '),
+          TRUE ~ QualityCheck_clean
+        ) %>%
+          gsub('^;\\s*|NA;\\s*', '', .)
+      ) %>%
+      pull(QualityCheck_new)
+    
+    # overwrite QualityCheck in original df
+    df_out$QualityCheck <- qc_update
+  } 
+  
+  # optional plot
+  if (show_plot) {
+    p <- df_flagged %>%
+      filter(!is.na(!!col)) %>%
+      mutate(x_index = cumsum(!is.na(!!col))) %>%
+      ggplot(aes(x = x_index, y = !!col)) +
+      geom_point(aes(fill = outlier), color = 'black', shape = 21, size = 2.5) +
+      scale_fill_manual(values = c('FALSE' = 'white', 'TRUE' = 'red')) +
+      labs(
+        y = col_name,
+        x = NULL,
+        title = paste('Flagged outliers in', col_name)
+      ) +
+      theme_minimal()
+    print(p)
+  }
+  
+  # add log of flagged rows
+  existing_log <- attr(df, 'log')
+  outlier_rows <- df_out %>%
+    filter(str_detect(QualityCheck, paste0('Outlier', switch_label))) %>%
+    select(Date, !!station, Taxon, !!col, QualityCheck, Notes)
+  
+  attr(df_out, 'log') <- c(
+    existing_log,
+    setNames(list(outlier_rows), paste0('outlier_', tolower(switch_label)))
+  )
+  
+  return(df_out)
+}
+
 
 #' @title Add Debris Level from Comments
 #'
@@ -831,9 +1022,12 @@ add_notes_col <- function(df, comment_col = 'Comments', taxa_col = 'Taxon') {
     )
   
   # attach logs
-  attr(df, 'log') <- list(
-    taxa_notes = taxonnote_log,
-    unmatched_notes = df_flagged
+  existing_log <- attr(df, 'log')
+  
+  attr(df, 'log') <- c(
+    existing_log,
+    list(taxa_notes = taxonnote_log,
+         unmatched_notes = df_flagged)
   )
   
   return(df)
@@ -989,9 +1183,9 @@ add_id_col <- function(df, loc_col) {
       # abbreviate depth type if desired
       dep = recode(DepthType,
                    'near surface' = 'NS',
-                   'surface'      = 'S',
-                   'bottom'       = 'B',
-                   'epiphytic'    = 'E',
+                   'surface' = 'S',
+                   'bottom' = 'B',
+                   'epiphytic' = 'E',
                    .default = DepthType
       ),
       # parse SampleDepth — may include units (m or ft)
@@ -1011,16 +1205,16 @@ add_id_col <- function(df, loc_col) {
     group_by(survey_short, !!loc_sym, Date) %>%
     arrange(.time_hms, dep, SampleDepth, .by_group = TRUE) %>%
     mutate(
-      grab_num  = dense_rank(coalesce(.time_hms, as_hms('23:59:59'))),
+      grab_num = dense_rank(coalesce(.time_hms, as_hms('23:59:59'))),
       grab_code = paste0('T', grab_num)
     ) %>%
     # refine groups so D# is per (time, depth type)
     group_by(.time_hms, dep, .add = TRUE) %>%
     mutate(
       # D#: rank depths within each (Survey, Location, Date, Time, dep); NA depth last
-      depth_num  = dense_rank(coalesce(SampleDepth, Inf)),
+      depth_num = dense_rank(coalesce(SampleDepth, Inf)),
       depth_code = paste0('D', depth_num),
-      Event_ID   = paste(
+      Event_ID = paste(
         survey_short,
         !!loc_sym,
         format(ymd(Date), '%Y%m%d'),
@@ -1125,7 +1319,10 @@ clean_unknowns <- function(df, std_sp, std_suffix) {
     distinct()
   
   message('Unique unknown taxon standardized: ', nrow(df_log))
-  attr(df, 'log') <- list(clean_unknowns = df_log)
+  # attach logs
+  existing_log <- attr(df, 'log')
+
+  attr(df, 'log') <- c(existing_log, list(clean_unknowns = df_log))
   return(df)
 }
 
@@ -1162,9 +1359,6 @@ correct_taxon_typos <- function(df, read_func = read_quiet_csv) {
     str_squish(stri_trans_general(df_typos$TaxonCorrected, 'Latin-ASCII')),
     str_squish(stri_trans_general(df_typos$Taxon, 'Latin-ASCII'))
   )
-  
-  # df$Taxon <- iconv(df$Taxon, from = 'ISO-8859-1', to = 'UTF-8')
-  # df$Taxon <- unname(df$Taxon)
   
   # helper to fix malformed 'cf', 'sp', and 'var'
   standardize_affix <- function(taxon) {
@@ -1264,15 +1458,15 @@ correct_taxon_typos <- function(df, read_func = read_quiet_csv) {
 #' @description
 #' Resolves and updates outdated taxon names based on a synonym chain defined
 #' in external phytoplankton taxonomy metadata (`read_phyto_taxa()`). Handles
-#' both standard and `cf.` forms (e.g., `"Genus cf. species"`), replacing each
+#' both standard and `cf.` forms (e.g., "Genus cf. species"), replacing each
 #' with its current accepted name while preserving the original.
 #'
 #' @details
 #' - Synonym chains are traced iteratively until a terminal name
 #'   (`CurrentTaxon == "None"`) is reached.  
 #' - `cf.` names are normalized, resolved, and reconstructed in the same format.  
-#' - Circular references are skipped safely.  
-#' - Uses memoization for faster repeated lookups.  
+#' - Circular references are skipped.
+#' - Uses memoization for speed.
 #'
 #' @param df Dataframe containing a `Taxon` column of names to standardize
 #' @param read_func Internal argument used for testing; defaults to `read_phyto_taxa`
@@ -1771,8 +1965,8 @@ combine_taxa <- function(df,
     # flag groups with mismatches (computed once)
     mismatch_flags <- DT[, .(
       has_class = uniqueN(Class, na.rm = TRUE) > 1,
-      has_phyl  = uniqueN(Phylum, na.rm = TRUE) > 1,
-      has_king  = uniqueN(Kingdom, na.rm = TRUE) > 1
+      has_phyl = uniqueN(Phylum, na.rm = TRUE) > 1,
+      has_king = uniqueN(Kingdom, na.rm = TRUE) > 1
     ), by = group_cols_kpc]
     
     # join flags back efficiently
@@ -1800,7 +1994,9 @@ combine_taxa <- function(df,
     .n_in_group <- .N
     
     # summarize measurement columns (from .SD defined by .SDcols)
-    sums <- lapply(.SD, function(x) sum(x, na.rm = TRUE))
+    sums <- lapply(.SD, function(x) {
+      if (all(is.na(x))) NA_real_ else sum(x, na.rm = TRUE)
+    })
     
     list_vals <- list(
       .n_in_group = .n_in_group,

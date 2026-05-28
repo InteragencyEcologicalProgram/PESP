@@ -116,6 +116,28 @@ df_aeu <- combine_taxa(df_aeu)
 combine_checks <- attr(df_aeu, 'log')$combined_conflicts
 ```
 
+## Remove rows with no data
+```{r}
+df_aeu <- remove_nodata(df_aeu)
+no_data <- attr(df_aeu, 'log')$nodata
+```
+
+## Check for outliers
+```{r}
+# Cells per mL
+df_aeu <- flag_outliers(df_aeu, Cells_per_mL)
+```
+
+```{r}
+# Units per mL
+df_aeu <- flag_outliers(df_aeu, Units_per_mL)
+```
+
+```{r}
+# Biovolume per mL
+df_aeu <- flag_outliers(df_aeu, Biovolume_per_mL)
+```
+
 ## Save .Rdata
 ```{r}
 save(df_aeu, file = 'admin/standardized_data/DWR-AEU.Rda')

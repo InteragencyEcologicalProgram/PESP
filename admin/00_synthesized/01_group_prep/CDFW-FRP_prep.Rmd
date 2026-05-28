@@ -202,6 +202,28 @@ df_frp <- combine_taxa(df_frp, key_cols = c('Date','Time','Location','Station','
 check <- attr(df_frp, 'log')$combined_conflicts
 ```
 
+## Remove rows with no data
+```{r}
+df_frp <- remove_nodata(df_frp)
+no_data <- attr(df_frp, 'log')$nodata
+```
+
+## Check for outliers
+```{r}
+# Cells per mL
+df_frp <- flag_outliers(df_frp, Cells_per_mL, cutoff = 3.5)
+```
+
+```{r}
+# Cells per mL
+df_frp <- flag_outliers(df_frp, Units_per_mL, cutoff = 3.5)
+```
+
+```{r}
+# Biovolume per mL
+df_frp <- flag_outliers(df_frp, Biovolume_per_mL, cutoff = 3.5)
+```
+
 ## Re-arrange columns
 ```{r}
 df_frp <- subset_cols(df_frp)

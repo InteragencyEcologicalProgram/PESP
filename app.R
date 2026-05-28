@@ -1,0 +1,15 @@
+library(shiny)
+library(bslib)
+library(readxl)
+library(jsonlite)
+library(dplyr)
+library(DT)
+library(pespr)
+
+source('R/utils.R')
+source('R/utils_format.R')
+source('R/utils_transforms.R')
+source('R/ui.R')
+source('R/server.R')
+
+shinyApp(ui, server)

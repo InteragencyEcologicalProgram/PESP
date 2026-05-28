@@ -113,6 +113,23 @@ combine_issues <- attr(df_bp, 'log')$combined_conflicts
 combine_checks <- attr(df_bp, 'log')$combined_taxa
 ```
 
+## Remove rows with no data
+```{r}
+df_bp <- remove_nodata(df_bp)
+no_data <- attr(df_bp, 'log')$nodata
+```
+
+## Check for outliers
+```{r}
+# Cells per mL
+df_bp <- flag_outliers(df_bp, Cells_per_mL)
+```
+
+```{r}
+# Biovolume per mL
+df_bp <- flag_outliers(df_bp, Biovolume_per_mL, cutoff = 3.2)
+```
+
 ## Save .Rdata
 ```{r}
 save(df_bp, file = 'admin/standardized_data/USGS-BP.Rda')

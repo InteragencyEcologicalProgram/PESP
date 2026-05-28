@@ -139,6 +139,27 @@ df_frp <- combine_taxa(df_frp, key_cols = 'SampleID_frp', measurement_cols = c('
 attr(df_frp, 'log')$combined_taxa
 ```
 
+# Check for Outliers (and add QC Code)
+
+```{r}
+# Cells per mL
+df_frp <- flag_outliers(df_frp, Cells_permL, station_col = Location, cutoff = 3.5)
+```
+
+```{r}
+# Units per mL
+df_frp <- flag_outliers(df_frp, Units_permL, station_col = Location, cutoff = 3.5)
+```
+
+```{r}
+# Biovolume per mL
+df_frp <- df_frp %>% rename(Biovolume_permL = Biov_permL)
+
+flag_outliers(df_frp, Biovolume_permL, station_col = Location, cutoff = 3.5)
+
+df_frp <- df_frp %>% rename(Biov_permL = Biovolume_permL)
+```
+
 ## Format like FRP desires
 
 ```{r}

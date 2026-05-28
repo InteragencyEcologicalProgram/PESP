@@ -207,6 +207,12 @@ df_data <- df_data %>% mutate(SampleDepth = as.numeric(str_remove(SampleDepth, '
 df_data <- add_dilution_qc(df_data)
 ```
 
+## Remove cols with no data
+```{r}
+df_data <- remove_nodata(df_data)
+no_data <- attr(df_data, 'log')$nodata
+```
+
 ## Checks
 
 ```{r}
@@ -220,6 +226,24 @@ na_check <- attr(df_data, 'log')$na_check
 
 print(na_check) # one NA in PhytoForm is real
 ```
+
+# Check for Outliers (and add QC Code)
+
+```{r}
+# Cells per mL
+df_data <- flag_outliers(df_data, Cells_per_mL)
+```
+
+```{r}
+# Units per mL
+df_data <- flag_outliers(df_data, Units_per_mL)
+```
+
+```{r}
+# Biovolume per mL
+df_data <- flag_outliers(df_data, Biovolume_per_mL)
+```
+
 
 # Export
 

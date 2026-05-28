@@ -1,0 +1,9 @@
+{
+  "survey": "Group A",
+  "code": "test",
+  "columns": {
+    "Fruit":  { "type": "character" },
+    "Color":  { "type": "character" },
+    "Rating": { "type": "integer",   "min": 1, "max": 10 }
+  }
+}

@@ -85,6 +85,7 @@ df_data <- df_data %>%
   }) %>%
   ungroup()
 ```
+
 ## Clean PhytoForm column
 
 ```{r}
@@ -202,15 +203,15 @@ print(unmatched_comments)
 df_data <- df_data %>%
   mutate(
     QualityCheck = case_when(
-      Lab == 'EcoAnalysts' ~ 'Unknown',
+      is.na(Comments) & QualityCheck == 'NoCode' ~ 'Unknown',
       TRUE ~ QualityCheck
     ),
     Debris = case_when(
-      Lab == 'EcoAnalysts' ~ 'Unknown',
+    is.na(Comments) & Debris == 'None' ~ 'Unknown',
       TRUE ~ Debris
     ),
     Notes = case_when(
-      Lab == 'EcoAnalysts' & Notes == 'NoNote' ~ 'Unknown',
+      is.na(Comments) & Notes == 'NoNote' ~ 'Unknown',
       TRUE ~ Notes
     )
   )
@@ -291,16 +292,28 @@ unique_check(df_data, 'Station')
 ```
 
 ```{r}
-# set densities == 0 to NA (have to do later in code)
-df_data <- df_data %>%
-  mutate(
-    Cells_per_mL = case_when(Cells_per_mL == 0 ~ NA,
-                                      TRUE ~ Cells_per_mL),
-    Units_per_mL = case_when(Units_per_mL == 0 ~ NA,
-                                      TRUE ~ Units_per_mL),
-    Biovolume_per_mL = case_when(Biovolume_per_mL == 0 ~ NA,
-                                      TRUE ~ Biovolume_per_mL)
-    )
+# remove columns with no data
+df_data <- remove_nodata(df_data)
+no_data <- attr(df_data, 'log')$nodata
+
+write_log_file(no_data, 'Groups/DWR-EMP/02 Program Data/QC files/tables/EMP_nodata.csv')
+```
+
+# Check for outliers (and add QC Code)
+
+```{r}
+# Cells per mL
+df_data <- flag_outliers(df_data, Cells_per_mL)
+```
+
+```{r}
+# Units per mL
+df_data <- flag_outliers(df_data, Units_per_mL)
+```
+
+```{r}
+# Biovolume per mL
+df_data <- flag_outliers(df_data, Biovolume_per_mL)
 ```
 
 # Export

@@ -127,6 +127,18 @@ df_dop <- combine_taxa(df_dop)
 combine_checks <- attr(df_dop, 'log')$combined_conflicts
 ```
 
+## Remove rows with no data
+```{r}
+df_dop <- remove_nodata(df_dop)
+no_data <- attr(df_dop, 'log')$nodata
+```
+
+## Check for outliers
+```{r}
+# Cells per mL
+df_dop <- flag_outliers(df_dop, Cells_per_mL)
+```
+
 ## Save .Rdata
 ```{r}
 save(df_dop, file = 'admin/standardized_data/USBR-DOP.Rda')

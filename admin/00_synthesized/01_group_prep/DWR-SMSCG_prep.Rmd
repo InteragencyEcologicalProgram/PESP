@@ -174,22 +174,35 @@ df_smscg <- df_smscg %>%
 # Rename QC col codes
 ```{r}
 df_smscg <- df_smscg %>%
-  mutate(Notes =
-           case_when(QualityCheck == 'fragmented' ~ 'FragmentedDiatoms',
-                     TRUE ~ 'Unknown')
-         ) %>%
-  mutate(QualityCheck =
-           case_when(QualityCheck == 'good' ~ 'NoCode',
-                     QualityCheck == 'fragmented' ~ 'NoCode',
-                     QualityCheck == 'degraded' ~ 'Degraded',
-                     TRUE ~ QualityCheck)
-         ) %>%
-  mutate(Debris =
-           case_when(Debris == 'high' ~ 'High',
-                     Debris == 'moderate' ~ 'Moderate',
-                     Debris == 'low' ~ 'Low',
-                     is.na(Debris) ~ 'None',
-                     TRUE ~ Debris))
+  mutate(
+    Notes = case_when(
+      tolower(QualityCheck) == 'fragmented' ~ 'FragmentedDiatoms',
+      TRUE ~ 'Unknown'
+    ),
+    QualityCheck = case_when(
+      tolower(QualityCheck) == 'good' ~ 'NoCode',
+      tolower(QualityCheck) == 'fragmented' ~ 'NoCode',
+      tolower(QualityCheck) == 'degraded' ~ 'Degraded',
+      TRUE ~ QualityCheck
+    ),
+    Debris = case_when(
+      tolower(Debris) == 'high' ~ 'High',
+      tolower(Debris) == 'moderate' ~ 'Moderate',
+      tolower(Debris) == 'low' ~ 'Low',
+      is.na(Debris) ~ 'None',
+      TRUE ~ Debris
+    )
+  )
+
+
+df_smscg <- df_smscg %>%
+  mutate(
+    QualityCheck = case_when(
+      Cells_per_mL < Units_per_mL & (QualityCheck == 'Good' | QualityCheck == 'NoCode') ~ 'UnitsExceedCells',
+      Cells_per_mL < Units_per_mL & !QualityCheck == 'Good' & QualityCheck != 'NoCode' ~ paste(QualityCheck, 'UnitsExceedCells', sep = ' '),
+      TRUE ~ QualityCheck
+    )
+  )
 
 unique(df_smscg$Debris)
 unique(df_smscg$Notes)
@@ -203,8 +216,29 @@ combine_issues <- attr(df_smscg, 'log')$combined_conflicts
 combine_checks <- attr(df_smscg, 'log')$combined_taxa
 ```
 
-# Save .Rdata
+## Remove rows with no data
+```{r}
+df_smscg <- remove_nodata(df_smscg)
+no_data <- attr(df_smscg, 'log')$nodata
+```
 
+## Check for outliers
+```{r}
+# Cells per mL
+df_smscg <- flag_outliers(df_smscg, Cells_per_mL, cutoff = 5)
+```
+
+```{r}
+# Units per mL
+df_smscg <- flag_outliers(df_smscg, Units_per_mL, cutoff = 5)
+```
+
+```{r}
+# Biovolume per mL
+df_smscg <- flag_outliers(df_smscg, Biovolume_per_mL)
+```
+
+# Save .Rdata
 ```{r}
 save(df_smscg, file = 'admin/standardized_data/DWR-SMSCG.Rda')
 ```

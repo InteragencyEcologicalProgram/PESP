@@ -1,6 +1,7 @@
 
 ```{r}
 devtools::load_all()
+library(ggplot2)
 ```
 
 ```{r}

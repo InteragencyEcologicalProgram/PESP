@@ -175,6 +175,12 @@ df_data <- df_data %>% mutate(SampleDepth = as.numeric(str_remove(SampleDepth, '
 df_data <- df_data %>% mutate(Cells_per_mL = signif(Cells_per_mL, 4))
 ```
 
+## Remove rows with no data
+```{r}
+df_data <- remove_nodata(df_data, density_cols = 'Cells_per_mL')
+no_data <- attr(df_data, 'log')$nodata
+```
+
 ## Checks
 ```{r}
 # check for NAs
@@ -183,6 +189,7 @@ na_check <- attr(df_data, 'log')$na_check
 
 print(na_check)
 ```
+
 
 # Export
 ```{r}

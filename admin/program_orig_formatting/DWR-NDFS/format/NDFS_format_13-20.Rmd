@@ -551,6 +551,31 @@ write_log_file(combined_taxa, 'Groups/DWR-NDFS/02 Program Data/2013-2020/QC file
 print(combined_taxa)
 ```
 
+
+# Remove rows with no data
+```{r}
+# remove rows with no data
+df_data <- remove_nodata(df_data)
+no_data <- attr(df_data, 'log')$nodata
+```
+
+# Check for outliers (and add QC Code)
+
+```{r}
+# Cells per mL
+df_data <- flag_outliers(df_data, Cells_per_mL)
+```
+
+```{r}
+# Units per mL
+df_data <- flag_outliers(df_data, Units_per_mL, cutoff = 3.1)
+```
+
+```{r}
+# Biovolume per mL
+df_data <- flag_outliers(df_data, Biovolume_per_mL)
+```
+
 # Export
 
 ## Check NAs

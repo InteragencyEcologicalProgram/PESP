@@ -171,6 +171,12 @@ write_log_file(combined_taxa, 'Groups/USGS-BP/02 Program Data/QC files/tables/BP
 print(combined_taxa)
 ```
 
+## Remove rows with no data
+```{r}
+df_data <- remove_nodata(df_data, c('Cells_per_mL','Biovolume_per_mL'))
+no_data <- attr(df_data, 'log')$nodata
+```
+
 ## Checks
 ```{r}
 # check for NAs
@@ -194,6 +200,19 @@ nrow(df_join) == nrow(df_old)+nrow(df_data)
 df_join <- df_join %>%
   arrange(Date, Station)
 ```
+
+# Check for outliers (and add QC Code)
+
+```{r}
+# Cells per mL
+df_join <- flag_outliers(df_join, Cells_per_mL)
+```
+
+```{r}
+# Biovolume per mL
+df_join <- flag_outliers(df_join, Biovolume_per_mL, cutoff = 3.1)
+```
+
 
 ## Export
 ```{r}

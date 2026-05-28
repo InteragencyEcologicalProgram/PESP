@@ -18,6 +18,7 @@ unique_check(df_pesp, Survey)
 ```{r}
 names(df_pesp)
 ```
+
 ## Sample Scheme
 ```{r}
 unique_check(df_pesp, SampleScheme)
@@ -50,7 +51,23 @@ test2 <- filter(df_pesp, is.na(Longitude))
 # all missing coordinates are from known events
 ```
 
+# Check if station names are repeated in different surveys
 
+```{r}
+stations_multi_loc <- df_pesp %>%
+  distinct(Station, Location) %>%
+  group_by(Station) %>%
+  summarise(
+    n_locations = n(),
+    locations = toString(unique(Location)),
+    .groups = 'drop'
+  ) %>%
+  filter(n_locations > 1)
+
+stations_multi_loc
+```
+
+# Sample depth
 ```{r}
 unique_check(df_pesp, SampleDepth)
 ```
@@ -61,15 +78,17 @@ uk_depth
 unique(uk_depth$SampleMethod)
 ```
 
+# Lab
 ```{r}
 unique_check(df_pesp, Lab)
 ```
 
+# Magnification
 ```{r}
 unique_check(df_pesp, Magnification)
 ```
 
-
+# Count Methods
 ```{r}
 unique_check(df_pesp, CountMethodSample)
 ```
@@ -78,6 +97,12 @@ unique_check(df_pesp, CountMethodSample)
 unique_check(df_pesp, CountMethodTaxa)
 ```
 
+```{r}
+unique_check(df_pesp, PhytoForm)
+```
+
+
+# QC Codes
 ```{r}
 qc_check <- df_pesp %>%
  separate_rows(QualityCheck, sep = ' ') %>%
@@ -97,17 +122,23 @@ qc_check
 
 ```{r}
 debris_check <- df_pesp %>%
- separate_rows(Debris, sep = ' ') %>%
- filter(!is.na(Debris) & Debris != '') %>%
- group_by(Survey, Debris) %>%
- summarize(count = n(), .groups = 'drop') %>%
- left_join(
-   df_pesp %>% group_by(Survey) %>% summarize(total_samples = n()),
-   by = 'Survey'
- ) %>%
- mutate(percentage = round(count / total_samples * 100, 2)) %>%
- select(-count, -total_samples) %>%
- pivot_wider(names_from = Survey, values_from = percentage, values_fill = 0)
+  separate_rows(Debris, sep = ' ') %>%
+  mutate(
+    Debris = Debris %>%
+      str_remove_all('[[:punct:]]') %>%
+      str_squish() %>%
+      na_if('') 
+  ) %>%
+  filter(!is.na(Debris)) %>%
+  group_by(Survey, Debris) %>%
+  summarize(count = n(), .groups = 'drop') %>%
+  left_join(
+    df_pesp %>% group_by(Survey) %>% summarize(total_samples = n()),
+    by = 'Survey'
+  ) %>%
+  mutate(percentage = round(count / total_samples * 100, 2)) %>%
+  select(-count, -total_samples) %>%
+  pivot_wider(names_from = Survey, values_from = percentage, values_fill = 0)
 
 debris_check
 ```
@@ -129,6 +160,7 @@ notes_check <- df_pesp %>%
 notes_check
 ```
 
+# Taxa
 ```{r}
 unique_check(df_pesp, Kingdom)
 ```
@@ -155,28 +187,28 @@ any(is.na(df_pesp$Species))
 
 ```{r}
 df_dupes <- df_pesp %>%
-  group_by(Event_ID, Kingdom, Phylum, Class, AlgalGroup, Genus, Species, Taxon) %>%
+  group_by(Event_ID, CountMethodTaxa, Kingdom, Phylum, Class, AlgalGroup, Genus, Species, Taxon) %>%
   filter(n()  > 1) %>%
   ungroup()
 
 df_dupes
 # check for any issues with taxonomy
 
-lookup = select(df_pesp, Phylum, Class, AlgalGroup) %>%
+lookup <- select(df_pesp, Phylum, Class, AlgalGroup) %>%
   distinct() %>%
   arrange(Phylum, Class,AlgalGroup)
-
 ```
 
 #check cells per L greater than units per l
-
-
 ```{r}
-all(df_pesp$Cells_per_mL > df_pesp$Units_per_mL | is.na(df_pesp$Cells_per_mL)) 
-
-testunits = filter(df_pesp, Cells_per_mL < Units_per_mL)
-#Some of these are already noted as "Units exceeds cells" but not all of them.
+testunits <- df_pesp %>%
+  filter(
+    Cells_per_mL < Units_per_mL &
+      !str_detect(QualityCheck, 'UnitsExceedCells')
+  )
+testunits
 ```
+
 
 #QA codes
 
