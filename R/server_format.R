@@ -1,12 +1,17 @@
 # ---- Format Data tab server logic ----
 
-# ---- 1. Convert Timezone ----
+# ---- Convert Timezone ----
 
 output$timezone_ui <- renderUI({
   if (is.null(merged_df())) {
     p('No merged data yet. Combine files first.')
   } else {
     schema  <- schemas[[current_groups()[1]]]
+    preset  <- input$selected_preset
+    applies <- isTRUE(schema$steps$convert_timezone[[preset]]$applies)
+    
+    if (!applies) return(not_applicable_alert())
+    
     code    <- schema$code
     from_tz <- survey_metadata$Timezone[survey_metadata$Survey == code][1]
     
@@ -36,7 +41,6 @@ output$timezone_preview <- renderDT({
   df <- merged_df()
   if (!all(c('Date', 'Time') %in% names(df))) return(NULL)
   
-  # only rows that would actually change — PST/PDT means only non-DST rows shift
   if (from_tz == 'PST') {
     preview <- df
   } else {
@@ -68,14 +72,18 @@ observeEvent(input$convert_tz_btn, {
   })
 })
 
-# ---- 2. Add metadata columns ----
+# ---- Add metadata columns ----
 
 output$metadata_ui <- renderUI({
   if (is.null(merged_df())) {
     p('No merged data yet. Combine files first.')
   } else {
-    preset   <- input$selected_preset
-    schema   <- schemas[[current_groups()[1]]]
+    schema  <- schemas[[current_groups()[1]]]
+    preset  <- input$selected_preset
+    applies <- isTRUE(schema$steps$add_metadata[[preset]]$applies)
+    
+    if (!applies) return(not_applicable_alert())
+    
     all_cols <- unique(unlist(schema$metadata_columns))
     defaults <- schema$metadata_columns[[preset]]
     
@@ -127,17 +135,23 @@ observeEvent(input$add_metadata_btn, {
   })
 })
 
-# ---- 3. Add Comment Columns ----
+# ---- Add Comment Columns ----
 
 output$qc_ui <- renderUI({
   if (is.null(merged_df())) {
     p('No merged data yet. Combine files first.')
   } else {
-    preset   <- input$selected_preset
-    schema   <- schemas[[current_groups()[1]]]
+    schema  <- schemas[[current_groups()[1]]]
+    preset  <- input$selected_preset
+    applies <- isTRUE(schema$steps$add_comment_cols[[preset]]$applies)
+    
+    if (!applies) return(not_applicable_alert())
+    
     defaults <- schema$comment_col_defaults[[preset]]
     
     tagList(
+      p('Only relevant for BSA. BSA has standard wording for QC issues, debris classifications, and miscellaneous notes. App converts these phrases into codes.'),
+      p('If there are unknown phrases or typos, app will show them. Contact Perry if additional codes or keywords need to be added.'),
       checkboxGroupInput('qc_cols', 'Columns to add:',
                          choices  = c('QC', 'Debris', 'Notes'),
                          selected = defaults
@@ -196,32 +210,29 @@ output$download_comments_btn <- downloadHandler(
   content  = function(file) write.csv(unstandardized_comments(), file, row.names = FALSE)
 )
 
-# ---- 4. Correct Taxon Typos ----
+# ---- Correct Taxon Typos ----
 
 output$taxon_typos_ui <- renderUI({
   if (is.null(merged_df())) {
     p('No merged data yet. Combine files first.')
   } else {
-    preset    <- input$selected_preset
-    schema    <- schemas[[current_groups()[1]]]
-    applies   <- isTRUE(schema$steps$correct_taxon_typos[[preset]])
+    schema  <- schemas[[current_groups()[1]]]
+    preset  <- input$selected_preset
+    applies <- isTRUE(schema$steps$correct_taxon_typos[[preset]]$applies)
+    
+    if (!applies) return(not_applicable_alert())
     
     tagList(
-      if (!applies)
-        div(class = 'alert alert-warning',
-            '⚠️ This function is not applicable for this survey.'),
-      if (applies) tagList(
-        p('Corrects known taxon name typos.'),
-        actionButton('correct_typos_btn', 'Correct Taxon Typos',
-                     icon = icon('spell-check'), class = 'btn-primary'),
-        uiOutput('taxon_typos_result')
-      )
+      p('Corrects known taxon name typos.'),
+      actionButton('correct_typos_btn', 'Correct Taxon Typos',
+                   icon = icon('spell-check'), class = 'btn-primary'),
+      uiOutput('taxon_typos_result')
     )
   }
 })
 
 observeEvent(input$correct_typos_btn, {
-  df      <- correct_taxon_typos(merged_df())
+  df          <- correct_taxon_typos(merged_df())
   corrections <- attr(df, 'log')$taxon_corrections
   attr(df, 'log') <- NULL
   merged_df(df)
@@ -254,18 +265,22 @@ observeEvent(input$correct_typos_btn, {
   )
 })
 
-# --- Standardize Unknowns ---
+# ---- Standardize Unknowns ----
+
 output$unknowns_ui <- renderUI({
   if (is.null(merged_df())) {
     p('No merged data yet. Combine files first.')
   } else {
-    preset   <- input$selected_preset
     schema   <- schemas[[current_groups()[1]]]
-    defaults <- schema$steps$standardize_unknowns[[preset]]
+    preset   <- input$selected_preset
+    cfg      <- schema$steps$standardize_unknowns[[preset]]
+    applies  <- isTRUE(cfg$applies)
+    
+    if (!applies) return(not_applicable_alert())
     
     tagList(
-      checkboxInput('std_sp',     'Standardize sp.',      value = isTRUE(defaults$std_sp)),
-      checkboxInput('std_suffix', 'Standardize suffixes', value = isTRUE(defaults$std_suffix)),
+      checkboxInput('std_sp',     'Standardize sp.',      value = isTRUE(cfg$std_sp)),
+      checkboxInput('std_suffix', 'Standardize suffixes', value = isTRUE(cfg$std_suffix)),
       actionButton('standardize_unknowns_btn', 'Standardize Unknowns',
                    icon = icon('question'), class = 'btn-primary'),
       uiOutput('unknowns_result')
@@ -274,9 +289,9 @@ output$unknowns_ui <- renderUI({
 })
 
 observeEvent(input$standardize_unknowns_btn, {
-  df <- clean_unknowns(merged_df(),
-                       std_sp     = isTRUE(input$std_sp),
-                       std_suffix = isTRUE(input$std_suffix))
+  df           <- clean_unknowns(merged_df(),
+                                 std_sp     = isTRUE(input$std_sp),
+                                 std_suffix = isTRUE(input$std_suffix))
   standardized <- attr(df, 'log')$clean_unknowns
   attr(df, 'log') <- NULL
   merged_df(df)
@@ -309,12 +324,18 @@ observeEvent(input$standardize_unknowns_btn, {
   )
 })
 
-# ---- 6. Update Synonyms ----
+# ---- Update Synonyms ----
 
 output$synonyms_ui <- renderUI({
   if (is.null(merged_df())) {
     p('No merged data yet. Combine files first.')
   } else {
+    schema  <- schemas[[current_groups()[1]]]
+    preset  <- input$selected_preset
+    applies <- isTRUE(schema$steps$update_synonyms[[preset]]$applies)
+    
+    if (!applies) return(not_applicable_alert())
+    
     tagList(
       p('Updates taxon names to current accepted synonyms.'),
       p(tags$small(tags$em('Reference file version: 2025.01'))),
@@ -359,14 +380,21 @@ observeEvent(input$update_synonyms_btn, {
   )
 })
 
-# ---- 7. Add Higher Level Taxa Info ----
+# ---- Add Higher Level Taxa Info ----
 
 output$higher_taxa_ui <- renderUI({
   if (is.null(merged_df())) {
     p('No merged data yet. Combine files first.')
   } else {
+    schema  <- schemas[[current_groups()[1]]]
+    preset  <- input$selected_preset
+    applies <- isTRUE(schema$steps$higher_lvl_taxa[[preset]]$applies)
+    
+    if (!applies) return(not_applicable_alert())
+    
     tagList(
       p('Adds higher level taxonomic hierarchy data.'),
+      p('If taxa are not found, contact Perry.'),
       p(tags$small(tags$em('Reference file version: 2025.01'))),
       actionButton('add_higher_taxa_btn', 'Add Higher Level Taxa',
                    icon = icon('sitemap'), class = 'btn-primary'),
@@ -376,11 +404,11 @@ output$higher_taxa_ui <- renderUI({
 })
 
 observeEvent(input$add_higher_taxa_btn, {
-  preset   <- input$selected_preset
   schema   <- schemas[[current_groups()[1]]]
-  std_type <- schema$steps$higher_lvl_taxa[[preset]]
+  preset   <- input$selected_preset
+  std_type <- schema$steps$higher_lvl_taxa[[preset]]$std_type
   
-  df             <- higher_lvl_taxa(merged_df(), std_type = std_type)
+  df <- higher_lvl_taxa(merged_df(), std_type = std_type)
   taxa_unmatched <- attr(df, 'log')$unmatched_taxa
   attr(df, 'log') <- NULL
   merged_df(df)
@@ -426,22 +454,39 @@ observeEvent(input$add_higher_taxa_btn, {
   )
 })
 
-# ---- 8. Combine Taxa Rows ----
+# ---- Combine Taxa Rows ----
 
 output$combine_taxa_ui <- renderUI({
   if (is.null(merged_df())) {
     p('No merged data yet. Combine files first.')
   } else {
+    schema <- schemas[[current_groups()[1]]]
+    preset <- input$selected_preset
+    applies <- isTRUE(schema$steps$combine_taxa[[preset]]$applies)
+    
+    if (!applies) return(not_applicable_alert())
+    
+    key_cols <- schema$combine_key_cols
+    
     tagList(
-      h5('Step 1: Check Distinct'),
-      p('Checks for rows that will be merged in the combine step.'),
-      actionButton('check_distinct_btn', 'Check Distinct',
+      h5('Step 1: Preview Rows to Combine'),
+      p(
+        'Shows rows that share the same sampling event (',
+        tags$strong(paste(key_cols, collapse = ', ')),
+        ') and will be merged in Step 2.'
+      ),
+      actionButton('check_distinct_btn', 'Preview',
                    icon = icon('search'), class = 'btn-secondary'),
       uiOutput('check_distinct_result'),
       hr(),
-      h5('Step 2: Subset & Combine'),
-      p('Subsets columns and combines taxa rows.'),
-      actionButton('combine_taxa_btn', 'Subset & Combine',
+      h5('Step 2: Combine Rows'),
+      p(
+        'Sampling events are defined by the ',
+        tags$strong(paste(key_cols, collapse = ', ')),
+        ' columns. Rows sharing the same sampling event will be combined with counts summed,',
+        ' and columns will be filtered to the survey\'s preset.'
+      ),
+      actionButton('combine_taxa_btn', 'Combine',
                    icon = icon('compress'), class = 'btn-primary'),
       uiOutput('combine_taxa_result')
     )
@@ -455,7 +500,7 @@ observeEvent(input$check_distinct_btn, {
   nondistinct_full <- attr(df_full, 'log')$nondistinct_allrows
   
   df_key <- check_distinct(df, type = 'key_cols')
-  nondistinct_key <- attr(df_key, 'log')$nondistinct_keyrows
+  nondistinct_key  <- attr(df_key, 'log')$nondistinct_keyrows
   
   output$check_distinct_result <- renderUI({
     tagList(
@@ -466,6 +511,9 @@ observeEvent(input$check_distinct_btn, {
       else
         tagList(
           p(paste('⚠️', nrow(nondistinct_full), 'row(s) will be merged.')),
+          downloadButton('download_full_dupes_btn', 'Download Duplicates',
+                         class = 'btn-secondary'),
+          br(), br(),
           DTOutput('nondistinct_full_table')
         ),
       br(),
@@ -475,6 +523,9 @@ observeEvent(input$check_distinct_btn, {
       else
         tagList(
           p(paste('⚠️', nrow(nondistinct_key), 'row(s) will be merged.')),
+          downloadButton('download_key_dupes_btn', 'Download Duplicates',
+                         class = 'btn-secondary'),
+          br(), br(),
           DTOutput('nondistinct_key_table')
         )
     )
@@ -494,14 +545,13 @@ observeEvent(input$check_distinct_btn, {
 })
 
 observeEvent(input$combine_taxa_btn, {
-  preset <- input$selected_preset
-  schema <- schemas[[current_groups()[1]]]
-  cols   <- schema$subset_cols[[preset]]
+  preset           <- input$selected_preset
+  schema           <- schemas[[current_groups()[1]]]
   key_cols         <- schema$combine_key_cols
   measurement_cols <- schema$combine_measurement_cols
   
-  df <- merged_df()
-  df <- combine_taxa(df, key_cols = key_cols, measurement_cols = measurement_cols)
+  df       <- merged_df()
+  df       <- combine_taxa(df, key_cols = key_cols, measurement_cols = measurement_cols)
   combined <- attr(df, 'log')$combined_taxa
   attr(df, 'log') <- NULL
   merged_df(df)
@@ -534,12 +584,18 @@ observeEvent(input$combine_taxa_btn, {
   )
 })
 
-# ---- 9. Calculate Densities ----
+# --- Calculate Densities ---
 
 output$densities_ui <- renderUI({
   if (is.null(merged_df())) {
     p('No merged data yet. Combine files first.')
   } else {
+    schema  <- schemas[[current_groups()[1]]]
+    preset  <- input$selected_preset
+    applies <- isTRUE(schema$steps$calc_densities[[preset]]$applies)
+    
+    if (!applies) return(not_applicable_alert())
+    
     tagList(
       p('Calculates density values from unit abundance and cell count data.'),
       actionButton('calc_densities_btn', 'Calculate Densities',
@@ -557,5 +613,62 @@ observeEvent(input$calc_densities_btn, {
   
   output$densities_result <- renderUI({
     tagList(br(), p('✅ Densities calculated.'))
+  })
+})
+
+# --- Subset Columns ---
+
+output$column_ui <- renderUI({
+  if (is.null(merged_df())) {
+    p('No data, process files first.')
+  } else {
+    preset <- input$selected_preset
+    schema <- schemas[[current_groups()[1]]]
+    cols   <- schema$subset_cols[[preset]]
+    
+    if (is.null(cols)) return(not_applicable_alert())
+    
+    tagList(
+      h5('Subset Columns'),
+      p('Keeps only the columns defined for this survey/preset. Any missing columns will be added as blank (NA).'),
+      p(tags$strong('Columns: '), paste(cols, collapse = ', ')),
+      actionButton('subset_cols_btn', 'Subset Columns',
+                   icon = icon('filter'), class = 'btn-secondary'),
+      uiOutput('subset_cols_result')
+    )
+  }
+})
+
+observeEvent(input$subset_cols_btn, {
+  preset <- input$selected_preset
+  schema <- schemas[[current_groups()[1]]]
+  cols   <- schema$subset_cols[[preset]]
+  
+  df <- merged_df()
+  
+  # Add missing columns as NA
+  missing_cols <- setdiff(cols, names(df))
+  for (col in missing_cols) df[[col]] <- NA
+  
+  # Subset and reorder
+  df <- df[, cols, drop = FALSE]
+  merged_df(df)
+  
+  output$subset_cols_result <- renderUI({
+    tagList(
+      br(),
+      p(paste('✅ Subset to', length(cols), 'columns.')),
+      if (length(missing_cols) > 0)
+        p(paste('Added as blank:', paste(missing_cols, collapse = ', '))),
+      br(),
+      h6('Preview:'),
+      DTOutput('subset_cols_table')
+    )
+  })
+  
+  output$subset_cols_table <- renderDT({
+    req(merged_df())
+    datatable(merged_df(), options = list(pageLength = 5, scrollX = TRUE),
+              rownames = FALSE)
   })
 })

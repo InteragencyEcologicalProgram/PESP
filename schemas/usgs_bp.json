@@ -1,0 +1,109 @@
+{
+  "survey": "USGS-BP (BSA)",
+  "description": "Data from BSA lab for USGS Bay Program.",
+  "code": "USGS-BP",
+  "sampling_event_cols": ["Date", "Station", "Taxon"],
+  "presets": ["PESP", "Survey"],
+  "subset_cols": {
+    "PESP": ["Date", "Time", "Station", "SampleMethod", "SampleDepth", "OrigTaxon", "Taxon", "Kingdom", "Phylum", "Class", "AlgalGroup", "Genus", "Species", "Lab", "Cells_per_mL", "Biovolume_per_mL", "QualityCheck", "Debris", "Notes"],
+    "Survey": ["Date", "Station", "SampleMethod", "SampleDepth", "OrigTaxon", "Taxon", "Kingdom", "Phylum", "Class", "AlgalGroup", "Genus", "Species", "Lab", "Cells_per_mL", "Biovolume_per_mL", "QualityCheck", "Debris", "Notes"]
+  },
+  "combine_key_cols": ["Date", "Station"],
+  "combine_measurement_cols": ["Biovolume_per_mL", "Units_per_mL", "Cells_per_mL"],
+  "metadata_columns": {
+    "PESP":   ["SampleDepth", "Lab", "SampleMethod"],
+    "Survey": ["SampleMethod"]
+  },
+ "steps": {
+    "convert_timezone": {
+      "PESP": { "applies": false },
+      "Survey": { "applies": false }
+    },
+    "extreme_time_checks": {
+      "PESP": { "applies": false },
+      "Survey": { "applies": false }
+    },
+    "comment_col_defaults": {
+      "PESP":   ["QC", "Debris", "Notes"],
+      "Survey": ["QC", "Debris", "Notes"]
+    },
+    "calc_densities": {
+      "PESP": { "applies": false },
+      "Survey": { "applies": false }
+    },
+    "standardize_unknowns": {
+      "PESP": { "applies": true, "std_sp": true, "std_suffix": true },
+      "Survey": { "applies": true, "std_sp": true, "std_suffix": true }
+    },
+    "higher_lvl_taxa": {
+      "PESP": { "applies": true, "std_type": "pesp" },
+      "Survey": { "applies": true, "std_type": "program" }
+    }
+  },
+  "sheet": 1,
+  "mapping": {
+    "Station":          "Station ID",
+    "Date":             "Date",
+    "Depth":            "Depth (m)",
+    "Taxon":            "Original Species ID",
+    "CurrentID":        "Current Species ID",
+    "Genus":            "Genus",
+    "Comments":         "Notes",
+    "Biovolume_per_mL": "Biovolume (cubic micrometers/mL)",
+    "CellVolume":       "Cell Volume (cubic micrometers/cell)",
+    "CellCount":        "Actual Count",
+    "Cells_per_mL":     "Density (cells/mL)"
+  },
+  "columns": {
+    "Station ID": {
+      "type": "integer",
+      "required": true
+    },
+    "Date": {
+      "type": "numeric",
+      "required": true,
+      "notes": "Excel serial date integer."
+    },
+    "Depth (m)": {
+      "type": "numeric",
+      "required": true,
+      "min": 0
+    },
+    "Original Species ID": {
+      "type": "character",
+      "required": true
+    },
+    "Current Species ID": {
+      "type": "character",
+      "required": false
+    },
+    "Genus": {
+      "type": "character",
+      "required": false
+    },
+    "Notes": {
+      "type": "character",
+      "required": false
+    },
+    "Biovolume (cubic micrometers/mL)": {
+      "type": "numeric",
+      "required": true,
+      "min": 0
+    },
+    "Cell Volume (cubic micrometers/cell)": {
+      "type": "numeric",
+      "required": false,
+      "min": 0
+    },
+    "Actual Count": {
+      "type": "integer",
+      "required": false,
+      "min": 0
+    },
+    "Density (cells/mL)": {
+      "type": "numeric",
+      "required": true,
+      "min": 0
+    }
+  }
+}

@@ -1,8 +1,22 @@
 # --- Load all group schemas from /schemas folder ---
 load_schemas <- function() {
-  files <- list.files('schemas', pattern = '\\.json$', full.names = TRUE)
+  files   <- list.files('schemas', pattern = '\\.json$', full.names = TRUE)
   schemas <- lapply(files, fromJSON)
   names(schemas) <- sapply(schemas, `[[`, 'survey')
+  
+  presets <- c('PESP', 'Survey')
+  
+  for (s in names(schemas)) {
+    for (step in names(default_steps)) {
+      if (is.null(schemas[[s]]$steps[[step]])) {
+        schemas[[s]]$steps[[step]] <- setNames(
+          replicate(length(presets), default_steps[[step]], simplify = FALSE),
+          presets
+        )
+      }
+    }
+  }
+  
   schemas
 }
 
@@ -50,3 +64,27 @@ standardize_columns <- function(df, schema) {
   }
   df
 }
+
+# --- Add not applicable notice ---
+not_applicable_alert <- function() {
+  div(class = 'alert alert-warning', '⚠️ This function is not applicable for this survey.')
+}
+
+# --- Default steps ---
+default_steps <- list(
+  duplicate_checks        = list(applies = TRUE),
+  convert_timezone        = list(applies = TRUE),
+  missing_datetime_checks = list(applies = TRUE),
+  extreme_time_checks     = list(applies = TRUE),
+  station_checks          = list(applies = TRUE),
+  na_checks               = list(applies = TRUE),
+  add_metadata            = list(applies = TRUE),
+  add_comment_cols        = list(applies = TRUE),
+  calc_densities          = list(applies = TRUE),
+  correct_taxon_typos     = list(applies = TRUE),
+  standardize_unknowns    = list(applies = TRUE, std_sp = TRUE, std_suffix = TRUE),
+  update_synonyms         = list(applies = TRUE),
+  higher_lvl_taxa         = list(applies = TRUE, std_type = 'pesp'),
+  combine_taxa            = list(applies = TRUE),
+  subset_cols             = list(applies = TRUE)
+)

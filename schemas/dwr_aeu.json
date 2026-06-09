@@ -10,26 +10,22 @@
   },
   "combine_key_cols": ["Date", "Station"],
   "combine_measurement_cols": ["Biovolume_per_mL", "Units_per_mL", "Cells_per_mL"],
-    "metadata_columns": {
-      "PESP":   ["SampleDepth", "Lab", "SampleMethod"],
-      "Survey": ["SampleMethod"]
-    },
+  "metadata_columns": {
+    "PESP":   ["SampleDepth", "Lab", "SampleMethod"],
+    "Survey": ["SampleDepth"]
+  },
   "comment_col_defaults": {
     "PESP":   ["QC", "Debris", "Notes"],
-    "Survey": ["QC"]
+    "Survey": ["QC", "Debris", "Notes"]
   },
   "steps": {
-    "correct_taxon_typos": {
-      "PESP": true,
-      "Survey": false
-    },
     "standardize_unknowns": {
-      "PESP": { "std_sp": true, "std_suffix": true },
-      "Survey": { "std_sp": true, "std_suffix": true }
+      "PESP": { "applies": true, "std_sp": true, "std_suffix": true },
+      "Survey": { "applies": true, "std_sp": true, "std_suffix": false }
     },
     "higher_lvl_taxa": {
-      "PESP": "pesp",
-      "Survey": "program"
+      "PESP": { "applies": true, "std_type": "pesp" },
+      "Survey": { "applies": true, "std_type": "program" }
     }
   },
   "sheet": "Sample Info",
@@ -107,8 +103,7 @@
     },
     "StationCode": {
       "type": "character",
-      "required": true,
-      "allowed_values": ["BL5W"]
+      "required": true
     },
     "Depth (m)": {
       "type": "numeric",

@@ -16,7 +16,9 @@ upload_tab <- nav_panel(
         layout_sidebar(
           sidebar = sidebar(
             width = 350,
-            selectInput('selected_survey', 'Select Survey', choices = NULL),
+            selectInput('selected_survey', 'Select Survey',
+                        choices = c('Select a survey...' = ''),
+                        selected = ''),
             selectInput('selected_preset', 'Select Preset', choices = NULL),
             fileInput('file_upload', 'Upload Files', multiple = TRUE,
                       accept = c('.xlsx', '.csv')),

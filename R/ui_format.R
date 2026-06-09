@@ -115,7 +115,15 @@ format_tab <- nav_panel(
             )
           )
         )
-      )
+      ),
+      
+      accordion_panel(
+        'Subset Columns',
+        value = 'column_panel',
+        icon = icon('copy'),
+        uiOutput('column_ui')
+      ),
+      
     )
   )
 )

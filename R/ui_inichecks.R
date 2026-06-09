@@ -21,7 +21,29 @@ initial_checks_tab <- nav_panel(
         'Check Date & Time',
         value = 'datetime_panel',
         icon = icon('calendar'),
-        uiOutput('datetime_ui')
+        
+        tags$div(
+          class = 'task-accordion',
+          
+          accordion(
+            open = FALSE,
+            multiple = TRUE,
+            
+            accordion_panel(
+              'Missing/Malformed Date & Time',
+              value = 'missing_datetime_panel',
+              icon = icon('calendar-xmark'),
+              uiOutput('missing_datetime_ui')
+            ),
+            
+            accordion_panel(
+              'Extreme Times',
+              value = 'extreme_times_panel',
+              icon = icon('clock'),
+              uiOutput('extreme_times_ui')
+            )
+          )
+        )
       ),
       
       accordion_panel(
@@ -29,27 +51,6 @@ initial_checks_tab <- nav_panel(
         value = 'stations_panel',
         icon = icon('map-marker'),
         uiOutput('stations_ui')
-      )
-    )
-  )
-)
-
-final_checks_tab <- nav_panel(
-  'Final Checks',
-  br(),
-  
-  tags$div(
-    class = 'tab-sections',
-    
-    accordion(
-      open = FALSE,
-      multiple = TRUE,
-      
-      accordion_panel(
-        'Final Checks',
-        value = 'final_checks_panel',
-        icon = icon('check'),
-        p('Final checks will go here.')
       )
     )
   )

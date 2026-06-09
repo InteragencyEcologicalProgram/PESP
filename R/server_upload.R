@@ -1,12 +1,15 @@
 # ---- Upload tab server logic ----
 
 observe({
-  updateSelectInput(session, 'selected_survey', choices = names(schemas))
+  survey_names <- setdiff(names(schemas), 'testing')
+  updateSelectInput(session, 'selected_survey',
+                    choices = c('Select a survey...' = '', survey_names))
+  updateSelectInput(session, 'selected_preset',
+                    choices = c('Select a preset...' = '', 'PESP', 'Survey'))
 })
 
 observeEvent(input$selected_survey, {
   req(input$selected_survey)
-  updateSelectInput(session, 'selected_preset', choices = c('PESP', 'Survey'))
   reset_all()
 }, ignoreInit = TRUE)
 

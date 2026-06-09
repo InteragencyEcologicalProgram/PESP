@@ -1,9 +1,255 @@
 {
-  "survey": "Group A",
-  "code": "test",
+  "survey": "testing",
+  "description": "Data from BSA lab for DWR Yolo Bypass Fish Monitoring Program. Contains primary and continuation rows due to multiple measurement data types; all information is not related to measurements is blank in continuation rows.",
+  "code": "DWR-YBFMP",
+  "sampling_event_cols": ["Date", "Station", "Taxon"],
+  "presets": ["PESP", "Survey"],
+  "subset_cols": {
+    "PESP": ["Date", "Time", "Station", "SampleMethod", "SampleDepth", "OrigTaxon", "Taxon", "Kingdom", "Phylum", "Class", "AlgalGroup", "Genus", "Species", "Lab", "Cells_per_mL", "Units_per_mL", "Biovolume_per_mL", "GALD", "PhytoForm", "QualityCheck", "Debris", "Notes"],
+    "Survey": ["Date", "Time", "Station", "SampleMethod", "SampleDepth", "OrigTaxon", "Taxon", "Kingdom", "Phylum", "Class", "AlgalGroup", "Genus", "Species", "Lab", "Cells_per_mL", "Units_per_mL", "Biovolume_per_mL", "GALD", "PhytoForm", "QualityCheck", "Debris", "Notes"]
+  },
+  "combine_key_cols": ["Date", "Station"],
+  "combine_measurement_cols": ["Biovolume_per_mL", "Units_per_mL", "Cells_per_mL"],
+    "metadata_columns": {
+      "PESP":   ["SampleDepth", "Lab", "SampleMethod"],
+      "Survey": ["SampleMethod"]
+    },
+  "comment_col_defaults": {
+    "PESP":   ["QC", "Debris", "Notes"],
+    "Survey": ["QC"]
+  },
+  "steps": {
+    "correct_taxon_typos": {
+      "PESP": true,
+      "Survey": false
+    },
+    "standardize_unknowns": {
+      "PESP": { "std_sp": true, "std_suffix": true },
+      "Survey": { "std_sp": true, "std_suffix": true }
+    },
+    "higher_lvl_taxa": {
+      "PESP": "pesp",
+      "Survey": "program"
+    }
+  },
+  "sheet": "Sample Info",
+  "mapping": {
+    "Station":        "StationCode",
+    "Date":           "SampleDate",
+    "Time":           "SampleTime",
+    "FullCode":       "Full Code",
+    "Depth":          "Depth (m)",
+    "VolReceived":    "Volume Received (mL)",
+    "VolAnalyzed":    "Volume Analyzed (mL)",
+    "PctCounted":     "Percent of Sample Counted",
+    "FOV":            "Field-of-view (mm²)",
+    "SlideArea":      "Slide/ Chamber Area (mm²)",
+    "AreaCounted":    "Area Counted",
+    "FieldCount":     "Number of Fields Counted",
+    "Factor":         "Factor",
+    "TIN":            "BSA_TIN",
+    "Taxon":          "Taxon",
+    "AlgaeType":      "Diatom/SoftBody",
+    "Genus":          "Genus",
+    "Species":        "Species",
+    "Synonym":        "Synonym",
+    "UnitAbundance":  "Unit Abundance (# of Natural Units)",
+    "CellCount":      "Total Number of Cells",
+    "GALD":           "GALD 1",
+    "GALD2":          "GALD 2",
+    "GALD3":          "GALD 3",
+    "GroupCode":      "Colony/Filament/Individual Group Code",
+    "BSAID":          "BSA#",
+    "Taxonomist":     "Taxonomist",
+    "Comments":       "Comments",
+    "Shape":          "Shape",
+    "Biovolume1":     "Biovolume 1",
+    "Biovolume2":     "Biovolume 2",
+    "Biovolume3":     "Biovolume 3",
+    "Biovolume4":     "Biovolume 4",
+    "Biovolume5":     "Biovolume 5",
+    "Biovolume6":     "Biovolume 6",
+    "Biovolume7":     "Biovolume 7",
+    "Biovolume8":     "Biovolume 8",
+    "Biovolume9":     "Biovolume 9",
+    "Biovolume10":    "Biovolume 10",
+    "Dimension":      "Dimension",
+    "MeasureAvg":     "Measurement average",
+    "Measure1":       "Measurement 1",
+    "Measure2":       "Measurement 2",
+    "Measure3":       "Measurement 3",
+    "Measure4":       "Measurement 4",
+    "Measure5":       "Measurement 5",
+    "Measure6":       "Measurement 6",
+    "Measure7":       "Measurement 7",
+    "Measure8":       "Measurement 8"
+  },
   "columns": {
-    "Fruit":  { "type": "character" },
-    "Color":  { "type": "character" },
-    "Rating": { "type": "integer",   "min": 1, "max": 10 }
+    "MethodCode": {
+      "type": "character",
+      "required": false
+    },
+    "SampleDate": {
+      "type": "numeric",
+      "required": true,
+      "notes": "Excel serial date integer."
+    },
+    "SampleTime": {
+      "type": "numeric",
+      "required": true,
+      "min": 0,
+      "max": 1,
+      "notes": "Fraction of day."
+    },
+    "Full Code": {
+      "type": "character",
+      "required": true
+    },
+    "StationCode": {
+      "type": "character",
+      "required": true
+    },
+    "Depth (m)": {
+      "type": "numeric",
+      "required": true,
+      "min": 0
+    },
+    "Volume Received (mL)": {
+      "type": "numeric",
+      "required": true,
+      "min": 0
+    },
+    "Volume Analyzed (mL)": {
+      "type": "numeric",
+      "required": true,
+      "min": 0
+    },
+    "Percent of Sample Counted": {
+      "type": "numeric",
+      "required": true,
+      "min": 0,
+      "max": 1
+    },
+    "Field-of-view (mm²)": {
+      "type": "numeric",
+      "required": true,
+      "min": 0
+    },
+    "Slide/ Chamber Area (mm²)": {
+      "type": "numeric",
+      "required": false,
+      "min": 0
+    },
+    "Area Counted": {
+      "type": "numeric",
+      "required": false,
+      "min": 0
+    },
+    "Number of Fields Counted": {
+      "type": "integer",
+      "required": false,
+      "min": 0
+    },
+    "Factor": {
+      "type": "numeric",
+      "required": true,
+      "min": 0
+    },
+    "BSA_TIN": {
+      "type": "integer",
+      "required": false
+    },
+    "Taxon": {
+      "type": "character",
+      "required": true
+    },
+    "Diatom/SoftBody": {
+      "type": "character",
+      "required": false,
+      "allowed_values": ["Diatom", "Soft Body"]
+    },
+    "Genus": {
+      "type": "character",
+      "required": false
+    },
+    "Species": {
+      "type": "character",
+      "required": false
+    },
+    "Synonym": {
+      "type": "character",
+      "required": false
+    },
+    "Unit Abundance (# of Natural Units)": {
+      "type": "integer",
+      "required": false,
+      "min": 0
+    },
+    "Total Number of Cells": {
+      "type": "integer",
+      "required": false,
+      "min": 0
+    },
+    "GALD 1": {
+      "type": "numeric",
+      "required": false,
+      "min": 0
+    },
+    "GALD 2": {
+      "type": "numeric",
+      "required": false,
+      "min": 0
+    },
+    "GALD 3": {
+      "type": "numeric",
+      "required": false,
+      "min": 0
+    },
+    "Colony/Filament/Individual Group Code": {
+      "type": "character",
+      "required": false,
+      "allowed_values": ["i", "c", "f"]
+    },
+    "BSA#": {
+      "type": "character",
+      "required": false
+    },
+    "Taxonomist": {
+      "type": "character",
+      "required": false
+    },
+    "Comments": {
+      "type": "character",
+      "required": false
+    },
+    "Shape": {
+      "type": "character",
+      "required": false
+    },
+    "Biovolume 1":  { "type": "numeric", "required": false, "min": 0 },
+    "Biovolume 2":  { "type": "numeric", "required": false, "min": 0 },
+    "Biovolume 3":  { "type": "numeric", "required": false, "min": 0 },
+    "Biovolume 4":  { "type": "numeric", "required": false, "min": 0 },
+    "Biovolume 5":  { "type": "numeric", "required": false, "min": 0 },
+    "Biovolume 6":  { "type": "numeric", "required": false, "min": 0 },
+    "Biovolume 7":  { "type": "numeric", "required": false, "min": 0 },
+    "Biovolume 8":  { "type": "numeric", "required": false, "min": 0 },
+    "Biovolume 9":  { "type": "numeric", "required": false, "min": 0 },
+    "Biovolume 10": { "type": "numeric", "required": false, "min": 0 },
+    "Dimension": {
+      "type": "character",
+      "required": false,
+      "allowed_values": ["Length", "Width", "Depth"],
+      "notes": "Present on all rows including continuation rows."
+    },
+    "Measurement average": { "type": "numeric", "required": false, "min": 0 },
+    "Measurement 1":  { "type": "numeric", "required": false, "min": 0 },
+    "Measurement 2":  { "type": "numeric", "required": false, "min": 0 },
+    "Measurement 3":  { "type": "numeric", "required": false, "min": 0 },
+    "Measurement 4":  { "type": "numeric", "required": false, "min": 0 },
+    "Measurement 5":  { "type": "numeric", "required": false, "min": 0 },
+    "Measurement 6":  { "type": "numeric", "required": false, "min": 0 },
+    "Measurement 7":  { "type": "numeric", "required": false, "min": 0 },
+    "Measurement 8":  { "type": "numeric", "required": false, "min": 0 }
   }
 }

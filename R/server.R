@@ -7,6 +7,7 @@ server <- function(input, output, session) {
   merged_df               <- reactiveVal(NULL)
   full_dupes              <- reactiveVal(NULL)
   key_dupes               <- reactiveVal(NULL)
+  na_data                 <- reactiveVal(NULL)
   datetime_problems       <- reactiveVal(NULL)
   extreme_problems        <- reactiveVal(NULL)
   unstandardized_comments <- reactiveVal(NULL)
@@ -18,6 +19,7 @@ server <- function(input, output, session) {
     merged_df(NULL)
     full_dupes(NULL)
     key_dupes(NULL)
+    na_data(NULL)
     datetime_problems(NULL)
     extreme_problems(NULL)
     unstandardized_comments(NULL)
@@ -25,6 +27,8 @@ server <- function(input, output, session) {
   }
   
   source('R/server_upload.R',  local = TRUE)
-  source('R/server_checks.R',  local = TRUE)
+  source('R/server_inichecks.R',  local = TRUE)
   source('R/server_format.R',  local = TRUE)
+  source('R/server_finchecks.R',  local = TRUE)
+  source('R/server_export.R',  local = TRUE)
 }

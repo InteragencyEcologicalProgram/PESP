@@ -1,10 +1,11 @@
 # --- Group-specific formatting ---
 # Dispatch function: routes to the correct formatter by group name.
-# To add a new group: add a case to switch() and write a format_<groupname>() below.
 
 format_data <- function(df, survey) {
   switch(survey,
          'DWR-YBFMP (BSA)' = format_dwr_yolo_bsa(df),
+         'USGS-BP (BSA)' = format_usgs_bp_bsa(df),
+         'testing' = format_dwr_yolo_bsa(df),
          df
   )
 }
@@ -22,6 +23,20 @@ format_dwr_yolo_bsa <- function(df) {
   drop_cols <- grep('^(Dimension|Measure)', names(df), value = TRUE)
   df <- df[, !names(df) %in% drop_cols, drop = FALSE]
   
+  # remove rows where all values are NA
+  df <- df[rowSums(!is.na(df)) > 0, ]
+  
+  # remove old taxa info to avoid conflicts
+  df <- remove_taxa_info(df)
+  
+  df
+}
+
+format_usgs_bp_bsa <- function(df) {
+  # fix date
+  if ('Date' %in% names(df))
+    df$Date <- format(as.Date(df$Date, format = '%d/%m/%Y'), '%Y-%m-%d')
+ 
   # remove rows where all values are NA
   df <- df[rowSums(!is.na(df)) > 0, ]
   

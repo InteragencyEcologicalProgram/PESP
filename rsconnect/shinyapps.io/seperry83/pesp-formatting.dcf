@@ -1,0 +1,13 @@
+name: pesp-formatting
+title: pesp-formatting
+username: seperry83
+account: seperry83
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 17488639
+bundleId: 12105718
+url: https://seperry83.shinyapps.io/pesp-formatting/
+version: 1
+asMultiple: FALSE
+asStatic: FALSE
+ignoredFiles: admin

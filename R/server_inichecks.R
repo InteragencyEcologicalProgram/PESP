@@ -1,12 +1,18 @@
-# ---- Initial Checks tab server logic ----
+# ---- Checks tab server logic ----
 
-# ---- 1. Duplicate checks ----
+# ---- Duplicate checks ----
 
 output$duplicate_ui <- renderUI({
   if (is.null(merged_df())) {
     p('No data, process files first.')
   } else {
-    key_cols <- schemas[[current_groups()[1]]]$sampling_event_cols
+    schema  <- schemas[[current_groups()[1]]]
+    preset  <- input$selected_preset
+    applies <- isTRUE(schema$steps$duplicate_checks[[preset]]$applies)
+    
+    if (!applies) return(not_applicable_alert())
+    
+    key_cols <- schema$sampling_event_cols
     
     tagList(
       h5('Step 1: Full Row Duplicates'),
@@ -109,25 +115,23 @@ observeEvent(input$remove_full_dupes_btn, {
   })
 })
 
-# ---- 2. Date & Time checks ----
+# ---- Missing / Malformed Date & Time ----
 
-output$datetime_ui <- renderUI({
+output$missing_datetime_ui <- renderUI({
   if (is.null(merged_df())) {
     p('No data, process files first.')
   } else {
+    schema  <- schemas[[current_groups()[1]]]
+    preset  <- input$selected_preset
+    applies <- isTRUE(schema$steps$missing_datetime_checks[[preset]]$applies)
+    
+    if (!applies) return(not_applicable_alert())
+    
     tagList(
-      h5('Step 1: Missing / Malformed Date & Time'),
       p('Checks for missing or incorrectly formatted Date and Time values.'),
       actionButton('check_datetime_btn', 'Check Date & Time',
                    icon = icon('search'), class = 'btn-secondary'),
-      uiOutput('datetime_result'),
-      hr(),
-      h5('Step 2: Extreme Times'),
-      p('Assumes data is in military time. Flags times before 05:00 or after 20:00, which are likely errors.'),
-      p('0:00 may be used to indicate missing times.'),
-      actionButton('check_extreme_btn', 'Check Extreme Times',
-                   icon = icon('search'), class = 'btn-secondary'),
-      uiOutput('extreme_result')
+      uiOutput('datetime_result')
     )
   }
 })
@@ -153,6 +157,38 @@ observeEvent(input$check_datetime_btn, {
   })
 })
 
+output$datetime_table <- renderDT({
+  req(datetime_problems())
+  datatable(datetime_problems(), options = list(pageLength = 5, scrollX = TRUE))
+})
+
+output$download_datetime_btn <- downloadHandler(
+  filename = function() paste0('datetime_issues_', Sys.Date(), '.csv'),
+  content  = function(file) write.csv(datetime_problems(), file, row.names = FALSE)
+)
+
+# ---- Extreme Times ----
+
+output$extreme_times_ui <- renderUI({
+  if (is.null(merged_df())) {
+    p('No data, process files first.')
+  } else {
+    schema  <- schemas[[current_groups()[1]]]
+    preset  <- input$selected_preset
+    applies <- isTRUE(schema$steps$extreme_time_checks[[preset]]$applies)
+    
+    if (!applies) return(not_applicable_alert())
+    
+    tagList(
+      p('Assumes data is in military time. Flags times before 05:00 or after 20:00, which are likely errors.'),
+      p('0:00 may be used to indicate missing times.'),
+      actionButton('check_extreme_btn', 'Check Extreme Times',
+                   icon = icon('search'), class = 'btn-secondary'),
+      uiOutput('extreme_result')
+    )
+  }
+})
+
 observeEvent(input$check_extreme_btn, {
   problems <- check_extreme_times(merged_df())
   extreme_problems(problems)
@@ -176,20 +212,10 @@ observeEvent(input$check_extreme_btn, {
   })
 })
 
-output$datetime_table <- renderDT({
-  req(datetime_problems())
-  datatable(datetime_problems(), options = list(pageLength = 5, scrollX = TRUE))
-})
-
 output$extreme_table <- renderDT({
   req(extreme_problems())
   datatable(extreme_problems(), options = list(pageLength = 5, scrollX = TRUE))
 })
-
-output$download_datetime_btn <- downloadHandler(
-  filename = function() paste0('datetime_issues_', Sys.Date(), '.csv'),
-  content  = function(file) write.csv(datetime_problems(), file, row.names = FALSE)
-)
 
 output$download_extreme_btn <- downloadHandler(
   filename = function() paste0('extreme_times_', Sys.Date(), '.csv'),
@@ -218,12 +244,18 @@ observeEvent(input$convert_military_btn, {
   })
 })
 
-# ---- 3. Confirm stations ----
+# ---- Confirm stations ----
 
 output$stations_ui <- renderUI({
   if (is.null(merged_df())) {
     p('No data, process files first.')
   } else {
+    schema  <- schemas[[current_groups()[1]]]
+    preset  <- input$selected_preset
+    applies <- isTRUE(schema$steps$station_checks[[preset]]$applies)
+    
+    if (!applies) return(not_applicable_alert())
+    
     stations <- sort(unique(merged_df()$Station))
     tagList(
       p(paste(length(stations), 'unique station(s) found:')),
@@ -231,3 +263,57 @@ output$stations_ui <- renderUI({
     )
   }
 })
+
+# ---- Missing data check ----
+
+output$na_ui <- renderUI({
+  if (is.null(merged_df())) {
+    p('No data, process files first.')
+  } else {
+    schema  <- schemas[[current_groups()[1]]]
+    preset  <- input$selected_preset
+    applies <- isTRUE(schema$steps$na_checks[[preset]]$applies)
+    
+    if (!applies) return(not_applicable_alert())
+    
+    tagList(
+      h5('Missing Data'),
+      p('Check for missing values across all columns. Required columns should have no NAs; optional columns may have expected missingness.'),
+      actionButton('check_nas_btn', 'Check Missing Data',
+                   icon = icon('search'), class = 'btn-secondary'),
+      uiOutput('na_result')
+    )
+  }
+})
+
+observeEvent(input$check_nas_btn, {
+  df     <- merged_df()
+  df     <- check_nas(df)
+  na_log <- attr(df, 'log')$na_check
+  na_data(na_log)
+  
+  output$na_result <- renderUI({
+    if (is.null(na_log) || nrow(na_log) == 0) {
+      tagList(br(), p('✅ No missing values found.'))
+    } else {
+      tagList(
+        br(),
+        p(paste('⚠️', nrow(na_log), 'column(s) with missing values found.')),
+        downloadButton('download_nas_btn', 'Download Report',
+                       class = 'btn-secondary'),
+        br(), br(),
+        DTOutput('na_table')
+      )
+    }
+  })
+})
+
+output$na_table <- renderDT({
+  req(na_data())
+  datatable(na_data(), options = list(pageLength = 5, scrollX = TRUE))
+})
+
+output$download_nas_btn <- downloadHandler(
+  filename = function() paste0('missing_data_', Sys.Date(), '.csv'),
+  content  = function(file) write.csv(na_data(), file, row.names = FALSE)
+)

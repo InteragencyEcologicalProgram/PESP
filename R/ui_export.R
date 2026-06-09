@@ -1,5 +1,20 @@
 export_tab <- nav_panel(
   'Export',
   br(),
-  p('Export options will go here.')
+  
+  tags$div(
+    class = 'tab-sections',
+    
+    accordion(
+      open = 'export_panel',
+      multiple = TRUE,
+      
+      accordion_panel(
+        'Export Data',
+        value = 'export_panel',
+        icon = icon('download'),
+        uiOutput('export_ui')
+      )
+    )
+  )
 )

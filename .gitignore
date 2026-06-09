@@ -2,6 +2,9 @@
 .Rhistory
 .Rapp.history
 
+# renv
+renv/library/
+
 # Session Data files
 .RData
 
