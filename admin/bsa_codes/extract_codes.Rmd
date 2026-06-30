@@ -1,0 +1,56 @@
+```{r}
+library(tidyverse)
+library(pespr)
+```
+
+```{r}
+library(dplyr)
+library(readr)
+library(stringr)
+
+fp_bsa <- abs_pesp_path('Reference Documents/BSA Species List.csv')
+
+df_bsa_codes <- read_csv(fp_bsa) %>%
+  mutate(
+    Taxon = Taxon %>%
+      str_replace_all('\\bcf\\.?(?=\\s|$)\\s*', '') %>%
+      str_squish()
+  ) %>%
+  select(BSA_TIN, Taxon, Synonym_Change)
+
+df_codes <- df_bsa_codes %>%
+  distinct(BSA_TIN, Taxon, Synonym_Change)
+```
+
+```{r}
+colnames(df_bsa_codes)
+```
+
+```{r}
+tin_multi_taxon <- df_bsa_codes %>%
+  count(BSA_TIN, Taxon, Synonym_Change, name = "n_rows") %>%
+  group_by(BSA_TIN) %>%
+  filter(n() > 1 & is.na(Synonym_Change)) %>%
+  arrange(BSA_TIN, Taxon, Synonym_Change) %>%
+  ungroup()
+
+taxon_multi_tin <- df_bsa_codes %>%
+  count(Taxon, BSA_TIN, Synonym_Change, name = "n_rows") %>%
+  group_by(Taxon) %>%
+  filter(n() > 1) %>%
+  arrange(Taxon, BSA_TIN, Synonym_Change) %>%
+  ungroup()
+
+tin_multi_taxon
+taxon_multi_tin
+
+write_csv(tin_multi_taxon, 'C:/Users/sperry/Desktop/multi_taxon_per_tin.csv')
+```
+
+
+```{r}
+write_csv(tin_multi_taxon,'C:/Users/sperry/Desktop/extra_taxon.csv')
+write_csv(taxon_multi_tin, 'C:/Users/sperry/Desktop/extra_tin.csv')
+```
+
+

@@ -1,10 +1,12 @@
 # Check Groupings
 ```{r, message=FALSE, warning=FALSE}
 # import packages
-devtools::load_all()
 library(deltamapr)
 library(sp)
 library(sf)
+library(pespr)
+library(tidyverse)
+library(openxlsx)
 ```
 
 ```{r}
@@ -15,6 +17,97 @@ df_pesp <- read_csv(abs_pesp_path('Synthesized Dataset/02 Processed Data/PESP_da
 
 sf_delta <- R_EDSM_Subregions_Mahardja
 ```
+
+# HAB BAB Study
+
+Count Method (Taxa): field
+Depth Type: near surface
+Density: Unit
+Survey: DWR-EMP, USBR-DOP
+Time: 2008-2024
+
+```{r}
+unique(df_pesp$Survey)
+```
+
+
+```{r}
+df_std <- df_pesp %>%
+  filter(Survey %in% c('DWR-EMP', 'USGS-BP'),
+         DepthType == 'near surface',
+         Date > as.Date('2008-01-01')
+  ) %>%
+  group_by(Event_ID, Survey, Station, Date, Magnification, SampleMethod, Lab, AlgalGroup, Latitude, Longitude) %>%
+  summarize(Units_per_mL = sum(Units_per_mL)) %>%
+  ungroup() %>%
+  filter(!is.na(Latitude) & !is.na(Longitude)) %>%
+  mutate(YearMonth = paste0(year(Date),'-',month(Date)),
+         Year = year(Date))
+
+df_std %>%
+  distinct(Lab, Survey, Magnification, SampleMethod)
+```
+
+```{r}
+sf_std <- convert_to_sf(df_std, sf_delta)
+
+sf_plt <- sf_std %>%
+  distinct(Survey, Region, geometry)
+
+ggplot() +
+  geom_sf(data = sf_delta) +
+  geom_sf(data = sf_plt, aes(shape = Region, fill = Survey), size = 3, alpha = 0.7) +
+  scale_shape_manual(values = c(21, 22, 23, 24, 25, 25)) +
+  guides(fill = guide_legend(override.aes = list(shape = 21, color = 'black')))
+
+df_std %>%
+  distinct(Lab, Survey, Magnification, SampleMethod)
+```
+```{r}
+df_std.1 <- as_tibble(sf_std) %>%
+  mutate(Year = factor(year(Date)),
+         YearMonth = paste0(year(Date),'-',month(Date))) %>%
+  group_by(YearMonth, Region) %>%
+  filter(n_distinct(Survey) > 1) %>%
+  ungroup()
+
+# check data
+sf_std.1 <- sf_std %>%
+  mutate(Year = factor(year(Date)),
+         YearMonth = paste0(year(Date),'-',month(Date))) %>%
+  group_by(YearMonth, Region) %>%
+  filter(n_distinct(Survey) > 1) %>%
+  ungroup() %>%
+  distinct(Survey, Region, geometry)
+
+ggplot() +
+  geom_sf(data = sf_delta) +
+  geom_sf(data = sf_std.1, aes(shape = Region, fill = Survey), size = 3, alpha = 0.7) +
+  scale_shape_manual(values = c(21, 23, 22, 24, 25, 25)) +
+  guides(fill = guide_legend(override.aes = list(shape = 21, color = 'black')))
+```
+
+```{r}
+com_std <- create_mcom(df_std.1,
+                        group_var = c('Survey','Region','YearMonth'),
+                        avg_var = 'Station',
+                        taxa_var = 'AlgalGroup',
+                        factor_var = c('Lab'),
+                        measure_var = 'Units_per_mL',
+                        distance = 'jaccard')
+```
+```{r}
+nmds_std.1 <- calc_nmds(df_std.1,
+                        group_var = c('Survey','Region','YearMonth'),
+                        avg_var = c('Station','Lab'),
+                        taxa_var = 'AlgalGroup',
+                        factor_var = c('Lab'),
+                        measure_var = 'Units_per_mL',
+                        distance = 'jaccard')
+```
+
+
+
 
 # Group A
 
@@ -66,6 +159,7 @@ ggplot() +
 df_gA %>%
   distinct(Lab, Survey, Magnification, SampleMethod)
 ```
+
 ### Map (Overlap)
 
 ```{r}

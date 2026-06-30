@@ -5,6 +5,7 @@ format_data <- function(df, survey) {
   switch(survey,
          'DWR-YBFMP (BSA)' = format_dwr_yolo_bsa(df),
          'USGS-BP (BSA)' = format_usgs_bp_bsa(df),
+         'DWR-DEMP (BSA)' = format_dwr_demp_bsa(df),
          'testing' = format_dwr_yolo_bsa(df),
          df
   )
@@ -37,6 +38,28 @@ format_usgs_bp_bsa <- function(df) {
   if ('Date' %in% names(df))
     df$Date <- format(as.Date(df$Date, format = '%d/%m/%Y'), '%Y-%m-%d')
  
+  # remove rows where all values are NA
+  df <- df[rowSums(!is.na(df)) > 0, ]
+  
+  # remove old taxa info to avoid conflicts
+  df <- remove_taxa_info(df)
+  
+  df
+}
+
+format_dwr_demp_bsa <- function(df) {
+  # fix date
+  if ('Date' %in% names(df))
+    df$Date <- format(as.Date(as.numeric(df$Date), origin = '1899-12-30'), '%Y-%m-%d')
+  
+  # fix time
+  if ('Time' %in% names(df))
+    df$Time <- format(as.POSIXct(df$Time), '%H:%M')
+  
+  # remove Dimension and all Measurement columns
+  drop_cols <- grep('^(Dimension|Measure)', names(df), value = TRUE)
+  df <- df[, !names(df) %in% drop_cols, drop = FALSE]
+  
   # remove rows where all values are NA
   df <- df[rowSums(!is.na(df)) > 0, ]
   
